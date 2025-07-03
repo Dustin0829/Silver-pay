@@ -444,14 +444,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ isAgentForm = false }
           />
         </div>
       </div>
-    </div>
-  );
-
-  const renderAddressAndFamily = () => (
-    <div className="space-y-8">
-      {/* Mother's Details */}
+      {/* Mother's Maiden Name */}
       <div>
-        <h3 className="text-2xl font-semibold text-gray-900 mb-6">Mother's Maiden Name</h3>
+        <h3 className="text-xl font-semibold text-gray-900 mb-4">Mother's Maiden Name</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
@@ -494,67 +489,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ isAgentForm = false }
           </div>
         </div>
       </div>
-
-      {/* Permanent Address */}
-      <div>
-        <h3 className="text-2xl font-semibold text-gray-900 mb-6">Permanent Home Address</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Street/Purok/Subdivision</label>
-            <input
-              type="text"
-              value={formData.permanentAddress?.street || ''}
-              onChange={(e) => handleInputChange('permanentAddress', 'street', e.target.value)}
-              className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Barangay</label>
-            <input
-              type="text"
-              value={formData.permanentAddress?.barangay || ''}
-              onChange={(e) => handleInputChange('permanentAddress', 'barangay', e.target.value)}
-              className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
-            <input
-              type="text"
-              value={formData.permanentAddress?.city || ''}
-              onChange={(e) => handleInputChange('permanentAddress', 'city', e.target.value)}
-              className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Zip Code</label>
-            <input
-              type="text"
-              value={formData.permanentAddress?.zipCode || ''}
-              onChange={(e) => handleInputChange('permanentAddress', 'zipCode', e.target.value)}
-              className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Years of Stay</label>
-            <input
-              type="text"
-              value={formData.permanentAddress?.yearsOfStay || ''}
-              onChange={(e) => handleInputChange('permanentAddress', 'yearsOfStay', e.target.value)}
-              className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
-              required
-            />
-          </div>
-        </div>
-      </div>
-
       {/* Spouse Details */}
       <div>
-        <h3 className="text-2xl font-semibold text-gray-900 mb-6">Spouse Details</h3>
+        <h3 className="text-xl font-semibold text-gray-900 mb-4">Spouse Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
@@ -607,10 +544,9 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ isAgentForm = false }
           </div>
         </div>
       </div>
-
       {/* Personal Reference */}
       <div>
-        <h3 className="text-2xl font-semibold text-gray-900 mb-6">Personal Reference</h3>
+        <h3 className="text-xl font-semibold text-gray-900 mb-4">Personal Reference</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
@@ -667,6 +603,67 @@ const ApplicationForm: React.FC<ApplicationFormProps> = ({ isAgentForm = false }
               type="text"
               value={formData.personalReference?.relationship || ''}
               onChange={(e) => handleInputChange('personalReference', 'relationship', e.target.value)}
+              className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+              required
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAddressAndFamily = () => (
+    <div className="space-y-8">
+      {/* Permanent Address */}
+      <div>
+        <h3 className="text-2xl font-semibold text-gray-900 mb-6">Permanent Home Address</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Street/Purok/Subdivision</label>
+            <input
+              type="text"
+              value={formData.permanentAddress?.street || ''}
+              onChange={(e) => handleInputChange('permanentAddress', 'street', e.target.value)}
+              className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Barangay</label>
+            <input
+              type="text"
+              value={formData.permanentAddress?.barangay || ''}
+              onChange={(e) => handleInputChange('permanentAddress', 'barangay', e.target.value)}
+              className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+            <input
+              type="text"
+              value={formData.permanentAddress?.city || ''}
+              onChange={(e) => handleInputChange('permanentAddress', 'city', e.target.value)}
+              className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Zip Code</label>
+            <input
+              type="text"
+              value={formData.permanentAddress?.zipCode || ''}
+              onChange={(e) => handleInputChange('permanentAddress', 'zipCode', e.target.value)}
+              className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Years of Stay</label>
+            <input
+              type="text"
+              value={formData.permanentAddress?.yearsOfStay || ''}
+              onChange={(e) => handleInputChange('permanentAddress', 'yearsOfStay', e.target.value)}
               className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
               required
             />

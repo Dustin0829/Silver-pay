@@ -36,7 +36,7 @@ const Login: React.FC = () => {
         <div className="text-center mb-8">
           <LogIn className="h-12 w-12 text-blue-700 mx-auto mb-4" />
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Portal Login</h2>
-          <p className="text-gray-600 mt-2">Access your Silver Pay dashboard</p>
+          <p className="text-gray-600 mt-2">Access your SilverCard dashboard</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -94,8 +94,8 @@ const Login: React.FC = () => {
         <div className="mt-8 p-4 bg-gray-50 rounded-lg">
           <h3 className="font-semibold text-gray-700 mb-2">Demo Credentials:</h3>
           <div className="text-sm text-gray-600 space-y-1">
-            <p><strong>Admin:</strong> admin@silverpay.com / admin123</p>
-            <p><strong>Agent:</strong> agent@silverpay.com / agent123</p>
+            <p><strong>Admin:</strong> admin@silvercard.com / admin123</p>
+            <p><strong>Agent:</strong> agent@silvercard.com / agent123</p>
           </div>
         </div>
 

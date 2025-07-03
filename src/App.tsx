@@ -9,6 +9,10 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ApplicationForm from './components/ApplicationForm';
 import ApplicationSuccess from './pages/ApplicationSuccess';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
+import Contact from './pages/Contact';
+import CreditCards from './pages/CreditCards';
 
 function App() {
   return (
@@ -64,6 +68,10 @@ function App() {
                   </div>
                 } 
               />
+              <Route path="privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="terms-of-service" element={<TermsOfService />} />
+              <Route path="contact" element={<Contact />} />
+              <Route path="credit-cards" element={<CreditCards />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

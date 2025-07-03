@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Shield, Clock, Users, Star, CreditCard, CheckCircle, ArrowRight, TrendingUp, Award, Zap } from 'lucide-react';
-import Header from '../components/Header';
 import RCBCLogo from '../assets/banks/RCBC.jpg';
 import MetrobankLogo from '../assets/banks/metrobank.jpeg';
 import EastWestLogo from '../assets/banks/eastwest.webp';
@@ -27,7 +26,6 @@ const Landing: React.FC = () => {
 
   return (
     <div className="min-h-screen overflow-x-hidden">
-      <Header />
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-gray-50 to-blue-50 relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
@@ -89,7 +87,7 @@ const Landing: React.FC = () => {
                 {/* Main Credit Card */}
                 <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-purple-700 rounded-2xl p-8 text-white shadow-2xl transform rotate-3 hover:rotate-0 transition-transform duration-500 w-85 h-80 flex flex-col justify-between">
                   <div className="flex justify-between items-start mb-4">
-                    <div className="text-2xl font-bold">Silver Pay</div>
+                    <div className="text-2xl font-bold">SilverCard</div>
                   </div>
                   <div className="space-y-4">
                     <div className="text-2xl font-mono tracking-wider -mt-30">
@@ -235,7 +233,7 @@ const Landing: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">What Our Clients Say</h2>
-            <p className="text-xl text-gray-600">Join thousands of satisfied customers who trust Silver Pay</p>
+            <p className="text-xl text-gray-600">Join thousands of satisfied customers who trust SilverCard</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
@@ -246,7 +244,7 @@ const Landing: React.FC = () => {
                 ))}
               </div>
               <p className="text-gray-600 mb-6 leading-relaxed">
-                "Silver Pay made getting my first credit card incredibly easy! The process was smooth, 
+                "SilverCard made getting my first credit card incredibly easy! The process was smooth, 
                 transparent, and I got approved within 2 days. Their team was very professional and helpful."
               </p>
               <div className="flex items-center">
@@ -288,7 +286,7 @@ const Landing: React.FC = () => {
                 ))}
               </div>
               <p className="text-gray-600 mb-6 leading-relaxed">
-                "I was impressed with how professional and efficient Silver Pay is. They guided me through 
+                "I was impressed with how professional and efficient SilverCard is. They guided me through 
                 every step and made sure I understood all the terms. Highly recommended!"
               </p>
               <div className="flex items-center">
@@ -312,7 +310,7 @@ const Landing: React.FC = () => {
             Ready to Get Your Premium Credit Card?
           </h2>
           <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Join over 50,000 satisfied customers who have successfully obtained their credit cards through Silver Pay. 
+            Join over 50,000 satisfied customers who have successfully obtained their credit cards through SilverCard. 
             Start your application today and get approved in 24 hours.
           </p>
           <Link
@@ -323,25 +321,6 @@ const Landing: React.FC = () => {
           </Link>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          <div className="">
-            <div className="flex flex-col md:flex-row justify-between items-center">
-              <p className="text-gray-400 text-sm">
-                &copy; 2025 Silver Pay. All rights reserved.
-              </p>
-              <div className="flex space-x-6 mt-4 md:mt-0">
-                <a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">Privacy Policy</a>
-                <a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">Terms of Service</a>
-                <a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">Contact Us</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };

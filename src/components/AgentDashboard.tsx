@@ -378,7 +378,7 @@ const AgentDashboard: React.FC = () => {
           </button>
           {/* Centered Title */}
           <div className="flex-1 flex flex-col items-center">
-            <div className="text-xl font-bold text-gray-900">Silver Pay</div>
+            <div className="text-xl font-bold text-gray-900">SilverCard</div>
             <div className="text-xs text-gray-500">Credit Card Management System</div>
           </div>
           {/* Logout button */}
