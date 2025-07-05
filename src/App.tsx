@@ -14,7 +14,7 @@ import TermsOfService from './pages/TermsOfService';
 import Contact from './pages/Contact';
 import CreditCards from './pages/CreditCards';
 
-function App() {
+function App() {  
   return (
     <AuthProvider>
       <ApplicationProvider>
