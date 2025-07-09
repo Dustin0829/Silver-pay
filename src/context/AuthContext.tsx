@@ -1,49 +1,52 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { User } from '../types';
+import { supabase } from '../supabaseClient';
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock users for demo
-const mockUsers: (User & { password: string })[] = [
-  {
-    id: '1',
-    email: 'admin@silverpay.com',
-    password: 'admin123',
-    role: 'admin',
-    name: 'Admin User',
-    createdAt: new Date(),
-  },
-  {
-    id: '2',
-    email: 'agent@silverpay.com',
-    password: 'agent123',
-    role: 'agent',
-    name: 'Agent User',
-    createdAt: new Date(),
-  },
-];
-
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
 
   const login = async (email: string, password: string): Promise<boolean> => {
-    const foundUser = mockUsers.find(u => u.email === email && u.password === password);
-    if (foundUser) {
-      const { password: _, ...userWithoutPassword } = foundUser;
-      setUser(userWithoutPassword);
-      return true;
+    // Sign in with Supabase Auth
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error || !data.session) {
+      console.error('Auth error:', error?.message);
+      return false;
     }
-    return false;
+    // Fetch user profile from 'users' table using id
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+    if (profileError || !profile) {
+      console.error('Profile error:', profileError?.message);
+      return false;
+    }
+    // Map to app User type
+    setUser({
+      id: profile.id, // Use id from table
+      email: profile.email,
+      name: profile.display_name || profile.name, // Handle potential column name variation
+      role: profile.role,
+      createdAt: new Date(profile.created_at || data.user.created_at),
+    });
+    return true;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
   };
 

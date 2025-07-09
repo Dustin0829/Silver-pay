@@ -387,14 +387,6 @@ const AdminDashboard: React.FC = () => {
     <div>
       <h2 className="text-2xl font-bold mb-2">Client Applications</h2>
       <p className="text-gray-600 mb-6">Review and manage credit card applications</p>
-      <div className="flex items-center mb-4 gap-4">
-        <label className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 cursor-pointer">
-          Import Excel/CSV
-          <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImportFile} className="hidden" />
-        </label>
-        <button onClick={exportToExcel} className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 ml-2">Export Excel/CSV</button>
-        <span className="text-xs text-gray-500">(Import or export client applications in bulk)</span>
-      </div>
       <div className="bg-white rounded-xl shadow-md w-full overflow-x-hidden">
         <div className="w-full">
           {/* Desktop Table */}
