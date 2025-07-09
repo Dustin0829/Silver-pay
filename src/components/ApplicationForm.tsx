@@ -47,14 +47,18 @@ const ApplicationForm = ({ isAgentForm = false }) => {
   const uploadWithRetry = async (file, pathPrefix) => {
     for (let attempt = 1; attempt <= 3; attempt++) {
       console.log(`Uploading ${file.name} (Attempt ${attempt})`);
+      const filePath = `${pathPrefix}/${file.name}_${Date.now()}`;
       const { data, error } = await supabase.storage
         .from('application-documents')
-        .upload(`${pathPrefix}/${file.name}_${Date.now()}`, file, {
+        .upload(filePath, file, {
           upsert: false,
         });
       if (!error) {
         console.log(`${file.name} uploaded successfully:`, data.path);
-        return data.path;
+        const { data: publicUrlData } = supabase.storage
+          .from('application-documents')
+          .getPublicUrl(filePath);
+        return publicUrlData.publicUrl;
       }
       console.error(`${file.name} Upload Error (Attempt ${attempt}):`, {
         message: error.message,
@@ -74,16 +78,6 @@ const ApplicationForm = ({ isAgentForm = false }) => {
     const missing = validateStep();
     if (missing.length > 0) {
       setToast({ show: true, message: 'Fill all the requirements' });
-      return;
-    }
-
-    // Check if bucket exists and create if not
-    const { error: bucketError } = await supabase.storage.createBucket('application-documents', {
-      public: true,
-    });
-    if (bucketError && bucketError.message !== 'The resource already exists') {
-      console.error('Bucket Creation Error:', bucketError);
-      setToast({ show: true, message: `Error setting up storage: ${bucketError.message}` });
       return;
     }
 
@@ -120,10 +114,10 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       submitted_by: null,
       status: formData.status,
     };
-    console.log('Inserting data into applications table:', JSON.stringify(insertData, null, 2));
+    console.log('Inserting data into application_form table:', JSON.stringify(insertData, null, 2));
 
     // Insert data into Supabase
-    const { error, data } = await supabase.from('applications').insert(insertData);
+    const { error, data } = await supabase.from('application_form').insert(insertData);
     if (error) {
       console.error('Application Insert Error:', {
         message: error.message,
@@ -182,16 +176,20 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       if (!pa.zipCode) missing.push('Zip Code');
       if (!pa.yearsOfStay) missing.push('Years of Stay');
       const sp = formData.spouseDetails;
-      if (!sp.lastName) missing.push('Spouse Last Name');
-      if (!sp.firstName) missing.push('Spouse First Name');
-      if (!sp.middleName) missing.push('Spouse Middle Name');
-      if (!sp.mobileNumber) missing.push('Spouse Mobile Number');
+      if (sp.lastName || sp.firstName || sp.middleName || sp.mobileNumber) {
+        if (!sp.lastName) missing.push('Spouse Last Name');
+        if (!sp.firstName) missing.push('Spouse First Name');
+        if (!sp.middleName) missing.push('Spouse Middle Name');
+        if (!sp.mobileNumber) missing.push('Spouse Mobile Number');
+      }
       const pr = formData.personalReference;
-      if (!pr.lastName) missing.push('Reference Last Name');
-      if (!pr.firstName) missing.push('Reference First Name');
-      if (!pr.middleName) missing.push('Reference Middle Name');
-      if (!pr.mobileNumber) missing.push('Reference Mobile Number');
-      if (!pr.relationship) missing.push('Reference Relationship');
+      if (pr.lastName || pr.firstName || pr.middleName || pr.mobileNumber || pr.relationship) {
+        if (!pr.lastName) missing.push('Reference Last Name');
+        if (!pr.firstName) missing.push('Reference First Name');
+        if (!pr.middleName) missing.push('Reference Middle Name');
+        if (!pr.mobileNumber) missing.push('Reference Mobile Number');
+        if (!pr.relationship) missing.push('Reference Relationship');
+      }
     } else if (currentStep === 3) {
       const wd = formData.workDetails;
       if (!wd.businessEmployerName) missing.push('Business/Employer Name');
@@ -222,6 +220,9 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       const bp = formData.bankPreferences;
       const anyBank = Object.values(bp).some(Boolean);
       if (!anyBank) missing.push('At least one Bank Preference');
+    } else if (currentStep === 5) {
+      if (!idPhoto) missing.push('ID Photo');
+      if (!eSignature) missing.push('E-Signature');
     }
     return missing;
   };
@@ -280,7 +281,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
         <div><label className="block text-sm font-medium text-gray-700 mb-2">TIN</label><input type="text" value={formData.personalDetails.tin} onChange={(e) => handleInputChange('personalDetails', 'tin', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
       </div>
       <div><h3 className="text-xl font-semibold text-gray-700 mb-4">Mother's Maiden Name</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6"><div><label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label><input type="text" value={formData.motherDetails.lastName} onChange={(e) => handleInputChange('motherDetails', 'lastName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">First Name</label><input type="text" value={formData.motherDetails.firstName} onChange={(e) => handleInputChange('motherDetails', 'firstName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Middle Name</label><input type="text" value={formData.motherDetails.middleName} onChange={(e) => handleInputChange('motherDetails', 'middleName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Suffix</label><input type="text" value={formData.motherDetails.suffix} onChange={(e) => handleInputChange('motherDetails', 'suffix', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div></div></div>
-      <div><h3 className="text-xl font-semibold text-gray-700 mb-4">Spouse Details</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6"><div><label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label><input type="text" value={formData.spouseDetails.lastName} onChange={(e) => handleInputChange('spouseDetails', 'lastName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">First Name</label><input type="text" value={formData.spouseDetails.firstName} onChange={(e) => handleInputChange('spouseDetails', 'firstName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Middle Name</label><input type="text" value={formData.spouseDetails.middleName} onChange={(e) => handleInputChange('spouseDetails', 'middleName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Suffix</label><input type="text" value={formData.spouseDetails.suffix} onChange={(e) => handleInputChange('spouseDetails', 'suffix', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Mobile Number</label><input type="tel" value={formData.spouseDetails.mobileNumber} onChange={(e) => handleInputChange('spouseDetails', 'mobileNumber', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div></div></div>
+      <div><h3 className="text-xl font-semibold text-gray-700 mb-4">Spouse Details</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6"><div><label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label><input type="text" value={formData.spouseDetails.lastName} onChange={(e) => handleInputChange('spouseDetails', 'lastName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">First Name</label><input type="text" value={formData.spouseDetails.firstName} onChange={(e) => handleInputChange('spouseDetails', 'firstName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Middle Name</label><input type="text" value={formData.spouseDetails.middleName} onChange={(e) => handleInputChange('spouseDetails', 'middleName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Suffix</label><input type="text" value={formData.spouseDetails.suffix} onChange={(e) => handleInputChange('spouseDetails', 'suffix', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Mobile Number</label><input type="tel" value={formData.spouseDetails.mobileNumber} onChange={(e) => handleInputChange('spouseDetails', 'mobileNumber', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div></div></div>
       <div><h3 className="text-xl font-semibold text-gray-700 mb-4">Personal Reference</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6"><div><label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label><input type="text" value={formData.personalReference.lastName} onChange={(e) => handleInputChange('personalReference', 'lastName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">First Name</label><input type="text" value={formData.personalReference.firstName} onChange={(e) => handleInputChange('personalReference', 'firstName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Middle Name</label><input type="text" value={formData.personalReference.middleName} onChange={(e) => handleInputChange('personalReference', 'middleName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Suffix</label><input type="text" value={formData.personalReference.suffix} onChange={(e) => handleInputChange('personalReference', 'suffix', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Mobile Number</label><input type="tel" value={formData.personalReference.mobileNumber} onChange={(e) => handleInputChange('personalReference', 'mobileNumber', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Relationship</label><input type="text" value={formData.personalReference.relationship} onChange={(e) => handleInputChange('personalReference', 'relationship', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div></div></div>
     </div>
   );
@@ -319,8 +320,8 @@ const ApplicationForm = ({ isAgentForm = false }) => {
     <div className="flex flex-col items-center justify-center min-h-[300px]">
       <div className="w-full max-w-xl bg-white rounded-xl shadow-md p-8 border border-gray-200">
         <h3 className="text-2xl font-bold text-gray-700 mb-6 text-center">Upload Documents</h3>
-        <div className="mb-8"><label className="block text-base font-semibold text-gray-700 mb-3">Upload Valid ID Photo <span className="text-red-500">*</span></label><div className="flex flex-col items-center justify-center border-2 border-dashed border-blue-400 rounded-lg p-6 bg-blue-50 hover:bg-blue-100 transition-colors"><svg className="w-10 h-10 text-blue-500 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h10a4 4 0 004-4M7 10l5-5m0 0l5 5m-5-5v12" /></svg><input type="file" accept="image/png, image/jpeg, image/jpg, image/webp" onChange={e => {const file = e.target.files?.[0]; if (file && file.size > 25 * 1024 * 1024) {setToast({ show: true, message: 'ID photo must be less than 25MB' }); e.target.value = ''; setIdPhoto(null); return;} setIdPhoto(file || null);}} className="hidden" id="idPhotoUpload" required /><label htmlFor="idPhotoUpload" className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">Choose File</label>{idPhoto && <span className="mt-2 text-green-700 text-sm font-medium">{idPhoto.name}</span>}{!idPhoto && <span className="mt-2 text-gray-500 text-xs">PNG, JPG, JPEG, WEBP up to 25MB</span>}</div></div>
-        <div className="mb-8"><label className="block text-base font-semibold text-gray-700 mb-3">Upload E-signature Photo <span className="text-red-500">*</span></label><div className="flex flex-col items-center justify-center border-2 border-dashed border-blue-400 rounded-lg p-6 bg-blue-50 hover:bg-blue-100 transition-colors"><svg className="w-10 h-10 text-blue-500 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h10a4 4 0 004-4M7 10l5-5m0 0l5 5m-5-5v12" /></svg><input type="file" accept="image/png, image/jpeg, image/jpg, image/webp" onChange={e => {const file = e.target.files?.[0]; if (file && file.size > 25 * 1024 * 1024) {setToast({ show: true, message: 'E-signature photo must be less than 25MB' }); e.target.value = ''; setESignature(null); return;} setESignature(file || null);}} className="hidden" id="eSignatureUpload" required /><label htmlFor="eSignatureUpload" className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">Choose File</label>{eSignature && <span className="mt-2 text-green-700 text-sm font-medium">{eSignature.name}</span>}{!eSignature && <span className="mt-2 text-gray-500 text-xs">PNG, JPG, JPEG, WEBP up to 25MB</span>}</div></div>
+        <div className="mb-8"><label className="block text-base font-semibold text-gray-700 mb-3">Upload Valid ID Photo <span className="text-red-500">*</span></label><div className="flex flex-col items-center justify-center border-2 border-dashed border-blue-400 rounded-lg p-6 bg-blue-50 hover:bg-blue-100 transition-colors"><svg className="w-10 h-10 text-blue-500 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h10a4 4 0 004-4M7 10l5-5m0 0l5 5m-5-5v12" /></svg><input type="file" accept="image/png, image/jpeg, image/jpg, image/webp" onChange={e => {const file = e.target.files?.[0]; if (file && (file.size > 25 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type))) {setToast({ show: true, message: 'ID photo must be PNG, JPG, JPEG, or WEBP and less than 25MB' }); e.target.value = ''; setIdPhoto(null); return;} setIdPhoto(file || null);}} className="hidden" id="idPhotoUpload" required /><label htmlFor="idPhotoUpload" className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">Choose File</label>{idPhoto && <span className="mt-2 text-green-700 text-sm font-medium">{idPhoto.name}</span>}{!idPhoto && <span className="mt-2 text-gray-500 text-xs">PNG, JPG, JPEG, WEBP up to 25MB</span>}</div></div>
+        <div className="mb-8"><label className="block text-base font-semibold text-gray-700 mb-3">Upload E-signature Photo <span className="text-red-500">*</span></label><div className="flex flex-col items-center justify-center border-2 border-dashed border-blue-400 rounded-lg p-6 bg-blue-50 hover:bg-blue-100 transition-colors"><svg className="w-10 h-10 text-blue-500 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h10a4 4 0 004-4M7 10l5-5m0 0l5 5m-5-5v12" /></svg><input type="file" accept="image/png, image/jpeg, image/jpg, image/webp" onChange={e => {const file = e.target.files?.[0]; if (file && (file.size > 25 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type))) {setToast({ show: true, message: 'E-signature photo must be PNG, JPG, JPEG, or WEBP and less than 25MB' }); e.target.value = ''; setESignature(null); return;} setESignature(file || null);}} className="hidden" id="eSignatureUpload" required /><label htmlFor="eSignatureUpload" className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">Choose File</label>{eSignature && <span className="mt-2 text-green-700 text-sm font-medium">{eSignature.name}</span>}{!eSignature && <span className="mt-2 text-gray-500 text-xs">PNG, JPG, JPEG, WEBP up to 25MB</span>}</div></div>
       </div>
     </div>
   );
