@@ -90,15 +90,6 @@ const Login: React.FC = () => {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-
-        <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-          <h3 className="font-semibold text-gray-700 mb-2">Demo Credentials:</h3>
-          <div className="text-sm text-gray-600 space-y-1">
-            <p><strong>Admin:</strong> admin@silvercard.com / admin123</p>
-            <p><strong>Agent:</strong> agent@silvercard.com / agent123</p>
-          </div>
-        </div>
-
         <div className="mt-6 text-center">
           <Link to="/" className="text-blue-700 hover:text-blue-800 text-sm">
             ← Back to Home

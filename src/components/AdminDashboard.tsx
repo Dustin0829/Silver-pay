@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, FileText, BarChart3, Settings, Plus, Check, X, Eye, Edit, LogOut, User, Clock, CheckCircle, List, History, Trash2, Download, Menu } from 'lucide-react';
 import { useApplications } from '../context/ApplicationContext';
 import { useAuth } from '../context/AuthContext';
@@ -8,130 +8,25 @@ import Logo from '../assets/Company/Logo.png';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
-
-// Restore mockApplications array
-const mockApplications = [
-  {
-    id: 1,
-    name: 'John Doe',
-    email: 'john.doe@email.com',
-    date: '6/22/2025',
-    time: '9:51:46 PM',
-    status: 'pending',
-    submittedBy: 'Direct',
-    location: '',
-    agent: '',
-    remarks: '',
-    bankApplied: '',
-    personalDetails: {
-      lastName: 'Doe',
-      firstName: 'John',
-      middleName: 'A',
-      suffix: '',
-      dateOfBirth: '1990-01-01',
-      placeOfBirth: 'Manila',
-      gender: 'Male',
-      civilStatus: 'Single',
-      nationality: 'Filipino',
-      mobileNumber: '09171234567',
-      homeNumber: '1234567',
-      emailAddress: 'john.doe@email.com',
-      sssGsisUmid: '123-45-6789',
-      tin: '987-65-4321',
-    },
-    motherDetails: {
-      lastName: 'Smith',
-      firstName: 'Jane',
-      middleName: 'B',
-      suffix: '',
-    },
-    permanentAddress: {
-      street: '123 Main St',
-      barangay: 'Barangay 1',
-      city: 'Quezon City',
-      zipCode: '1100',
-      yearsOfStay: '5',
-    },
-    spouseDetails: {
-      lastName: '',
-      firstName: '',
-      middleName: '',
-      suffix: '',
-      mobileNumber: '',
-    },
-    personalReference: {
-      lastName: 'Reyes',
-      firstName: 'Carlos',
-      middleName: 'C',
-      suffix: '',
-      mobileNumber: '09181234567',
-      relationship: 'Friend',
-    },
-    workDetails: {
-      businessEmployerName: 'ABC Corp',
-      professionOccupation: 'Engineer',
-      natureOfBusiness: 'IT',
-      department: 'Development',
-      landlineMobile: '2345678',
-      yearsInBusiness: '3',
-      monthlyIncome: '50000',
-      annualIncome: '600000',
-      address: {
-        street: '456 Office St',
-        barangay: 'Barangay 2',
-        city: 'Makati',
-        zipCode: '1200',
-        unitFloor: '10F',
-        buildingTower: 'Tower 1',
-        lotNo: 'Lot 5',
-      },
-    },
-    creditCardDetails: {
-      bankInstitution: 'BPI',
-      cardNumber: '1234-5678-9012-3456',
-      creditLimit: '100000',
-      memberSince: '2018',
-      expirationDate: '2026-12',
-      deliverCardTo: 'home',
-      bestTimeToContact: 'Afternoon',
-    },
-    bankPreferences: {
-      rcbc: false,
-      metrobank: true,
-      eastWestBank: false,
-      securityBank: false,
-      bpi: true,
-      pnb: false,
-      robinsonBank: false,
-      maybank: false,
-      aub: false,
-    },
-  },
-];
-
-// Restore mockUsers array
-const mockUsers = [
-  { name: 'Admin User', email: 'admin@silverpay.com', role: 'admin', password: '' },
-  { name: 'Agent User', email: 'agent@silverpay.com', role: 'agent', password: '' },
-];
+import { supabase } from '../supabaseClient';
 
 const AdminDashboard: React.FC = () => {
   const { logout } = useAuth();
   const [activeSection, setActiveSection] = useState('dashboard');
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'agent' });
-  const [users, setUsers] = useState<typeof mockUsers>(mockUsers);
-  const [applications, setApplications] = useState<typeof mockApplications>(mockApplications);
-  const [viewedApp, setViewedApp] = useState<typeof mockApplications[0] | null>(null);
+  const [users, setUsers] = useState<any[]>([]); // fetched from Supabase
+  const [applications, setApplications] = useState<any[]>([]); // fetched from Supabase
+  const [viewedApp, setViewedApp] = useState<any | null>(null);
   const [editUserIdx, setEditUserIdx] = useState<number | null>(null);
   const [editUser, setEditUser] = useState({ name: '', email: '', password: '', role: 'agent' });
   const [toast, setToast] = useState({ show: false, message: '' });
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState<number | null>(null);
-  const [editApp, setEditApp] = useState<typeof mockApplications[0] | null>(null);
+  const [editApp, setEditApp] = useState<any | null>(null);
   const [currentModalStep, setCurrentModalStep] = useState(1);
   const [currentEditStep, setCurrentEditStep] = useState(1);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [previewApp, setPreviewApp] = useState<typeof mockApplications[0] | null>(null);
+  const [previewApp, setPreviewApp] = useState<any | null>(null);
 
   // Sidebar navigation
   const navItems = [
@@ -141,11 +36,25 @@ const AdminDashboard: React.FC = () => {
     { key: 'history', label: 'Application History', icon: <History className="w-5 h-5 mr-2" /> },
   ];
 
-  // Dashboard stats
-  const totalApplications = mockApplications.length;
-  const pendingReviews = mockApplications.filter(a => a.status === 'pending').length;
-  const approved = mockApplications.filter(a => a.status === 'approved').length;
-  const totalUsers = mockUsers.length;
+  // Fetch users and applications from Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      // Fetch users
+      const { data: usersData, error: usersError } = await supabase.from('users').select('*');
+      console.log('Fetched users:', usersData, 'Error:', usersError); // Debug line
+      if (!usersError && usersData) setUsers(usersData);
+      // Fetch applications
+      const { data: appsData, error: appsError } = await supabase.from('application_form').select('*');
+      if (!appsError && appsData) setApplications(appsData);
+    };
+    fetchData();
+  }, []);
+
+  // Update dashboard stats
+  const totalApplications = applications.length;
+  const pendingReviews = applications.filter(a => a.status === 'pending').length;
+  const approved = applications.filter(a => a.status === 'approved').length;
+  const totalUsers = users.length;
 
   // Stepper for modal
   const modalSteps = [
@@ -156,7 +65,7 @@ const AdminDashboard: React.FC = () => {
   ];
 
   // Export single application as PDF
-  const exportSinglePDF = (app: typeof mockApplications[0]) => {
+  const exportSinglePDF = (app: any) => {
     const doc = new jsPDF();
     doc.setFontSize(18);
     doc.text('Application Details', 14, 18);
@@ -234,12 +143,12 @@ const AdminDashboard: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl p-6 shadow">
           <h3 className="font-semibold mb-4">Recent Applications</h3>
-          {mockApplications.map(app => (
+          {applications.map(app => (
             <div key={app.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-4 mb-2">
               <div className="flex items-center">
-                <div className="bg-blue-100 text-blue-700 rounded-full w-10 h-10 flex items-center justify-center font-bold mr-3">{app.name.split(' ').map(n => n[0]).join('')}</div>
+                <div className="bg-blue-100 text-blue-700 rounded-full w-10 h-10 flex items-center justify-center font-bold mr-3">{app.name ?? ''.split(' ').map((n: string) => n[0]).join('')}</div>
                 <div>
-                  <div className="font-medium">{app.name}</div>
+                  <div className="font-medium">{app.name ?? ''}</div>
                   <div className="text-xs text-gray-500">{app.date}</div>
                 </div>
               </div>
@@ -281,7 +190,7 @@ const AdminDashboard: React.FC = () => {
           <tbody>
             {users.map((u, i) => (
               <tr key={i} className="border-t">
-                <td className="py-3 flex items-center"><div className="bg-purple-200 text-purple-700 rounded-full w-8 h-8 flex items-center justify-center font-bold mr-2">{u.name.split(' ').map(n => n[0]).join('')}</div>{u.name}</td>
+                <td className="py-3 flex items-center"><div className="bg-purple-200 text-purple-700 rounded-full w-8 h-8 flex items-center justify-center font-bold mr-2">{u.name ?? ''.split(' ').map((n: string) => n[0]).join('')}</div>{u.name}</td>
                 <td className="py-3">{u.email}</td>
                 <td className="py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{u.role}</span></td>
                 <td className="py-3 flex space-x-2">
@@ -404,7 +313,7 @@ const AdminDashboard: React.FC = () => {
             <tbody>
               {applications.map((app, i) => (
                 <tr key={i} className="border-t">
-                  <td className="py-3 flex items-center pl-6 align-middle"><div className="bg-blue-200 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center font-bold mr-2">{app.name.split(' ').map(n => n[0]).join('')}</div>{app.name}</td>
+                  <td className="py-3 flex items-center pl-6 align-middle"><div className="bg-blue-200 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center font-bold mr-2">{app.name ?? ''.split(' ').map((n: string) => n[0]).join('')}</div>{app.name}</td>
                   <td className="py-3 break-words">{app.email}</td>
                   <td className="py-3">{app.date} <span className="block text-xs text-gray-400">{app.time}</span></td>
                   <td className="py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></td>
@@ -424,9 +333,9 @@ const AdminDashboard: React.FC = () => {
               <div key={i} className="rounded-xl shadow p-4 bg-white flex flex-col gap-2 relative">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="bg-blue-200 text-blue-700 rounded-full w-10 h-10 flex items-center justify-center font-bold">{app.name.split(' ').map(n => n[0]).join('')}</div>
+                    <div className="bg-blue-200 text-blue-700 rounded-full w-10 h-10 flex items-center justify-center font-bold">{app.name ?? ''.split(' ').map((n: string) => n[0]).join('')}</div>
                     <div>
-                      <div className="font-semibold text-base text-gray-900">{app.name}</div>
+                      <div className="font-semibold text-base text-gray-900">{app.name ?? ''}</div>
                       <div className="text-xs text-gray-500">{app.email}</div>
                     </div>
                   </div>
@@ -505,7 +414,7 @@ const AdminDashboard: React.FC = () => {
             {applications.map((app, i) => (
               <tr key={i} className="border-t">
                 <td className="py-3">#{app.id}</td>
-                <td className="py-3 flex items-center"><div className="bg-blue-200 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center font-bold mr-2">{app.name.split(' ').map(n => n[0]).join('')}</div>{app.name}</td>
+                <td className="py-3 flex items-center"><div className="bg-blue-200 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center font-bold mr-2">{app.name ?? ''.split(' ').map((n: string) => n[0]).join('')}</div>{app.name}</td>
                 <td className="py-3">{app.date} <span className="block text-xs text-gray-400">{app.time}</span></td>
                 <td className="py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></td>
                 <td className="py-3">{app.submittedBy}</td>
@@ -524,9 +433,9 @@ const AdminDashboard: React.FC = () => {
             <div key={i} className="rounded-xl shadow p-4 bg-white flex flex-col gap-2 relative">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="bg-blue-200 text-blue-700 rounded-full w-10 h-10 flex items-center justify-center font-bold">{app.name.split(' ').map(n => n[0]).join('')}</div>
+                  <div className="bg-blue-200 text-blue-700 rounded-full w-10 h-10 flex items-center justify-center font-bold">{app.name ?? ''.split(' ').map((n: string) => n[0]).join('')}</div>
                   <div>
-                    <div className="font-semibold text-base text-gray-900">{app.name}</div>
+                    <div className="font-semibold text-base text-gray-900">{app.name ?? ''}</div>
                     <div className="text-xs text-gray-500">ID: {app.id}</div>
                   </div>
                 </div>
@@ -582,7 +491,7 @@ const AdminDashboard: React.FC = () => {
     </div>
   );
 
-  const renderModalStepContent = (app: typeof mockApplications[0]) => {
+  const renderModalStepContent = (app: any) => {
     switch (currentModalStep) {
       case 1:
         return (
@@ -753,7 +662,7 @@ const AdminDashboard: React.FC = () => {
     </div>
   );
 
-  const renderEditStepContent = (app: typeof mockApplications[0], setApp: (a: typeof mockApplications[0]) => void) => {
+  const renderEditStepContent = (app: any, setApp: (a: any) => void) => {
     switch (currentEditStep) {
       case 1:
         return (
@@ -1515,7 +1424,7 @@ const AdminDashboard: React.FC = () => {
                       <div className="flex flex-wrap gap-4 mt-2">
                         {Object.entries(previewApp.bankPreferences).map(([bank, checked]) => (
                           <div key={bank} className="flex items-center gap-1">
-                            <input type="checkbox" checked={checked} readOnly className="accent-blue-600" />
+                            <input type="checkbox" checked={Boolean(checked)} readOnly className="accent-blue-600" />
                             <span className="text-xs">{bank.toUpperCase()}</span>
                           </div>
                         ))}
