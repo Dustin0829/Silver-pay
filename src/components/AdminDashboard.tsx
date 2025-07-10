@@ -20,23 +20,20 @@ const AdminDashboard: React.FC = () => {
   const [viewedApp, setViewedApp] = useState<any | null>(null);
   const [editUserIdx, setEditUserIdx] = useState<number | null>(null);
   const [editUser, setEditUser] = useState({ name: '', email: '', password: '', role: 'agent' });
-  const [toast, setToast] = useState({ show: false, message: '' });
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState<number | null>(null);
   const [editApp, setEditApp] = useState<any | null>(null);
   const [currentModalStep, setCurrentModalStep] = useState(1);
   const [currentEditStep, setCurrentEditStep] = useState(1);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [previewApp, setPreviewApp] = useState<any | null>(null);
+  const [pdfPreviewApp, setPdfPreviewApp] = useState<any | null>(null);
   const sectionTitles = [
     'Personal Details',
-    "Mother's Details",
-    'Permanent Address',
-    'Spouse Details',
-    'Personal Reference',
-    'Work Details',
-    'Credit Card Details',
-    'Bank Preferences',
-    'File Links',
+    'Family & Address',
+    'Work/Business Details',
+    'Credit Card & Bank Preferences',
+    'File Links & Review',
   ];
   const [currentSection, setCurrentSection] = useState(0);
 
@@ -195,10 +192,10 @@ const AdminDashboard: React.FC = () => {
                 .slice(0, 5)
                 .map((app) => (
                   <li key={app.id} className="flex items-center justify-between py-2 border-b last:border-b-0">
-                    <div>
+                <div>
                       <span className="font-medium">{`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}</span>
                       <span className="ml-2 text-xs text-gray-500">{app.submitted_at ? new Date(app.submitted_at).toLocaleDateString() : ''}</span>
-                    </div>
+                </div>
                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ml-2
                       ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                         app.status === 'approved' ? 'bg-green-100 text-green-800' :
@@ -262,15 +259,15 @@ const AdminDashboard: React.FC = () => {
                       // Delete user from Supabase
                       const { error } = await supabase.from('users').delete().eq('email', u.email);
                       if (error) {
-                        setToast({ show: true, message: 'Failed to delete user: ' + error.message });
+                        setToast({ show: true, message: 'Failed to delete user: ' + error.message, type: 'error' });
                         return;
                       }
                       setUsers(prev => prev.filter((_, idx) => idx !== i));
                       setPendingDeleteIdx(null);
-                      setToast({ show: false, message: '' });
+                      setToast({ show: false, message: '', type: toast.type });
                     } else {
                       setPendingDeleteIdx(i);
-                      setToast({ show: true, message: 'Click again to confirm delete.' });
+                      setToast({ show: true, message: 'Click again to confirm delete.', type: 'error' });
                       setTimeout(() => setPendingDeleteIdx(null), 3000);
                     }
                   }}><Trash2 className="w-4 h-4" /></button>
@@ -300,12 +297,12 @@ const AdminDashboard: React.FC = () => {
                   });
                   const result = await response.json();
                   if (!response.ok) {
-                    setToast({ show: true, message: 'Failed to add user: ' + (result.error || response.statusText) });
+                    setToast({ show: true, message: 'Failed to add user: ' + (result.error || response.statusText), type: 'error' });
                     return;
                   }
-                  setShowAddUser(false);
-                  setNewUser({ name: '', email: '', password: '', role: 'agent' });
-                  setToast({ show: true, message: 'User created successfully!' });
+                setShowAddUser(false);
+                setNewUser({ name: '', email: '', password: '', role: 'agent' });
+                  setToast({ show: true, message: 'User created successfully!', type: 'success' });
                 } catch (err) {
                   let errorMsg = 'Unknown error';
                   if (err instanceof Error) {
@@ -313,7 +310,7 @@ const AdminDashboard: React.FC = () => {
                   } else if (typeof err === 'string') {
                     errorMsg = err;
                   }
-                  setToast({ show: true, message: 'Failed to add user: ' + errorMsg });
+                  setToast({ show: true, message: 'Failed to add user: ' + errorMsg, type: 'error' });
                 }
               }} className="space-y-4">
                 <div>
@@ -354,12 +351,12 @@ const AdminDashboard: React.FC = () => {
                   role: editUser.role
                 }).eq('email', editUser.email);
                 if (error) {
-                  setToast({ show: true, message: 'Failed to update user: ' + error.message });
+                  setToast({ show: true, message: 'Failed to update user: ' + error.message, type: 'error' });
                   return;
                 }
                 setUsers(prev => prev.map((u, idx) => idx === editUserIdx ? { ...u, ...editUser } : u));
                 setEditUserIdx(null);
-                setToast({ show: true, message: 'User updated successfully!' });
+                setToast({ show: true, message: 'User updated successfully!', type: 'success' });
               }} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Name</label>
@@ -394,18 +391,18 @@ const AdminDashboard: React.FC = () => {
           {/* Desktop Table */}
           <div className="hidden md:block">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead>
-                <tr className="text-xs text-gray-500 uppercase align-middle">
-                  <th className="py-2 align-middle">Applicant</th>
-                  <th className="py-2 align-middle">Email</th>
-                  <th className="py-2 align-middle">Submitted</th>
-                  <th className="py-2 align-middle">Status</th>
-                  <th className="py-2 align-middle">Submitted By</th>
-                  <th className="py-2 align-middle">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {applications.map((app, i) => (
+            <thead>
+              <tr className="text-xs text-gray-500 uppercase align-middle">
+                <th className="py-2 align-middle">Applicant</th>
+                <th className="py-2 align-middle">Email</th>
+                <th className="py-2 align-middle">Submitted</th>
+                <th className="py-2 align-middle">Status</th>
+                <th className="py-2 align-middle">Submitted By</th>
+                <th className="py-2 align-middle">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {applications.map((app, i) => (
                   <tr key={app.id} className="border-t hover:bg-gray-50 transition">
                     <td className="py-3 px-6 align-middle font-semibold whitespace-nowrap">
                       {`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}
@@ -425,11 +422,11 @@ const AdminDashboard: React.FC = () => {
                       <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={() => setViewedApp(app)}><Eye className="w-5 h-5" /></button>
                       <button className="text-green-600 hover:text-green-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a))}><Check className="w-5 h-5" /></button>
                       <button className="text-red-600 hover:text-red-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a))}><X className="w-5 h-5" /></button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
           </div>
           {/* Mobile Card Layout */}
           <div className="block md:hidden">
@@ -507,15 +504,15 @@ const AdminDashboard: React.FC = () => {
           <tbody>
             {applications.map((app, i) => (
               <tr key={i} className="border-t">
-                <td className="py-3">#{app.id}</td>
-                <td className="py-3 flex items-center"><div className="bg-blue-200 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center font-bold mr-2">{app.name ?? ''.split(' ').map((n: string) => n[0]).join('')}</div>{app.name}</td>
-                <td className="py-3">{app.date} <span className="block text-xs text-gray-400">{app.time}</span></td>
+                <td className="py-3">#{app.id ? app.id.slice(0, 8) : ''}</td>
+                <td className="py-3">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
+                <td className="py-3">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
                 <td className="py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></td>
                 <td className="py-3">{app.submittedBy}</td>
                 <td className="py-3 flex space-x-2">
                   <button className="text-blue-600 hover:text-blue-800" onClick={() => setViewedApp(app)}><Eye className="w-4 h-4" /></button>
                   <button className="text-green-600 hover:text-green-800" onClick={() => setEditApp(app)}><Edit className="w-4 h-4" /></button>
-                  <button className="text-purple-600 hover:text-purple-800" title="Export PDF" onClick={() => setPreviewApp(app)}><Download className="w-4 h-4" /></button>
+                  <button className="text-purple-600 hover:text-purple-800" title="Export PDF" onClick={() => setPdfPreviewApp(app)}><Download className="w-4 h-4" /></button>
                 </td>
               </tr>
             ))}
@@ -736,20 +733,20 @@ const AdminDashboard: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Last Name</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.lastName || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, lastName: e.target.value } })} required /></div>
-                <div><label className="block text-sm font-medium mb-1">First Name</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.firstName || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, firstName: e.target.value } })} required /></div>
-                <div><label className="block text-sm font-medium mb-1">Middle Name</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.middleName || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, middleName: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Suffix</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.suffix || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, suffix: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Date of Birth</label><input type="date" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.dateOfBirth || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, dateOfBirth: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Place of Birth</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.placeOfBirth || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, placeOfBirth: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Gender</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.gender || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, gender: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Civil Status</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.civilStatus || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, civilStatus: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Nationality</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.nationality || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, nationality: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Mobile Number</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.mobileNumber || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, mobileNumber: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Home Number</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.homeNumber || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, homeNumber: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Email Address</label><input type="email" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.emailAddress || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, emailAddress: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">SSS/GSIS/UMID</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.sssGsisUmid || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, sssGsisUmid: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">TIN</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalDetails?.tin || ''} onChange={e => setApp({ ...app, personalDetails: { ...app.personalDetails, tin: e.target.value } })} /></div>
+                <div><label className="font-medium">First Name:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.firstName ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, firstName: e.target.value } })} /></div>
+                <div><label className="font-medium">Middle Name:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.middleName ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, middleName: e.target.value } })} /></div>
+                <div><label className="font-medium">Last Name:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.lastName ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, lastName: e.target.value } })} /></div>
+                <div><label className="font-medium">Suffix:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.suffix ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, suffix: e.target.value } })} /></div>
+                <div><label className="font-medium">Gender:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.gender ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, gender: e.target.value } })} /></div>
+                <div><label className="font-medium">Date of Birth:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.dateOfBirth ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, dateOfBirth: e.target.value } })} /></div>
+                <div><label className="font-medium">Place of Birth:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.placeOfBirth ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, placeOfBirth: e.target.value } })} /></div>
+                <div><label className="font-medium">Civil Status:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.civilStatus ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, civilStatus: e.target.value } })} /></div>
+                <div><label className="font-medium">Nationality:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.nationality ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, nationality: e.target.value } })} /></div>
+                <div><label className="font-medium">Mobile Number:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.mobileNumber ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, mobileNumber: e.target.value } })} /></div>
+                <div><label className="font-medium">Home Number:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.homeNumber ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, homeNumber: e.target.value } })} /></div>
+                <div><label className="font-medium">Email Address:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.emailAddress ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, emailAddress: e.target.value } })} /></div>
+                <div><label className="font-medium">SSS/GSIS/UMID:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.sssGsisUmid ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, sssGsisUmid: e.target.value } })} /></div>
+                <div><label className="font-medium">TIN:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_details?.tin ?? ''} onChange={e => setApp({ ...app, personal_details: { ...app.personal_details, tin: e.target.value } })} /></div>
               </div>
             </div>
           </div>
@@ -761,44 +758,44 @@ const AdminDashboard: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Mother's Maiden Name</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Last Name</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.motherDetails?.lastName || ''} onChange={e => setApp({ ...app, motherDetails: { ...app.motherDetails, lastName: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">First Name</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.motherDetails?.firstName || ''} onChange={e => setApp({ ...app, motherDetails: { ...app.motherDetails, firstName: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Middle Name</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.motherDetails?.middleName || ''} onChange={e => setApp({ ...app, motherDetails: { ...app.motherDetails, middleName: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Suffix</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.motherDetails?.suffix || ''} onChange={e => setApp({ ...app, motherDetails: { ...app.motherDetails, suffix: e.target.value } })} /></div>
+                <div><label className="font-medium">Last Name:</label> <input className="border rounded px-2 py-1 w-full" value={app.mother_details?.lastName ?? ''} onChange={e => setApp({ ...app, mother_details: { ...app.mother_details, lastName: e.target.value } })} /></div>
+                <div><label className="font-medium">First Name:</label> <input className="border rounded px-2 py-1 w-full" value={app.mother_details?.firstName ?? ''} onChange={e => setApp({ ...app, mother_details: { ...app.mother_details, firstName: e.target.value } })} /></div>
+                <div><label className="font-medium">Middle Name:</label> <input className="border rounded px-2 py-1 w-full" value={app.mother_details?.middleName ?? ''} onChange={e => setApp({ ...app, mother_details: { ...app.mother_details, middleName: e.target.value } })} /></div>
+                <div><label className="font-medium">Suffix:</label> <input className="border rounded px-2 py-1 w-full" value={app.mother_details?.suffix ?? ''} onChange={e => setApp({ ...app, mother_details: { ...app.mother_details, suffix: e.target.value } })} /></div>
               </div>
             </div>
             {/* Permanent Address */}
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Permanent Address</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Street</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.permanentAddress?.street || ''} onChange={e => setApp({ ...app, permanentAddress: { ...app.permanentAddress, street: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Barangay</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.permanentAddress?.barangay || ''} onChange={e => setApp({ ...app, permanentAddress: { ...app.permanentAddress, barangay: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">City</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.permanentAddress?.city || ''} onChange={e => setApp({ ...app, permanentAddress: { ...app.permanentAddress, city: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Zip Code</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.permanentAddress?.zipCode || ''} onChange={e => setApp({ ...app, permanentAddress: { ...app.permanentAddress, zipCode: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Years of Stay</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.permanentAddress?.yearsOfStay || ''} onChange={e => setApp({ ...app, permanentAddress: { ...app.permanentAddress, yearsOfStay: e.target.value } })} /></div>
+                <div><label className="font-medium">Street:</label> <input className="border rounded px-2 py-1 w-full" value={app.permanent_address?.street ?? ''} onChange={e => setApp({ ...app, permanent_address: { ...app.permanent_address, street: e.target.value } })} /></div>
+                <div><label className="font-medium">Barangay:</label> <input className="border rounded px-2 py-1 w-full" value={app.permanent_address?.barangay ?? ''} onChange={e => setApp({ ...app, permanent_address: { ...app.permanent_address, barangay: e.target.value } })} /></div>
+                <div><label className="font-medium">City:</label> <input className="border rounded px-2 py-1 w-full" value={app.permanent_address?.city ?? ''} onChange={e => setApp({ ...app, permanent_address: { ...app.permanent_address, city: e.target.value } })} /></div>
+                <div><label className="font-medium">Zip Code:</label> <input className="border rounded px-2 py-1 w-full" value={app.permanent_address?.zipCode ?? ''} onChange={e => setApp({ ...app, permanent_address: { ...app.permanent_address, zipCode: e.target.value } })} /></div>
+                <div><label className="font-medium">Years of Stay:</label> <input className="border rounded px-2 py-1 w-full" value={app.permanent_address?.yearsOfStay ?? ''} onChange={e => setApp({ ...app, permanent_address: { ...app.permanent_address, yearsOfStay: e.target.value } })} /></div>
               </div>
             </div>
             {/* Spouse Details */}
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Spouse Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Last Name</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.spouseDetails?.lastName || ''} onChange={e => setApp({ ...app, spouseDetails: { ...app.spouseDetails, lastName: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">First Name</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.spouseDetails?.firstName || ''} onChange={e => setApp({ ...app, spouseDetails: { ...app.spouseDetails, firstName: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Middle Name</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.spouseDetails?.middleName || ''} onChange={e => setApp({ ...app, spouseDetails: { ...app.spouseDetails, middleName: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Suffix</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.spouseDetails?.suffix || ''} onChange={e => setApp({ ...app, spouseDetails: { ...app.spouseDetails, suffix: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Mobile Number</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.spouseDetails?.mobileNumber || ''} onChange={e => setApp({ ...app, spouseDetails: { ...app.spouseDetails, mobileNumber: e.target.value } })} /></div>
+                <div><label className="font-medium">Last Name:</label> <input className="border rounded px-2 py-1 w-full" value={app.spouse_details?.lastName ?? ''} onChange={e => setApp({ ...app, spouse_details: { ...app.spouse_details, lastName: e.target.value } })} /></div>
+                <div><label className="font-medium">First Name:</label> <input className="border rounded px-2 py-1 w-full" value={app.spouse_details?.firstName ?? ''} onChange={e => setApp({ ...app, spouse_details: { ...app.spouse_details, firstName: e.target.value } })} /></div>
+                <div><label className="font-medium">Middle Name:</label> <input className="border rounded px-2 py-1 w-full" value={app.spouse_details?.middleName ?? ''} onChange={e => setApp({ ...app, spouse_details: { ...app.spouse_details, middleName: e.target.value } })} /></div>
+                <div><label className="font-medium">Suffix:</label> <input className="border rounded px-2 py-1 w-full" value={app.spouse_details?.suffix ?? ''} onChange={e => setApp({ ...app, spouse_details: { ...app.spouse_details, suffix: e.target.value } })} /></div>
+                <div><label className="font-medium">Mobile Number:</label> <input className="border rounded px-2 py-1 w-full" value={app.spouse_details?.mobileNumber ?? ''} onChange={e => setApp({ ...app, spouse_details: { ...app.spouse_details, mobileNumber: e.target.value } })} /></div>
               </div>
             </div>
             {/* Personal Reference */}
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Reference</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Last Name</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalReference?.lastName || ''} onChange={e => setApp({ ...app, personalReference: { ...app.personalReference, lastName: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">First Name</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalReference?.firstName || ''} onChange={e => setApp({ ...app, personalReference: { ...app.personalReference, firstName: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Middle Name</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalReference?.middleName || ''} onChange={e => setApp({ ...app, personalReference: { ...app.personalReference, middleName: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Suffix</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalReference?.suffix || ''} onChange={e => setApp({ ...app, personalReference: { ...app.personalReference, suffix: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Mobile Number</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalReference?.mobileNumber || ''} onChange={e => setApp({ ...app, personalReference: { ...app.personalReference, mobileNumber: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Relationship</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.personalReference?.relationship || ''} onChange={e => setApp({ ...app, personalReference: { ...app.personalReference, relationship: e.target.value } })} /></div>
+                <div><label className="font-medium">Last Name:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_reference?.lastName ?? ''} onChange={e => setApp({ ...app, personal_reference: { ...app.personal_reference, lastName: e.target.value } })} /></div>
+                <div><label className="font-medium">First Name:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_reference?.firstName ?? ''} onChange={e => setApp({ ...app, personal_reference: { ...app.personal_reference, firstName: e.target.value } })} /></div>
+                <div><label className="font-medium">Middle Name:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_reference?.middleName ?? ''} onChange={e => setApp({ ...app, personal_reference: { ...app.personal_reference, middleName: e.target.value } })} /></div>
+                <div><label className="font-medium">Suffix:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_reference?.suffix ?? ''} onChange={e => setApp({ ...app, personal_reference: { ...app.personal_reference, suffix: e.target.value } })} /></div>
+                <div><label className="font-medium">Mobile Number:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_reference?.mobileNumber ?? ''} onChange={e => setApp({ ...app, personal_reference: { ...app.personal_reference, mobileNumber: e.target.value } })} /></div>
+                <div><label className="font-medium">Relationship:</label> <input className="border rounded px-2 py-1 w-full" value={app.personal_reference?.relationship ?? ''} onChange={e => setApp({ ...app, personal_reference: { ...app.personal_reference, relationship: e.target.value } })} /></div>
               </div>
             </div>
           </div>
@@ -810,25 +807,25 @@ const AdminDashboard: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Work/Business Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Business/Employer's Name</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.businessEmployerName || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, businessEmployerName: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Profession/Occupation</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.professionOccupation || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, professionOccupation: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Nature of Business</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.natureOfBusiness || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, natureOfBusiness: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Department</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.department || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, department: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Landline/Mobile</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.landlineMobile || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, landlineMobile: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Years in Business</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.yearsInBusiness || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, yearsInBusiness: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Monthly Income</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.monthlyIncome || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, monthlyIncome: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Annual Income</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.annualIncome || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, annualIncome: e.target.value } })} /></div>
+                <div><label className="font-medium">Business/Employer's Name:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.businessEmployerName ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, businessEmployerName: e.target.value } })} /></div>
+                <div><label className="font-medium">Profession/Occupation:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.professionOccupation ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, professionOccupation: e.target.value } })} /></div>
+                <div><label className="font-medium">Nature of Business:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.natureOfBusiness ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, natureOfBusiness: e.target.value } })} /></div>
+                <div><label className="font-medium">Department:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.department ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, department: e.target.value } })} /></div>
+                <div><label className="font-medium">Landline/Mobile:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.landlineMobile ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, landlineMobile: e.target.value } })} /></div>
+                <div><label className="font-medium">Years in Business:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.yearsInBusiness ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, yearsInBusiness: e.target.value } })} /></div>
+                <div><label className="font-medium">Monthly Income:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.monthlyIncome ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, monthlyIncome: e.target.value } })} /></div>
+                <div><label className="font-medium">Annual Income:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.annualIncome ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, annualIncome: e.target.value } })} /></div>
               </div>
               <div className="mt-4">
                 <h5 className="font-semibold mb-2">Business/Office Address</h5>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-medium mb-1">Street</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.address?.street || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, address: { ...app.workDetails?.address, street: e.target.value } } })} /></div>
-                  <div><label className="block text-sm font-medium mb-1">Barangay</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.address?.barangay || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, address: { ...app.workDetails?.address, barangay: e.target.value } } })} /></div>
-                  <div><label className="block text-sm font-medium mb-1">City</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.address?.city || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, address: { ...app.workDetails?.address, city: e.target.value } } })} /></div>
-                  <div><label className="block text-sm font-medium mb-1">Zip Code</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.address?.zipCode || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, address: { ...app.workDetails?.address, zipCode: e.target.value } } })} /></div>
-                  <div><label className="block text-sm font-medium mb-1">Unit/Floor</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.address?.unitFloor || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, address: { ...app.workDetails?.address, unitFloor: e.target.value } } })} /></div>
-                  <div><label className="block text-sm font-medium mb-1">Building/Tower</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.address?.buildingTower || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, address: { ...app.workDetails?.address, buildingTower: e.target.value } } })} /></div>
-                  <div><label className="block text-sm font-medium mb-1">Lot No.</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.workDetails?.address?.lotNo || ''} onChange={e => setApp({ ...app, workDetails: { ...app.workDetails, address: { ...app.workDetails?.address, lotNo: e.target.value } } })} /></div>
+                  <div><label className="font-medium">Street:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.address?.street ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, address: { ...app.work_details?.address, street: e.target.value } } })} /></div>
+                  <div><label className="font-medium">Barangay:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.address?.barangay ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, address: { ...app.work_details?.address, barangay: e.target.value } } })} /></div>
+                  <div><label className="font-medium">City:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.address?.city ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, address: { ...app.work_details?.address, city: e.target.value } } })} /></div>
+                  <div><label className="font-medium">Zip Code:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.address?.zipCode ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, address: { ...app.work_details?.address, zipCode: e.target.value } } })} /></div>
+                  <div><label className="font-medium">Unit/Floor:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.address?.unitFloor ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, address: { ...app.work_details?.address, unitFloor: e.target.value } } })} /></div>
+                  <div><label className="font-medium">Building/Tower:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.address?.buildingTower ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, address: { ...app.work_details?.address, buildingTower: e.target.value } } })} /></div>
+                  <div><label className="font-medium">Lot No.:</label> <input className="border rounded px-2 py-1 w-full" value={app.work_details?.address?.lotNo ?? ''} onChange={e => setApp({ ...app, work_details: { ...app.work_details, address: { ...app.work_details?.address, lotNo: e.target.value } } })} /></div>
                 </div>
               </div>
             </div>
@@ -841,23 +838,23 @@ const AdminDashboard: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Credit Card Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Bank/Institution</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.creditCardDetails?.bankInstitution || ''} onChange={e => setApp({ ...app, creditCardDetails: { ...app.creditCardDetails, bankInstitution: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Card Number</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.creditCardDetails?.cardNumber || ''} onChange={e => setApp({ ...app, creditCardDetails: { ...app.creditCardDetails, cardNumber: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Credit Limit</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.creditCardDetails?.creditLimit || ''} onChange={e => setApp({ ...app, creditCardDetails: { ...app.creditCardDetails, creditLimit: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Member Since</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.creditCardDetails?.memberSince || ''} onChange={e => setApp({ ...app, creditCardDetails: { ...app.creditCardDetails, memberSince: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Exp. Date</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.creditCardDetails?.expirationDate || ''} onChange={e => setApp({ ...app, creditCardDetails: { ...app.creditCardDetails, expirationDate: e.target.value } })} /></div>
-                <div><label className="block text-sm font-medium mb-1">Deliver Card To</label><select className="w-full border rounded-lg px-3 py-2" value={app.creditCardDetails?.deliverCardTo || ''} onChange={e => setApp({ ...app, creditCardDetails: { ...app.creditCardDetails, deliverCardTo: e.target.value as 'home' | 'business' } })}>
+                <div><label className="font-medium">Bank/Institution:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.bankInstitution ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, bankInstitution: e.target.value } })} /></div>
+                <div><label className="font-medium">Card Number:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.cardNumber ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, cardNumber: e.target.value } })} /></div>
+                <div><label className="font-medium">Credit Limit:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.creditLimit ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, creditLimit: e.target.value } })} /></div>
+                <div><label className="font-medium">Member Since:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.memberSince ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, memberSince: e.target.value } })} /></div>
+                <div><label className="font-medium">Exp. Date:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.expirationDate ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, expirationDate: e.target.value } })} /></div>
+                <div><label className="font-medium">Deliver Card To:</label><select className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.deliverCardTo ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, deliverCardTo: e.target.value as 'home' | 'business' } })}>
                   <option value="home">Present Home Address</option>
                   <option value="business">Business Address</option>
                 </select></div>
-                <div><label className="block text-sm font-medium mb-1">Best Time to Contact</label><input type="text" className="w-full border rounded-lg px-3 py-2" value={app.creditCardDetails?.bestTimeToContact || ''} onChange={e => setApp({ ...app, creditCardDetails: { ...app.creditCardDetails, bestTimeToContact: e.target.value } })} /></div>
+                <div><label className="font-medium">Best Time to Contact:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.bestTimeToContact ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, bestTimeToContact: e.target.value } })} /></div>
               </div>
             </div>
             {/* Bank Preferences */}
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Bank Preferences</h4>
               <div className="flex flex-wrap gap-2">
-                {app.bankPreferences && Object.entries(app.bankPreferences).map(([k, v]) => (
+                {app.bank_preferences && Object.entries(app.bank_preferences).map(([k, v]) => (
                   <span key={k} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
                     {k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
                   </span>
@@ -1048,7 +1045,7 @@ const AdminDashboard: React.FC = () => {
       />
       {/* Sidebar */}
       <aside
-        className={`fixed z-50 top-0 left-0 h-full w-64 bg-gradient-to-b from-[#101624] to-[#1a2236] text-white flex flex-col justify-between py-6 px-2 sm:px-6 min-h-fit shadow-xl transform transition-transform duration-300
+        className={`fixed z-50 top-0 left-0 h-full w-64 bg-gradient-to-b from-[#101624] to-[#1a2236] text-white flex flex-col py-6 px-2 sm:px-6 min-h-fit shadow-xl transform transition-transform duration-300
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} sm:translate-x-0 sm:static sm:w-64 sm:block`}
         style={{ minHeight: '100vh' }}
         aria-label="Sidebar"
@@ -1088,11 +1085,7 @@ const AdminDashboard: React.FC = () => {
           </nav>
           <div className="my-8 border-t border-blue-900/40" />
         </div>
-        <div className="flex flex-col items-center mb-2 mt-auto absolute bottom-6 left-0 w-full">
-          <div className="bg-blue-800 rounded-full w-12 h-12 flex items-center justify-center text-lg font-bold mb-2 shadow-md">AU</div>
-          <div className="text-white font-semibold">Admin User</div>
-          <div className="text-xs text-blue-100">admin@silverpay.com</div>
-        </div>
+        {/* Footer removed here */}
       </aside>
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
@@ -1123,148 +1116,7 @@ const AdminDashboard: React.FC = () => {
           {activeSection === 'applications' && renderApplications()}
           {activeSection === 'history' && renderHistory()}
         </main>
-        {/* Application Details Modal - always available */}
-        {viewedApp && (
-          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[90vh]">
-              <button onClick={() => { setViewedApp(null); setCurrentModalStep(1); }} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
-              {/* Status badge always visible at top right, below close button */}
-              {viewedApp.status && (
-                <span
-                  className={`absolute top-3 right-12 px-3 py-1 rounded-full text-sm font-medium ${
-                    viewedApp.status === 'pending'
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : viewedApp.status === 'approved'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}
-                  style={{ zIndex: 10 }}
-                >
-                  {viewedApp.status}
-                </span>
-              )}
-              <h3 className="text-2xl font-bold mb-6">Application Details</h3>
-              {viewedApp.personalDetails ? (
-                <>
-                  {renderModalStepIndicator()}
-                  {renderModalStepContent(viewedApp)}
-                  <div className="flex justify-between mt-8 pt-6 border-t gap-4">
-            <button
-                      type="button"
-                      onClick={() => setCurrentModalStep(s => Math.max(1, s - 1))}
-                      disabled={currentModalStep === 1}
-                      className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                    >
-                      Previous
-            </button>
-            <button
-                      type="button"
-                      onClick={() => {
-                        if (currentModalStep < 4) setCurrentModalStep(s => Math.min(4, s + 1));
-                        else { setViewedApp(null); setCurrentModalStep(1); }
-                      }}
-                      className={`flex items-center px-4 py-2 rounded-lg ${currentModalStep < 4 ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-green-600 text-white hover:bg-green-700'} text-sm`}
-                    >
-                      {currentModalStep < 4 ? 'Next' : 'Close'}
-                    </button>
-                  </div>
-                  {currentModalStep === 4 && (
-                    <div className="flex justify-end gap-4 mt-8">
-                      <button
-                        className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 font-semibold"
-                        onClick={() => {
-                          setApplications(apps => apps.map(a => a.id === viewedApp.id ? { ...a, status: 'rejected' } : a));
-                          setViewedApp(null);
-                          setCurrentModalStep(1);
-                        }}
-                      >
-                        Reject
-                      </button>
-                      <button
-                        className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 font-semibold"
-                        onClick={() => {
-                          setApplications(apps => apps.map(a => a.id === viewedApp.id ? { ...a, status: 'approved' } : a));
-                          setViewedApp(null);
-                          setCurrentModalStep(1);
-                        }}
-                      >
-                        Accept
-                      </button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-gray-500 text-center py-12">No detailed data available for this application.</div>
-              )}
-            </div>
-          </div>
-        )}
-        {editApp && (
-          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[90vh]">
-              <button onClick={() => { setEditApp(null); setCurrentEditStep(1); }} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
-              {/* Status badge always visible at top right, below close button */}
-              {editApp.status && (
-                <span
-                  className={`absolute top-3 right-12 px-3 py-1 rounded-full text-sm font-medium ${
-                    editApp.status === 'pending'
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : editApp.status === 'approved'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}
-                  style={{ zIndex: 10 }}
-                >
-                  {editApp.status}
-                </span>
-              )}
-              <h3 className="text-2xl font-bold mb-6">Edit Application</h3>
-              {editApp.personalDetails ? (
-                <>
-                  {renderEditStepIndicator()}
-                  <form onSubmit={e => {
-                    e.preventDefault();
-                    setApplications(apps => apps.map(a => a.id === editApp.id ? editApp : a));
-                    setEditApp(null);
-                    setCurrentEditStep(1);
-                  }}>
-                    {renderEditStepContent(editApp, setEditApp)}
-                    <div className="flex justify-between mt-8 pt-6 border-t gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setCurrentEditStep(s => Math.max(1, s - 1))}
-                        disabled={currentEditStep === 1}
-                        className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                      >
-                        Previous
-                      </button>
-                      {currentEditStep < 4 ? (
-                        <button
-                          type="button"
-                          onClick={() => setCurrentEditStep(s => Math.min(4, s + 1))}
-                          className="flex items-center px-4 py-2 rounded-lg bg-green-700 text-white hover:bg-green-800 text-sm"
-                        >
-                          Next
-            </button>
-                      ) : (
-            <button
-                          type="submit"
-                          className="flex items-center px-4 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800 text-sm"
-                        >
-                          Save Changes
-            </button>
-                      )}
-                    </div>
-                  </form>
-                </>
-              ) : (
-                <div className="text-gray-500 text-center py-12">No detailed data available for this application.</div>
-              )}
-            </div>
-        </div>
-        )}
-      </div>
-      <Toast show={toast.show} message={toast.message} onClose={() => setToast({ ...toast, show: false })} />
+        <>
       {previewApp && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-[1400px] relative overflow-y-auto max-h-[95vh] flex flex-col">
@@ -1301,39 +1153,39 @@ const AdminDashboard: React.FC = () => {
                         <tbody>
                           <tr className="border">
                             <td className="border px-1">LAST NAME</td>
-                            <td className="border px-1">{previewApp.personalDetails.lastName}</td>
+                                <td className="border px-1">{previewApp.personal_details.lastName}</td>
                             <td className="border px-1">FIRST NAME</td>
-                            <td className="border px-1">{previewApp.personalDetails.firstName}</td>
+                                <td className="border px-1">{previewApp.personal_details.firstName}</td>
                             <td className="border px-1">MIDDLE NAME</td>
-                            <td className="border px-1">{previewApp.personalDetails.middleName}</td>
+                                <td className="border px-1">{previewApp.personal_details.middleName}</td>
                             <td className="border px-1">SUFFIX</td>
-                            <td className="border px-1">{previewApp.personalDetails.suffix}</td>
+                                <td className="border px-1">{previewApp.personal_details.suffix}</td>
                           </tr>
                           <tr className="border">
                             <td className="border px-1">DATE OF BIRTH</td>
-                            <td className="border px-1">{previewApp.personalDetails.dateOfBirth}</td>
+                                <td className="border px-1">{previewApp.personal_details.dateOfBirth}</td>
                             <td className="border px-1">PLACE OF BIRTH</td>
-                            <td className="border px-1">{previewApp.personalDetails.placeOfBirth}</td>
+                                <td className="border px-1">{previewApp.personal_details.placeOfBirth}</td>
                             <td className="border px-1">GENDER</td>
-                            <td className="border px-1">{previewApp.personalDetails.gender}</td>
+                                <td className="border px-1">{previewApp.personal_details.gender}</td>
                             <td className="border px-1">CIVIL STATUS</td>
-                            <td className="border px-1">{previewApp.personalDetails.civilStatus}</td>
+                                <td className="border px-1">{previewApp.personal_details.civilStatus}</td>
                           </tr>
                           <tr className="border">
                             <td className="border px-1">NATIONALITY</td>
-                            <td className="border px-1">{previewApp.personalDetails.nationality}</td>
+                                <td className="border px-1">{previewApp.personal_details.nationality}</td>
                             <td className="border px-1">EMAIL ADDRESS</td>
-                            <td className="border px-1">{previewApp.personalDetails.emailAddress}</td>
+                                <td className="border px-1">{previewApp.personal_details.emailAddress}</td>
                             <td className="border px-1">MOBILE NUMBER</td>
-                            <td className="border px-1">{previewApp.personalDetails.mobileNumber}</td>
+                                <td className="border px-1">{previewApp.personal_details.mobileNumber}</td>
                             <td className="border px-1">HOME NUMBER</td>
-                            <td className="border px-1">{previewApp.personalDetails.homeNumber}</td>
+                                <td className="border px-1">{previewApp.personal_details.homeNumber}</td>
                           </tr>
                           <tr className="border">
                             <td className="border px-1">SSS/GSIS/UMID</td>
-                            <td className="border px-1">{previewApp.personalDetails.sssGsisUmid}</td>
+                                <td className="border px-1">{previewApp.personal_details.sssGsisUmid}</td>
                             <td className="border px-1">TIN</td>
-                            <td className="border px-1">{previewApp.personalDetails.tin}</td>
+                                <td className="border px-1">{previewApp.personal_details.tin}</td>
                             <td className="border px-1" colSpan={4}></td>
                           </tr>
                         </tbody>
@@ -1346,13 +1198,13 @@ const AdminDashboard: React.FC = () => {
                         <tbody>
                           <tr className="border">
                             <td className="border px-1">LAST NAME</td>
-                            <td className="border px-1">{previewApp.motherDetails.lastName}</td>
+                                <td className="border px-1">{previewApp.mother_details.lastName}</td>
                             <td className="border px-1">FIRST NAME</td>
-                            <td className="border px-1">{previewApp.motherDetails.firstName}</td>
+                                <td className="border px-1">{previewApp.mother_details.firstName}</td>
                             <td className="border px-1">MIDDLE NAME</td>
-                            <td className="border px-1">{previewApp.motherDetails.middleName}</td>
+                                <td className="border px-1">{previewApp.mother_details.middleName}</td>
                             <td className="border px-1">SUFFIX</td>
-                            <td className="border px-1">{previewApp.motherDetails.suffix}</td>
+                                <td className="border px-1">{previewApp.mother_details.suffix}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -1364,17 +1216,17 @@ const AdminDashboard: React.FC = () => {
                         <tbody>
                           <tr className="border">
                             <td className="border px-1">STREET</td>
-                            <td className="border px-1">{previewApp.permanentAddress.street}</td>
+                                <td className="border px-1">{previewApp.permanent_address.street}</td>
                             <td className="border px-1">BARANGAY</td>
-                            <td className="border px-1">{previewApp.permanentAddress.barangay}</td>
+                                <td className="border px-1">{previewApp.permanent_address.barangay}</td>
                             <td className="border px-1">CITY</td>
-                            <td className="border px-1">{previewApp.permanentAddress.city}</td>
+                                <td className="border px-1">{previewApp.permanent_address.city}</td>
                             <td className="border px-1">ZIP CODE</td>
-                            <td className="border px-1">{previewApp.permanentAddress.zipCode}</td>
+                                <td className="border px-1">{previewApp.permanent_address.zipCode}</td>
                           </tr>
                           <tr className="border">
                             <td className="border px-1">YEARS OF STAY</td>
-                            <td className="border px-1">{previewApp.permanentAddress.yearsOfStay}</td>
+                                <td className="border px-1">{previewApp.permanent_address.yearsOfStay}</td>
                             <td className="border px-1" colSpan={6}></td>
                           </tr>
                         </tbody>
@@ -1387,17 +1239,17 @@ const AdminDashboard: React.FC = () => {
                         <tbody>
                           <tr className="border">
                             <td className="border px-1">LAST NAME</td>
-                            <td className="border px-1">{previewApp.spouseDetails.lastName}</td>
+                                <td className="border px-1">{previewApp.spouse_details.lastName}</td>
                             <td className="border px-1">FIRST NAME</td>
-                            <td className="border px-1">{previewApp.spouseDetails.firstName}</td>
+                                <td className="border px-1">{previewApp.spouse_details.firstName}</td>
                             <td className="border px-1">MIDDLE NAME</td>
-                            <td className="border px-1">{previewApp.spouseDetails.middleName}</td>
+                                <td className="border px-1">{previewApp.spouse_details.middleName}</td>
                             <td className="border px-1">SUFFIX</td>
-                            <td className="border px-1">{previewApp.spouseDetails.suffix}</td>
+                                <td className="border px-1">{previewApp.spouse_details.suffix}</td>
                           </tr>
                           <tr className="border">
                             <td className="border px-1">MOBILE NUMBER</td>
-                            <td className="border px-1">{previewApp.spouseDetails.mobileNumber}</td>
+                                <td className="border px-1">{previewApp.spouse_details.mobileNumber}</td>
                             <td className="border px-1" colSpan={6}></td>
                           </tr>
                         </tbody>
@@ -1410,19 +1262,19 @@ const AdminDashboard: React.FC = () => {
                         <tbody>
                           <tr className="border">
                             <td className="border px-1">LAST NAME</td>
-                            <td className="border px-1">{previewApp.personalReference.lastName}</td>
+                                <td className="border px-1">{previewApp.personal_reference.lastName}</td>
                             <td className="border px-1">FIRST NAME</td>
-                            <td className="border px-1">{previewApp.personalReference.firstName}</td>
+                                <td className="border px-1">{previewApp.personal_reference.firstName}</td>
                             <td className="border px-1">MIDDLE NAME</td>
-                            <td className="border px-1">{previewApp.personalReference.middleName}</td>
+                                <td className="border px-1">{previewApp.personal_reference.middleName}</td>
                             <td className="border px-1">SUFFIX</td>
-                            <td className="border px-1">{previewApp.personalReference.suffix}</td>
+                                <td className="border px-1">{previewApp.personal_reference.suffix}</td>
                           </tr>
                           <tr className="border">
                             <td className="border px-1">MOBILE NUMBER</td>
-                            <td className="border px-1">{previewApp.personalReference.mobileNumber}</td>
+                                <td className="border px-1">{previewApp.personal_reference.mobileNumber}</td>
                             <td className="border px-1">RELATIONSHIP</td>
-                            <td className="border px-1">{previewApp.personalReference.relationship}</td>
+                                <td className="border px-1">{previewApp.personal_reference.relationship}</td>
                             <td className="border px-1" colSpan={4}></td>
                           </tr>
                         </tbody>
@@ -1438,30 +1290,30 @@ const AdminDashboard: React.FC = () => {
                         <tbody>
                           <tr className="border">
                             <td className="border px-1">BUSINESS/EMPLOYER'S NAME</td>
-                            <td className="border px-1">{previewApp.workDetails.businessEmployerName}</td>
+                                <td className="border px-1">{previewApp.work_details.businessEmployerName}</td>
                             <td className="border px-1">PROFESSION/OCCUPATION</td>
-                            <td className="border px-1">{previewApp.workDetails.professionOccupation}</td>
+                                <td className="border px-1">{previewApp.work_details.professionOccupation}</td>
                             <td className="border px-1">NATURE OF BUSINESS</td>
-                            <td className="border px-1">{previewApp.workDetails.natureOfBusiness}</td>
+                                <td className="border px-1">{previewApp.work_details.natureOfBusiness}</td>
                           </tr>
                           <tr className="border">
                             <td className="border px-1">DEPARTMENT</td>
-                            <td className="border px-1">{previewApp.workDetails.department}</td>
+                                <td className="border px-1">{previewApp.work_details.department}</td>
                             <td className="border px-1">LANDLINE/MOBILE NO.</td>
-                            <td className="border px-1">{previewApp.workDetails.landlineMobile}</td>
+                                <td className="border px-1">{previewApp.work_details.landlineMobile}</td>
                             <td className="border px-1">YEARS IN BUSINESS</td>
-                            <td className="border px-1">{previewApp.workDetails.yearsInBusiness}</td>
+                                <td className="border px-1">{previewApp.work_details.yearsInBusiness}</td>
                           </tr>
                           <tr className="border">
                             <td className="border px-1">MONTHLY INCOME</td>
-                            <td className="border px-1">{previewApp.workDetails.monthlyIncome}</td>
+                                <td className="border px-1">{previewApp.work_details.monthlyIncome}</td>
                             <td className="border px-1">ANNUAL INCOME</td>
-                            <td className="border px-1">{previewApp.workDetails.annualIncome}</td>
+                                <td className="border px-1">{previewApp.work_details.annualIncome}</td>
                             <td className="border px-1" colSpan={3}></td>
                           </tr>
                           <tr className="border">
                             <td className="border px-1">BUSINESS/OFFICE ADDRESS</td>
-                            <td className="border px-1" colSpan={5}>{previewApp.workDetails.address.street}, {previewApp.workDetails.address.barangay}, {previewApp.workDetails.address.city}, {previewApp.workDetails.address.zipCode}</td>
+                                <td className="border px-1" colSpan={5}>{previewApp.work_details.address.street}, {previewApp.work_details.address.barangay}, {previewApp.work_details.address.city}, {previewApp.work_details.address.zipCode}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -1473,23 +1325,23 @@ const AdminDashboard: React.FC = () => {
                         <tbody>
                           <tr className="border">
                             <td className="border px-1">BANK/INSTITUTION</td>
-                            <td className="border px-1">{previewApp.creditCardDetails.bankInstitution}</td>
+                                <td className="border px-1">{previewApp.credit_card_details.bankInstitution}</td>
                             <td className="border px-1">CARD NUMBER</td>
-                            <td className="border px-1">{previewApp.creditCardDetails.cardNumber}</td>
+                                <td className="border px-1">{previewApp.credit_card_details.cardNumber}</td>
                             <td className="border px-1">CREDIT LIMIT</td>
-                            <td className="border px-1">{previewApp.creditCardDetails.creditLimit}</td>
+                                <td className="border px-1">{previewApp.credit_card_details.creditLimit}</td>
                           </tr>
                           <tr className="border">
                             <td className="border px-1">MEMBER SINCE</td>
-                            <td className="border px-1">{previewApp.creditCardDetails.memberSince}</td>
+                                <td className="border px-1">{previewApp.credit_card_details.memberSince}</td>
                             <td className="border px-1">EXP. DATE</td>
-                            <td className="border px-1">{previewApp.creditCardDetails.expirationDate}</td>
+                                <td className="border px-1">{previewApp.credit_card_details.expirationDate}</td>
                             <td className="border px-1">DELIVER CARD TO</td>
-                            <td className="border px-1">{previewApp.creditCardDetails.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</td>
+                                <td className="border px-1">{previewApp.credit_card_details.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</td>
                           </tr>
                           <tr className="border">
                             <td className="border px-1">BEST TIME TO CONTACT</td>
-                            <td className="border px-1">{previewApp.creditCardDetails.bestTimeToContact}</td>
+                                <td className="border px-1">{previewApp.credit_card_details.bestTimeToContact}</td>
                             <td className="border px-1" colSpan={4}></td>
                           </tr>
                         </tbody>
@@ -1499,9 +1351,9 @@ const AdminDashboard: React.FC = () => {
                     <div className="mb-2">
                       <div className="bg-gray-800 text-white font-bold px-2 py-1">BANK PREFERENCES</div>
                       <div className="flex flex-wrap gap-4 mt-2">
-                        {Object.entries(previewApp.bankPreferences).map(([bank, checked]) => (
+                            {Object.entries(previewApp.bank_preferences).map(([bank, checked]) => (
                           <div key={bank} className="flex items-center gap-1">
-                            <input type="checkbox" checked={Boolean(checked)} readOnly className="accent-blue-600" />
+                                <input type="checkbox" checked={Boolean(checked)} readOnly className="accent-blue-600" />
                             <span className="text-xs">{bank.toUpperCase()}</span>
                           </div>
                         ))}
@@ -1541,10 +1393,382 @@ const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
               )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
+          {editApp && (
+            <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[90vh]">
+                <button onClick={() => { setEditApp(null); setCurrentEditStep(1); }} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
+                <h3 className="text-2xl font-bold mb-6">Edit Application</h3>
+                {/* Step 1: Personal Details */}
+                {currentEditStep === 1 && (
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><label className="font-medium">First Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.firstName ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, firstName: e.target.value } })} /></div>
+                      <div><label className="font-medium">Middle Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.middleName ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, middleName: e.target.value } })} /></div>
+                      <div><label className="font-medium">Last Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.lastName ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, lastName: e.target.value } })} /></div>
+                      <div><label className="font-medium">Suffix:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.suffix ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, suffix: e.target.value } })} /></div>
+                      <div><label className="font-medium">Gender:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.gender ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, gender: e.target.value } })} /></div>
+                      <div><label className="font-medium">Date of Birth:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.dateOfBirth ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, dateOfBirth: e.target.value } })} /></div>
+                      <div><label className="font-medium">Place of Birth:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.placeOfBirth ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, placeOfBirth: e.target.value } })} /></div>
+                      <div><label className="font-medium">Civil Status:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.civilStatus ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, civilStatus: e.target.value } })} /></div>
+                      <div><label className="font-medium">Nationality:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.nationality ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, nationality: e.target.value } })} /></div>
+                      <div><label className="font-medium">Mobile Number:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.mobileNumber ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, mobileNumber: e.target.value } })} /></div>
+                      <div><label className="font-medium">Home Number:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.homeNumber ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, homeNumber: e.target.value } })} /></div>
+                      <div><label className="font-medium">Email Address:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.emailAddress ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, emailAddress: e.target.value } })} /></div>
+                      <div><label className="font-medium">SSS/GSIS/UMID:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.sssGsisUmid ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, sssGsisUmid: e.target.value } })} /></div>
+                      <div><label className="font-medium">TIN:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.tin ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, tin: e.target.value } })} /></div>
+                    </div>
+                  </div>
+                )}
+                {/* Step 2: Family & Address */}
+                {currentEditStep === 2 && (
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Family & Address</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Mother's Details */}
+                      <div><label className="font-medium">Mother's First Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.mother_details?.firstName ?? ''} onChange={e => setEditApp({ ...editApp, mother_details: { ...editApp.mother_details, firstName: e.target.value } })} /></div>
+                      <div><label className="font-medium">Mother's Middle Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.mother_details?.middleName ?? ''} onChange={e => setEditApp({ ...editApp, mother_details: { ...editApp.mother_details, middleName: e.target.value } })} /></div>
+                      <div><label className="font-medium">Mother's Last Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.mother_details?.lastName ?? ''} onChange={e => setEditApp({ ...editApp, mother_details: { ...editApp.mother_details, lastName: e.target.value } })} /></div>
+                      <div><label className="font-medium">Mother's Suffix:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.mother_details?.suffix ?? ''} onChange={e => setEditApp({ ...editApp, mother_details: { ...editApp.mother_details, suffix: e.target.value } })} /></div>
+                      {/* Permanent Address */}
+                      <div><label className="font-medium">Street:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.permanent_address?.street ?? ''} onChange={e => setEditApp({ ...editApp, permanent_address: { ...editApp.permanent_address, street: e.target.value } })} /></div>
+                      <div><label className="font-medium">Barangay:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.permanent_address?.barangay ?? ''} onChange={e => setEditApp({ ...editApp, permanent_address: { ...editApp.permanent_address, barangay: e.target.value } })} /></div>
+                      <div><label className="font-medium">City:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.permanent_address?.city ?? ''} onChange={e => setEditApp({ ...editApp, permanent_address: { ...editApp.permanent_address, city: e.target.value } })} /></div>
+                      <div><label className="font-medium">Province:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.permanent_address?.province ?? ''} onChange={e => setEditApp({ ...editApp, permanent_address: { ...editApp.permanent_address, province: e.target.value } })} /></div>
+                      <div><label className="font-medium">Zip Code:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.permanent_address?.zipCode ?? ''} onChange={e => setEditApp({ ...editApp, permanent_address: { ...editApp.permanent_address, zipCode: e.target.value } })} /></div>
+                      <div><label className="font-medium">Years of Stay:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.permanent_address?.yearsOfStay ?? ''} onChange={e => setEditApp({ ...editApp, permanent_address: { ...editApp.permanent_address, yearsOfStay: e.target.value } })} /></div>
+                      {/* Spouse Details */}
+                      <div><label className="font-medium">Spouse First Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.spouse_details?.firstName ?? ''} onChange={e => setEditApp({ ...editApp, spouse_details: { ...editApp.spouse_details, firstName: e.target.value } })} /></div>
+                      <div><label className="font-medium">Spouse Middle Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.spouse_details?.middleName ?? ''} onChange={e => setEditApp({ ...editApp, spouse_details: { ...editApp.spouse_details, middleName: e.target.value } })} /></div>
+                      <div><label className="font-medium">Spouse Last Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.spouse_details?.lastName ?? ''} onChange={e => setEditApp({ ...editApp, spouse_details: { ...editApp.spouse_details, lastName: e.target.value } })} /></div>
+                      <div><label className="font-medium">Spouse Suffix:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.spouse_details?.suffix ?? ''} onChange={e => setEditApp({ ...editApp, spouse_details: { ...editApp.spouse_details, suffix: e.target.value } })} /></div>
+                      <div><label className="font-medium">Spouse Mobile Number:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.spouse_details?.mobileNumber ?? ''} onChange={e => setEditApp({ ...editApp, spouse_details: { ...editApp.spouse_details, mobileNumber: e.target.value } })} /></div>
+                      {/* Personal Reference */}
+                      <div><label className="font-medium">Personal Reference First Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_reference?.firstName ?? ''} onChange={e => setEditApp({ ...editApp, personal_reference: { ...editApp.personal_reference, firstName: e.target.value } })} /></div>
+                      <div><label className="font-medium">Personal Reference Middle Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_reference?.middleName ?? ''} onChange={e => setEditApp({ ...editApp, personal_reference: { ...editApp.personal_reference, middleName: e.target.value } })} /></div>
+                      <div><label className="font-medium">Personal Reference Last Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_reference?.lastName ?? ''} onChange={e => setEditApp({ ...editApp, personal_reference: { ...editApp.personal_reference, lastName: e.target.value } })} /></div>
+                      <div><label className="font-medium">Personal Reference Suffix:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_reference?.suffix ?? ''} onChange={e => setEditApp({ ...editApp, personal_reference: { ...editApp.personal_reference, suffix: e.target.value } })} /></div>
+                      <div><label className="font-medium">Personal Reference Mobile Number:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_reference?.mobileNumber ?? ''} onChange={e => setEditApp({ ...editApp, personal_reference: { ...editApp.personal_reference, mobileNumber: e.target.value } })} /></div>
+                      <div><label className="font-medium">Personal Reference Relationship:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_reference?.relationship ?? ''} onChange={e => setEditApp({ ...editApp, personal_reference: { ...editApp.personal_reference, relationship: e.target.value } })} /></div>
+                    </div>
+                  </div>
+                )}
+                {/* Step 3: Work/Business Details */}
+                {currentEditStep === 3 && (
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Work/Business Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><label className="font-medium">Business/Employer's Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.businessEmployerName ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, businessEmployerName: e.target.value } })} /></div>
+                      <div><label className="font-medium">Profession/Occupation:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.professionOccupation ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, professionOccupation: e.target.value } })} /></div>
+                      <div><label className="font-medium">Nature of Business:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.natureOfBusiness ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, natureOfBusiness: e.target.value } })} /></div>
+                      <div><label className="font-medium">Department:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.department ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, department: e.target.value } })} /></div>
+                      <div><label className="font-medium">Landline/Mobile:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.landlineMobile ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, landlineMobile: e.target.value } })} /></div>
+                      <div><label className="font-medium">Years in Business:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.yearsInBusiness ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, yearsInBusiness: e.target.value } })} /></div>
+                      <div><label className="font-medium">Monthly Income:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.monthlyIncome ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, monthlyIncome: e.target.value } })} /></div>
+                      <div><label className="font-medium">Annual Income:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.annualIncome ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, annualIncome: e.target.value } })} /></div>
+                      {/* Address fields in two columns */}
+                      <div className="col-span-2">
+                        <span className="font-medium">Address:</span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1">
+                          <div><label className="font-medium">City:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.city ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, city: e.target.value } } })} /></div>
+                          <div><label className="font-medium">Lot No.:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.lotNo ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, lotNo: e.target.value } } })} /></div>
+                          <div><label className="font-medium">Street:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.street ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, street: e.target.value } } })} /></div>
+                          <div><label className="font-medium">Zip Code:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.zipCode ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, zipCode: e.target.value } } })} /></div>
+                          <div><label className="font-medium">Barangay:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.barangay ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, barangay: e.target.value } } })} /></div>
+                          <div><label className="font-medium">Unit/Floor:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.unitFloor ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, unitFloor: e.target.value } } })} /></div>
+                          <div><label className="font-medium">Building/Tower:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.buildingTower ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, buildingTower: e.target.value } } })} /></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* Step 4: Credit Card & Bank Preferences */}
+                {currentEditStep === 4 && (
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Credit Card & Bank Preferences</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><label className="font-medium">Bank/Institution:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.bankInstitution ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, bankInstitution: e.target.value } })} /></div>
+                      <div><label className="font-medium">Card Number:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.cardNumber ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, cardNumber: e.target.value } })} /></div>
+                      <div><label className="font-medium">Credit Limit:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.creditLimit ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, creditLimit: e.target.value } })} /></div>
+                      <div><label className="font-medium">Member Since:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.memberSince ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, memberSince: e.target.value } })} /></div>
+                      <div><label className="font-medium">Exp. Date:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.expirationDate ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, expirationDate: e.target.value } })} /></div>
+                      <div><label className="font-medium">Deliver Card To:</label><select className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.deliverCardTo ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, deliverCardTo: e.target.value as 'home' | 'business' } })}>
+                        <option value="home">Present Home Address</option>
+                        <option value="business">Business Address</option>
+                      </select></div>
+                      <div><label className="font-medium">Best Time to Contact:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.bestTimeToContact ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, bestTimeToContact: e.target.value } })} /></div>
+                      <div className="col-span-2">
+                        <span className="font-medium">Bank Preferences:</span>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {editApp.bank_preferences && Object.entries(editApp.bank_preferences).map(([k, v]) => (
+                            <label key={k} className="flex items-center gap-1">
+                              <input type="checkbox" checked={!!v} onChange={e => setEditApp({ ...editApp, bank_preferences: { ...editApp.bank_preferences, [k]: e.target.checked } })} />
+                              <span>{k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* Step 5: File Links & Review */}
+                {currentEditStep === 5 && (
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-semibold mb-2 text-blue-700">File Links & Review</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <span className="font-medium">ID Photo:</span>
+                        {editApp.id_photo_url ? (
+                          <img src={editApp.id_photo_url} alt="ID Photo" className="w-56 h-40 object-contain border mt-2" />
+                        ) : (
+                          <span className="text-xs ml-2">No ID Uploaded</span>
+                        )}
+                        <input type="file" accept="image/*" className="mt-2" onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            // You may want to handle upload logic here
+                            setEditApp({ ...editApp, id_photo_url: URL.createObjectURL(file) });
+                          }
+                        }} />
+                      </div>
+                      <div>
+                        <span className="font-medium">E-Signature:</span>
+                        {editApp.e_signature_url ? (
+                          <img src={editApp.e_signature_url} alt="E-Signature" className="w-56 h-24 object-contain border mt-2" />
+                        ) : (
+                          <span className="text-xs ml-2">No Signature Uploaded</span>
+                        )}
+                        <input type="file" accept="image/*" className="mt-2" onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            // You may want to handle upload logic here
+                            setEditApp({ ...editApp, e_signature_url: URL.createObjectURL(file) });
+                          }
+                        }} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* Navigation buttons */}
+                <div className="flex justify-between mt-8 pt-6 border-t gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentEditStep(s => Math.max(1, s - 1))}
+                    disabled={currentEditStep === 1}
+                    className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (currentEditStep < 5) {
+                        setCurrentEditStep(s => Math.min(5, s + 1));
+                      } else {
+                        // Debug log: show id and payload
+                        console.log('Updating application:', editApp.id, {
+                          personal_details: editApp.personal_details,
+                          mother_details: editApp.mother_details,
+                          permanent_address: editApp.permanent_address,
+                          spouse_details: editApp.spouse_details,
+                          personal_reference: editApp.personal_reference,
+                          work_details: editApp.work_details,
+                          credit_card_details: editApp.credit_card_details,
+                          bank_preferences: editApp.bank_preferences,
+                          id_photo_url: editApp.id_photo_url,
+                          e_signature_url: editApp.e_signature_url,
+                        });
+                        const { error, data, count } = await supabase.from('application_form').update({
+                          personal_details: editApp.personal_details,
+                          mother_details: editApp.mother_details,
+                          permanent_address: editApp.permanent_address,
+                          spouse_details: editApp.spouse_details,
+                          personal_reference: editApp.personal_reference,
+                          work_details: editApp.work_details,
+                          credit_card_details: editApp.credit_card_details,
+                          bank_preferences: editApp.bank_preferences,
+                          id_photo_url: editApp.id_photo_url,
+                          e_signature_url: editApp.e_signature_url,
+                        }).eq('id', editApp.id);
+                        // Debug log: show result
+                        console.log('Update result:', { error, data, count });
+                        if (error) {
+                          setToast({ show: true, message: 'Failed to update application: ' + error.message, type: 'error' });
+                          return;
+                        }
+                        setEditApp(null);
+                        setCurrentEditStep(1);
+                        setToast({ show: true, message: 'Application updated successfully!', type: 'success' });
+                      }
+                    }}
+                    className={`flex items-center px-4 py-2 rounded-lg ${currentEditStep < 5 ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-green-600 text-white hover:bg-green-700'} text-sm`}
+                  >
+                    {currentEditStep < 5 ? 'Next' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {pdfPreviewApp && (
+            <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl shadow-2xl p-4 w-full max-w-[90vw] relative overflow-visible max-h-[90vh]">
+                <button onClick={() => setPdfPreviewApp(null)} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold">PDF Preview</h2>
+                  <button className="mr-10 bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-800 text-sm" onClick={async () => {
+                    const element = document.getElementById('pdf-preview-template');
+                    if (!element) return;
+                    const canvas = await html2canvas(element, { scale: 2 });
+                    const imgData = canvas.toDataURL('image/png');
+                    const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: [canvas.width, canvas.height] });
+                    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+                    pdf.save('application_details.pdf');
+                  }}>Export PDF</button>
+                </div>
+                <div style={{ width: '1500px', height: '800px', display: 'flex', justifyContent: 'center',alignItems: 'center' ,overflow: 'hidden' }}>
+                  <div id="pdf-preview-template" className="bg-white p-2 border rounded mb-4" style={{ fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#222', width: '100%', maxWidth: '95vw', margin: '0 auto', boxSizing: 'border-box', overflow: 'hidden', transform: 'scale(0.8)', transformOrigin: 'top left' }}>
+                    {/* 5-column main details section */}
+                    <table style={{ width: '100%', maxWidth: '100%', borderCollapse: 'collapse', marginBottom: '8px', tableLayout: 'fixed', fontSize: '14px' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>PERSONAL DETAILS</th>
+                          <th style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>FAMILY & ADDRESS</th>
+                          <th style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>SPOUSE DETAILS</th>
+                          <th style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>PERSONAL REFERENCE</th>
+                          <th style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>WORK/BUSINESS DETAILS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          {/* Personal Details */}
+                          <td style={{ verticalAlign: 'top', padding: '4px' }}>
+                            <b>Last Name:</b> {pdfPreviewApp.personal_details?.lastName ?? ''}<br />
+                            <b>First Name:</b> {pdfPreviewApp.personal_details?.firstName ?? ''}<br />
+                            <b>Middle Name:</b> {pdfPreviewApp.personal_details?.middleName ?? ''}<br />
+                            <b>Suffix:</b> {pdfPreviewApp.personal_details?.suffix ?? ''}<br />
+                            <b>Date of Birth:</b> {pdfPreviewApp.personal_details?.dateOfBirth ?? ''}<br />
+                            <b>Place of Birth:</b> {pdfPreviewApp.personal_details?.placeOfBirth ?? ''}<br />
+                            <b>Gender:</b> {pdfPreviewApp.personal_details?.gender ?? ''}<br />
+                            <b>Civil Status:</b> {pdfPreviewApp.personal_details?.civilStatus ?? ''}<br />
+                            <b>Nationality:</b> {pdfPreviewApp.personal_details?.nationality ?? ''}<br />
+                            <b>Email Address:</b> {pdfPreviewApp.personal_details?.emailAddress ?? ''}<br />
+                            <b>Mobile Number:</b> {pdfPreviewApp.personal_details?.mobileNumber ?? ''}<br />
+                            <b>Home Number:</b> {pdfPreviewApp.personal_details?.homeNumber ?? ''}<br />
+                            <b>SSS/GSIS/UMID:</b> {pdfPreviewApp.personal_details?.sssGsisUmid ?? ''}<br />
+                            <b>TIN:</b> {pdfPreviewApp.personal_details?.tin ?? ''}
+                          </td>
+                          {/* Family & Address */}
+                          <td style={{ verticalAlign: 'top', padding: '4px' }}>
+                            <b>Mother's Last Name:</b> {pdfPreviewApp.mother_details?.lastName ?? ''}<br />
+                            <b>Mother's First Name:</b> {pdfPreviewApp.mother_details?.firstName ?? ''}<br />
+                            <b>Mother's Middle Name:</b> {pdfPreviewApp.mother_details?.middleName ?? ''}<br />
+                            <b>Mother's Suffix:</b> {pdfPreviewApp.mother_details?.suffix ?? ''}<br />
+                            <b>Street:</b> {pdfPreviewApp.permanent_address?.street ?? ''}<br />
+                            <b>Barangay:</b> {pdfPreviewApp.permanent_address?.barangay ?? ''}<br />
+                            <b>City:</b> {pdfPreviewApp.permanent_address?.city ?? ''}<br />
+                            <b>Province:</b> {pdfPreviewApp.permanent_address?.province ?? ''}<br />
+                            <b>Zip Code:</b> {pdfPreviewApp.permanent_address?.zipCode ?? ''}<br />
+                            <b>Years of Stay:</b> {pdfPreviewApp.permanent_address?.yearsOfStay ?? ''}
+                          </td>
+                          {/* Spouse Details */}
+                          <td style={{ verticalAlign: 'top', padding: '4px' }}>
+                            <b>Last Name:</b> {pdfPreviewApp.spouse_details?.lastName ?? ''}<br />
+                            <b>First Name:</b> {pdfPreviewApp.spouse_details?.firstName ?? ''}<br />
+                            <b>Middle Name:</b> {pdfPreviewApp.spouse_details?.middleName ?? ''}<br />
+                            <b>Suffix:</b> {pdfPreviewApp.spouse_details?.suffix ?? ''}<br />
+                            <b>Mobile Number:</b> {pdfPreviewApp.spouse_details?.mobileNumber ?? ''}
+                          </td>
+                          {/* Personal Reference */}
+                          <td style={{ verticalAlign: 'top', padding: '4px' }}>
+                            <b>Last Name:</b> {pdfPreviewApp.personal_reference?.lastName ?? ''}<br />
+                            <b>First Name:</b> {pdfPreviewApp.personal_reference?.firstName ?? ''}<br />
+                            <b>Middle Name:</b> {pdfPreviewApp.personal_reference?.middleName ?? ''}<br />
+                            <b>Suffix:</b> {pdfPreviewApp.personal_reference?.suffix ?? ''}<br />
+                            <b>Mobile Number:</b> {pdfPreviewApp.personal_reference?.mobileNumber ?? ''}<br />
+                            <b>Relationship:</b> {pdfPreviewApp.personal_reference?.relationship ?? ''}
+                          </td>
+                          {/* Work/Business Details */}
+                          <td style={{ verticalAlign: 'top', padding: '4px' }}>
+                            <b>Business/Employer's Name:</b> {pdfPreviewApp.work_details?.businessEmployerName ?? ''}<br />
+                            <b>Profession/Occupation:</b> {pdfPreviewApp.work_details?.professionOccupation ?? ''}<br />
+                            <b>Nature of Business:</b> {pdfPreviewApp.work_details?.natureOfBusiness ?? ''}<br />
+                            <b>Department:</b> {pdfPreviewApp.work_details?.department ?? ''}<br />
+                            <b>Landline/Mobile No.:</b> {pdfPreviewApp.work_details?.landlineMobile ?? ''}<br />
+                            <b>Years in Business:</b> {pdfPreviewApp.work_details?.yearsInBusiness ?? ''}<br />
+                            <b>Monthly Income:</b> {pdfPreviewApp.work_details?.monthlyIncome ?? ''}<br />
+                            <b>Annual Income:</b> {pdfPreviewApp.work_details?.annualIncome ?? ''}<br />
+                            <b>Business/Office Address:</b> {pdfPreviewApp.work_details?.address ? `${pdfPreviewApp.work_details.address.street}, ${pdfPreviewApp.work_details.address.barangay}, ${pdfPreviewApp.work_details.address.city}, ${pdfPreviewApp.work_details.address.zipCode}` : ''}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    {/* Credit Card Details, Bank Preferences, and Images below */}
+                    <div style={{ display: 'flex', width: '95%', gap: '24px', marginTop: '12px', alignItems: 'flex-start' }}>
+                      {/* Left: Credit Card Details & Bank Preferences */}
+                      <div style={{ flex: 3, minWidth: 0 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px' }}>
+                          <tbody>
+                            <tr>
+                              <td colSpan={2} style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>CREDIT CARD DETAILS</td>
+                              <td colSpan={2} style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>BANK PREFERENCES</td>
+                            </tr>
+                            <tr>
+                              {/* Credit Card Details */}
+                              <td colSpan={2} style={{ verticalAlign: 'top', padding: '4px' }}>
+                                <b>Bank/Institution:</b> {pdfPreviewApp.credit_card_details?.bankInstitution ?? ''}<br />
+                                <b>Card Number:</b> {pdfPreviewApp.credit_card_details?.cardNumber ?? ''}<br />
+                                <b>Credit Limit:</b> {pdfPreviewApp.credit_card_details?.creditLimit ?? ''}<br />
+                                <b>Member Since:</b> {pdfPreviewApp.credit_card_details?.memberSince ?? ''}<br />
+                                <b>Exp. Date:</b> {pdfPreviewApp.credit_card_details?.expirationDate ?? ''}<br />
+                                <b>Deliver Card To:</b> {pdfPreviewApp.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}<br />
+                                <b>Best Time to Contact:</b> {pdfPreviewApp.credit_card_details?.bestTimeToContact ?? ''}
+                              </td>
+                              {/* Bank Preferences */}
+                              <td colSpan={2} style={{ verticalAlign: 'top', padding: '4px' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                  {pdfPreviewApp.bank_preferences && Object.entries(pdfPreviewApp.bank_preferences).filter(([_, v]) => v).map(([k]) => (
+                                    <span key={k} style={{ background: '#e0e7ff', color: '#3730a3', padding: '2px 8px', borderRadius: '10px', fontSize: '13px', fontWeight: 500 }}>
+                                      {k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      {/* Right: ID Photo & E-Signature */}
+                      <div style={{ flex: 2, minWidth: 0, display: 'flex', flexDirection: 'row', gap: '16px', alignItems: 'flex-start', justifyContent: 'center' }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '14px' }}>ID PHOTO</div>
+                          {pdfPreviewApp.id_photo_url ? (
+                            <img src={pdfPreviewApp.id_photo_url} alt="ID Photo" style={{ width: '180px', maxWidth: '100%', height: '120px', objectFit: 'contain', border: '1px solid #ccc', background: '#f9f9f9', display: 'block', margin: '0 auto' }} />
+                          ) : (
+                            <div style={{ width: '180px', height: '120px', border: '1px solid #ccc', background: '#f9f9f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: '13px' }}>No ID</div>
+                          )}
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '14px' }}>E-SIGNATURE</div>
+                          {pdfPreviewApp.e_signature_url ? (
+                            <img src={pdfPreviewApp.e_signature_url} alt="E-Signature" style={{ width: '180px', maxWidth: '100%', height: '120px', objectFit: 'contain', border: '1px solid #ccc', background: '#f9f9f9', display: 'block', margin: '0 auto' }} />
+                          ) : (
+                            <div style={{ width: '180px', height: '120px', border: '1px solid #ccc', background: '#f9f9f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: '13px' }}>No Signature</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      </div>
+      <Toast show={toast.show} message={toast.message} onClose={() => setToast({ ...toast, show: false })} type={toast.type} />
       {viewedApp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
           <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6 relative overflow-y-auto max-h-[90vh]">
@@ -1555,128 +1779,153 @@ const AdminDashboard: React.FC = () => {
             >
               &times;
             </button>
-            <h2 className="text-xl font-bold mb-4">Application Details</h2>
-            <h3 className="font-semibold text-lg mb-4">{sectionTitles[currentSection]}</h3>
-            <div className="space-y-6">
-              {/* Section content */}
-              {currentSection === 0 && (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <h3 className="text-2xl font-bold mb-6">Application Details</h3>
+            {/* Section content for 5 steps */}
+            {currentModalStep === 1 && (
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Details</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div><span className="font-medium">First Name:</span> {viewedApp.personal_details?.firstName ?? 'N/A'}</div>
                   <div><span className="font-medium">Middle Name:</span> {viewedApp.personal_details?.middleName ?? 'N/A'}</div>
                   <div><span className="font-medium">Last Name:</span> {viewedApp.personal_details?.lastName ?? 'N/A'}</div>
                   <div><span className="font-medium">Suffix:</span> {viewedApp.personal_details?.suffix ?? 'N/A'}</div>
                   <div><span className="font-medium">Gender:</span> {viewedApp.personal_details?.gender ?? 'N/A'}</div>
+                  <div><span className="font-medium">Date of Birth:</span> {viewedApp.personal_details?.dateOfBirth ?? 'N/A'}</div>
+                  <div><span className="font-medium">Place of Birth:</span> {viewedApp.personal_details?.placeOfBirth ?? 'N/A'}</div>
+                  <div><span className="font-medium">Civil Status:</span> {viewedApp.personal_details?.civilStatus ?? 'N/A'}</div>
+                  <div><span className="font-medium">Nationality:</span> {viewedApp.personal_details?.nationality ?? 'N/A'}</div>
+                  <div><span className="font-medium">Mobile Number:</span> {viewedApp.personal_details?.mobileNumber ?? 'N/A'}</div>
+                  <div><span className="font-medium">Home Number:</span> {viewedApp.personal_details?.homeNumber ?? 'N/A'}</div>
+                  <div><span className="font-medium">Email Address:</span> {viewedApp.personal_details?.emailAddress ?? 'N/A'}</div>
+                  <div><span className="font-medium">SSS/GSIS/UMID:</span> {viewedApp.personal_details?.sssGsisUmid ?? 'N/A'}</div>
                   <div><span className="font-medium">TIN:</span> {viewedApp.personal_details?.tin ?? 'N/A'}</div>
                 </div>
-              )}
-              {currentSection === 1 && (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div><span className="font-medium">First Name:</span> {viewedApp.mother_details?.firstName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Middle Name:</span> {viewedApp.mother_details?.middleName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Last Name:</span> {viewedApp.mother_details?.lastName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Suffix:</span> {viewedApp.mother_details?.suffix ?? 'N/A'}</div>
-                </div>
-              )}
-              {currentSection === 2 && (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              </div>
+            )}
+            {currentModalStep === 2 && (
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold mb-2 text-blue-700">Family & Address</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div><span className="font-medium">Mother's First Name:</span> {viewedApp.mother_details?.firstName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Mother's Middle Name:</span> {viewedApp.mother_details?.middleName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Mother's Last Name:</span> {viewedApp.mother_details?.lastName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Mother's Suffix:</span> {viewedApp.mother_details?.suffix ?? 'N/A'}</div>
                   <div><span className="font-medium">Street:</span> {viewedApp.permanent_address?.street ?? 'N/A'}</div>
                   <div><span className="font-medium">Barangay:</span> {viewedApp.permanent_address?.barangay ?? 'N/A'}</div>
                   <div><span className="font-medium">City:</span> {viewedApp.permanent_address?.city ?? 'N/A'}</div>
                   <div><span className="font-medium">Province:</span> {viewedApp.permanent_address?.province ?? 'N/A'}</div>
                   <div><span className="font-medium">Zip Code:</span> {viewedApp.permanent_address?.zipCode ?? 'N/A'}</div>
+                  <div><span className="font-medium">Years of Stay:</span> {viewedApp.permanent_address?.yearsOfStay ?? 'N/A'}</div>
+                  <div><span className="font-medium">Spouse First Name:</span> {viewedApp.spouse_details?.firstName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Spouse Middle Name:</span> {viewedApp.spouse_details?.middleName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Spouse Last Name:</span> {viewedApp.spouse_details?.lastName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Spouse Suffix:</span> {viewedApp.spouse_details?.suffix ?? 'N/A'}</div>
+                  <div><span className="font-medium">Spouse Mobile Number:</span> {viewedApp.spouse_details?.mobileNumber ?? 'N/A'}</div>
+                  <div><span className="font-medium">Personal Reference First Name:</span> {viewedApp.personal_reference?.firstName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Personal Reference Middle Name:</span> {viewedApp.personal_reference?.middleName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Personal Reference Last Name:</span> {viewedApp.personal_reference?.lastName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Personal Reference Suffix:</span> {viewedApp.personal_reference?.suffix ?? 'N/A'}</div>
+                  <div><span className="font-medium">Personal Reference Mobile Number:</span> {viewedApp.personal_reference?.mobileNumber ?? 'N/A'}</div>
+                  <div><span className="font-medium">Personal Reference Relationship:</span> {viewedApp.personal_reference?.relationship ?? 'N/A'}</div>
                 </div>
-              )}
-              {currentSection === 3 && (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div><span className="font-medium">First Name:</span> {viewedApp.spouse_details?.firstName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Middle Name:</span> {viewedApp.spouse_details?.middleName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Last Name:</span> {viewedApp.spouse_details?.lastName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Suffix:</span> {viewedApp.spouse_details?.suffix ?? 'N/A'}</div>
-                </div>
-              )}
-              {currentSection === 4 && (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div><span className="font-medium">First Name:</span> {viewedApp.personal_reference?.firstName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Middle Name:</span> {viewedApp.personal_reference?.middleName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Last Name:</span> {viewedApp.personal_reference?.lastName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Suffix:</span> {viewedApp.personal_reference?.suffix ?? 'N/A'}</div>
-                </div>
-              )}
-              {currentSection === 5 && (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div>
-                    <span className="font-medium">Address:</span>
-                    {(() => {
-                      const addr = viewedApp.work_details?.address;
-                      if (addr && typeof addr === 'object' && !Array.isArray(addr)) {
-                        const keys = Object.keys(addr);
-                        if (keys.length > 0) {
-                          return (
-                            <div className="ml-2">
-                              {Object.entries(addr).map(([key, value]) => (
-                                <div key={key} className="text-xs">{key}: {value ?? 'N/A'}</div>
-                              ))}
-                            </div>
-                          );
-                        }
-                        return null;
-                      } else if (typeof addr === 'string') {
-                        return <span className="text-xs ml-2">{addr}</span>;
-                      }
-                      return null;
-                    })()}
-                  </div>
+              </div>
+            )}
+            {currentModalStep === 3 && (
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold mb-2 text-blue-700">Work/Business Details</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div><span className="font-medium">Business/Employer's Name:</span> {viewedApp.work_details?.businessEmployerName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Profession/Occupation:</span> {viewedApp.work_details?.professionOccupation ?? 'N/A'}</div>
+                  <div><span className="font-medium">Nature of Business:</span> {viewedApp.work_details?.natureOfBusiness ?? 'N/A'}</div>
                   <div><span className="font-medium">Department:</span> {viewedApp.work_details?.department ?? 'N/A'}</div>
-                  <div><span className="font-medium">Annual Income:</span> {viewedApp.work_details?.annualIncome ?? 'N/A'}</div>
+                  <div><span className="font-medium">Landline/Mobile:</span> {viewedApp.work_details?.landlineMobile ?? 'N/A'}</div>
+                  <div><span className="font-medium">Years in Business:</span> {viewedApp.work_details?.yearsInBusiness ?? 'N/A'}</div>
                   <div><span className="font-medium">Monthly Income:</span> {viewedApp.work_details?.monthlyIncome ?? 'N/A'}</div>
-                  <div><span className="font-medium">Position:</span> {viewedApp.work_details?.position ?? 'N/A'}</div>
-                  <div><span className="font-medium">Employment Status:</span> {viewedApp.work_details?.employmentStatus ?? 'N/A'}</div>
+                  <div><span className="font-medium">Annual Income:</span> {viewedApp.work_details?.annualIncome ?? 'N/A'}</div>
+                  <div className="col-span-2">
+                    <span className="font-medium">Address:</span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1">
+                      {(() => {
+                        const addr = viewedApp.work_details?.address;
+                        if (addr && typeof addr === 'object' && !Array.isArray(addr)) {
+                          return Object.entries(addr).map(([key, value]) => (
+                            <div key={key}>{key}: {value ?? 'N/A'}</div>
+                          ));
+                        } else if (typeof addr === 'string') {
+                          return <div>{addr}</div>;
+                        }
+                        return <div>N/A</div>;
+                      })()}
+                    </div>
+                  </div>
                 </div>
-              )}
-              {currentSection === 6 && (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              </div>
+            )}
+            {currentModalStep === 4 && (
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold mb-2 text-blue-700">Credit Card & Bank Preferences</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div><span className="font-medium">Bank/Institution:</span> {viewedApp.credit_card_details?.bankInstitution ?? 'N/A'}</div>
                   <div><span className="font-medium">Card Number:</span> {viewedApp.credit_card_details?.cardNumber ?? 'N/A'}</div>
                   <div><span className="font-medium">Credit Limit:</span> {viewedApp.credit_card_details?.creditLimit ?? 'N/A'}</div>
                   <div><span className="font-medium">Member Since:</span> {viewedApp.credit_card_details?.memberSince ?? 'N/A'}</div>
-                  <div><span className="font-medium">Expiration Date:</span> {viewedApp.credit_card_details?.expirationDate ?? 'N/A'}</div>
-                  <div><span className="font-medium">Bank Institution:</span> {viewedApp.credit_card_details?.bankInstitution ?? 'N/A'}</div>
-                  <div><span className="font-medium">Deliver Card To:</span> {viewedApp.credit_card_details?.deliverCardTo ?? 'N/A'}</div>
-                  <div><span className="font-medium">Best Time To Contact:</span> {viewedApp.credit_card_details?.bestTimeToContact ?? 'N/A'}</div>
+                  <div><span className="font-medium">Exp. Date:</span> {viewedApp.credit_card_details?.expirationDate ?? 'N/A'}</div>
+                  <div><span className="font-medium">Deliver Card To:</span> {viewedApp.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</div>
+                  <div><span className="font-medium">Best Time to Contact:</span> {viewedApp.credit_card_details?.bestTimeToContact ?? 'N/A'}</div>
+                  <div className="col-span-2">
+                    <span className="font-medium">Bank Preferences:</span>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {viewedApp.bank_preferences && Object.entries(viewedApp.bank_preferences).filter(([_, v]) => v).map(([k]) => (
+                        <span key={k} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                          {k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              )}
-              {currentSection === 7 && (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  {viewedApp.bank_preferences && Object.entries(viewedApp.bank_preferences).map(([bank, checked]) => (
-                    <div key={bank}><span className="font-medium">{bank}:</span> {checked ? 'Yes' : 'No'}</div>
-                  ))}
+              </div>
+            )}
+            {currentModalStep === 5 && (
+              <div className="space-y-4">
+                <h4 className="text-lg font-semibold mb-2 text-blue-700">File Links & Review</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span className="font-medium">ID Photo:</span>
+                    {viewedApp.id_photo_url ? (
+                      <img src={viewedApp.id_photo_url} alt="ID Photo" className="w-56 h-40 object-contain border mt-2" />
+                    ) : (
+                      <span className="text-xs ml-2">No ID Uploaded</span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="font-medium">E-Signature:</span>
+                    {viewedApp.e_signature_url ? (
+                      <img src={viewedApp.e_signature_url} alt="E-Signature" className="w-56 h-24 object-contain border mt-2" />
+                    ) : (
+                      <span className="text-xs ml-2">No Signature Uploaded</span>
+                    )}
+                  </div>
                 </div>
-              )}
-              {currentSection === 8 && (
-                <div className="flex flex-col gap-2">
-                  {viewedApp.id_photo_url && (
-                    <div><span className="font-semibold">ID Photo:</span> <a href={viewedApp.id_photo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline ml-2">View</a></div>
-                  )}
-                  {viewedApp.e_signature_url && (
-                    <div><span className="font-semibold">E-Signature:</span> <a href={viewedApp.e_signature_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline ml-2">View</a></div>
-                  )}
-                </div>
-              )}
-            </div>
-            {/* Navigation Buttons */}
-            <div className="flex justify-between mt-6">
+              </div>
+            )}
+            <div className="flex justify-between mt-8 pt-6 border-t gap-4">
               <button
-                className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
-                onClick={() => setCurrentSection(s => Math.max(0, s - 1))}
-                disabled={currentSection === 0}
+                type="button"
+                onClick={() => setCurrentModalStep(s => Math.max(1, s - 1))}
+                disabled={currentModalStep === 1}
+                className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 Previous
               </button>
               <button
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                onClick={() => setCurrentSection(s => Math.min(sectionTitles.length - 1, s + 1))}
-                disabled={currentSection === sectionTitles.length - 1}
+                type="button"
+                onClick={() => {
+                  if (currentModalStep < 5) setCurrentModalStep(s => Math.min(5, s + 1));
+                  else { setViewedApp(null); setCurrentModalStep(1); }
+                }}
+                className={`flex items-center px-4 py-2 rounded-lg ${currentModalStep < 5 ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-green-600 text-white hover:bg-green-700'} text-sm`}
               >
-                Next
+                {currentModalStep < 5 ? 'Next' : 'Close'}
               </button>
             </div>
           </div>

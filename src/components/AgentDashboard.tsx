@@ -15,10 +15,15 @@ const AgentDashboard: React.FC = () => {
   const [currentModalStep, setCurrentModalStep] = useState(1);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Debug log
+  console.log('AgentDashboard applications:', applications);
+  if (applications.length > 0) {
+    console.log('First application object:', applications[0]);
+  }
+
   // Filter applications submitted by this agent
-  const agentApplications = applications.filter(app => app.submittedBy === user?.id);
-  const pendingApplications = agentApplications.filter(app => app.status === 'pending');
-  const approvedApplications = agentApplications.filter(app => app.status === 'approved');
+  const pendingApplications = applications.filter(app => app.status === 'pending');
+  const approvedApplications = applications.filter(app => app.status === 'approved');
 
   const exportToPDF = () => {
     // This would normally generate a PDF report
@@ -48,7 +53,7 @@ const AgentDashboard: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
         <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
           <div className="flex items-center mb-2"><FileText className="w-6 h-6 text-blue-500 mr-2" /> <span className="font-semibold">Total Applications</span></div>
-          <div className="text-2xl font-bold">{agentApplications.length}</div>
+          <div className="text-2xl font-bold">{applications.length}</div>
         </div>
         <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
           <div className="flex items-center mb-2"><FileText className="w-6 h-6 text-yellow-500 mr-2" /> <span className="font-semibold">Pending</span></div>
@@ -75,7 +80,6 @@ const AgentDashboard: React.FC = () => {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
         <h2 className="text-2xl font-bold">Application History</h2>
-        <button onClick={exportToPDF} className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center self-start sm:self-auto"><Download className="w-4 h-4 mr-2" /> Export PDF</button>
       </div>
       <div className="bg-white rounded-xl shadow-md w-full overflow-x-auto">
         <table className="w-full text-xs sm:text-sm md:text-base table-fixed">
@@ -90,19 +94,21 @@ const AgentDashboard: React.FC = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {agentApplications.length === 0 ? (
+            {applications.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                   No applications found.
                 </td>
               </tr>
             ) : (
-              agentApplications.map((application) => (
+              applications.map((application) => (
                 <tr key={application.id}>
-                  <td className="px-2 py-4 text-center">{application.personalDetails.firstName} {application.personalDetails.lastName}</td>
-                  <td className="px-2 py-4 text-center">{application.personalDetails.emailAddress}</td>
-                  <td className="px-2 py-4 text-center">{application.personalDetails.mobileNumber}</td>
-                  <td className="px-2 py-4 text-center">{format(application.submittedAt, 'MMM dd, yyyy HH:mm')}</td>
+                  <td className="px-2 py-4 text-center">
+                    {(application.personal_details?.firstName || '') + ' ' + (application.personal_details?.lastName || '')}
+                  </td>
+                  <td className="px-2 py-4 text-center">{application.personal_details?.emailAddress || ''}</td>
+                  <td className="px-2 py-4 text-center">{application.personal_details?.mobileNumber || ''}</td>
+                  <td className="px-2 py-4 text-center">{application.submitted_at ? format(new Date(application.submitted_at), 'MMM dd, yyyy HH:mm') : ''}</td>
                   <td className="px-2 py-4 text-center">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                       application.status === 'approved' ? 'bg-green-100 text-green-800' :
@@ -318,7 +324,7 @@ const AgentDashboard: React.FC = () => {
       />
       {/* Sidebar */}
       <aside
-        className={`fixed z-50 top-0 left-0 h-full w-64 bg-gradient-to-b from-[#101624] to-[#1a2236] text-white flex flex-col justify-between py-6 px-2 sm:px-6 min-h-fit shadow-xl transform transition-transform duration-300
+        className={`fixed z-50 top-0 left-0 h-full w-64 bg-gradient-to-b from-[#101624] to-[#1a2236] text-white flex flex-col py-6 px-2 sm:px-6 min-h-fit shadow-xl transform transition-transform duration-300
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} sm:translate-x-0 sm:static sm:w-64 sm:block`}
         style={{ minHeight: '100vh' }}
         aria-label="Sidebar"
@@ -358,11 +364,7 @@ const AgentDashboard: React.FC = () => {
           </nav>
           <div className="my-8 border-t border-blue-900/40" />
         </div>
-        <div className="flex flex-col items-center mb-2 mt-auto absolute bottom-6 left-0 w-full">
-          <div className="bg-blue-800 rounded-full w-12 h-12 flex items-center justify-center text-lg font-bold mb-2 shadow-md">{user?.name ? user.name.split(' ').map(n => n[0]).join('') : 'AG'}</div>
-          <div className="text-white font-semibold">{user?.name || 'Agent User'}</div>
-          <div className="text-xs text-blue-100">{user?.email || 'agent@silverpay.com'}</div>
-        </div>
+        {/* Footer removed here */}
       </aside>
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
@@ -399,7 +401,6 @@ const AgentDashboard: React.FC = () => {
           <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[90vh]">
               <button onClick={() => { setViewedApp(null); setCurrentModalStep(1); }} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
-              {/* Status badge always visible at top right, below close button */}
               {viewedApp.status && (
                 <span
                   className={`absolute top-3 right-12 px-3 py-1 rounded-full text-sm font-medium ${
@@ -415,34 +416,131 @@ const AgentDashboard: React.FC = () => {
                 </span>
               )}
               <h3 className="text-2xl font-bold mb-6">Application Details</h3>
-              {viewedApp.personalDetails ? (
-                <>
-                  {renderModalStepIndicator()}
-                  {renderModalStepContent(viewedApp)}
-                  <div className="flex justify-between mt-8 pt-6 border-t gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentModalStep(s => Math.max(1, s - 1))}
-                      disabled={currentModalStep === 1}
-                      className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (currentModalStep < 4) setCurrentModalStep(s => Math.min(4, s + 1));
-                        else { setViewedApp(null); setCurrentModalStep(1); }
-                      }}
-                      className={`flex items-center px-4 py-2 rounded-lg ${currentModalStep < 4 ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-green-600 text-white hover:bg-green-700'} text-sm`}
-                    >
-                      {currentModalStep < 4 ? 'Next' : 'Close'}
-                    </button>
+              {/* Step content */}
+              <div className="space-y-8">
+                {currentModalStep === 1 && (
+                  <div>
+                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><span className="font-medium">Last Name:</span> {viewedApp.personal_details?.lastName}</div>
+                      <div><span className="font-medium">First Name:</span> {viewedApp.personal_details?.firstName}</div>
+                      <div><span className="font-medium">Middle Name:</span> {viewedApp.personal_details?.middleName}</div>
+                      <div><span className="font-medium">Suffix:</span> {viewedApp.personal_details?.suffix}</div>
+                      <div><span className="font-medium">Date of Birth:</span> {viewedApp.personal_details?.dateOfBirth}</div>
+                      <div><span className="font-medium">Place of Birth:</span> {viewedApp.personal_details?.placeOfBirth}</div>
+                      <div><span className="font-medium">Gender:</span> {viewedApp.personal_details?.gender}</div>
+                      <div><span className="font-medium">Civil Status:</span> {viewedApp.personal_details?.civilStatus}</div>
+                      <div><span className="font-medium">Nationality:</span> {viewedApp.personal_details?.nationality}</div>
+                      <div><span className="font-medium">Mobile Number:</span> {viewedApp.personal_details?.mobileNumber}</div>
+                      <div><span className="font-medium">Home Number:</span> {viewedApp.personal_details?.homeNumber}</div>
+                      <div><span className="font-medium">Email Address:</span> {viewedApp.personal_details?.emailAddress}</div>
+                      <div><span className="font-medium">SSS/GSIS/UMID:</span> {viewedApp.personal_details?.sssGsisUmid}</div>
+                      <div><span className="font-medium">TIN:</span> {viewedApp.personal_details?.tin}</div>
+                    </div>
                   </div>
-                </>
-              ) : (
-                <div className="text-gray-500 text-center py-12">No detailed data available for this application.</div>
-              )}
+                )}
+                {currentModalStep === 2 && (
+                  <div>
+                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Family & Address</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><span className="font-medium">Mother's Last Name:</span> {viewedApp.mother_details?.lastName}</div>
+                      <div><span className="font-medium">Mother's First Name:</span> {viewedApp.mother_details?.firstName}</div>
+                      <div><span className="font-medium">Mother's Middle Name:</span> {viewedApp.mother_details?.middleName}</div>
+                      <div><span className="font-medium">Mother's Suffix:</span> {viewedApp.mother_details?.suffix}</div>
+                      <div><span className="font-medium">Street:</span> {viewedApp.permanent_address?.street}</div>
+                      <div><span className="font-medium">Barangay:</span> {viewedApp.permanent_address?.barangay}</div>
+                      <div><span className="font-medium">City:</span> {viewedApp.permanent_address?.city}</div>
+                      <div><span className="font-medium">Province:</span> {viewedApp.permanent_address?.province}</div>
+                      <div><span className="font-medium">Zip Code:</span> {viewedApp.permanent_address?.zipCode}</div>
+                      <div><span className="font-medium">Years of Stay:</span> {viewedApp.permanent_address?.yearsOfStay}</div>
+                      <div><span className="font-medium">Spouse Last Name:</span> {viewedApp.spouse_details?.lastName}</div>
+                      <div><span className="font-medium">Spouse First Name:</span> {viewedApp.spouse_details?.firstName}</div>
+                      <div><span className="font-medium">Spouse Middle Name:</span> {viewedApp.spouse_details?.middleName}</div>
+                      <div><span className="font-medium">Spouse Suffix:</span> {viewedApp.spouse_details?.suffix}</div>
+                      <div><span className="font-medium">Spouse Mobile Number:</span> {viewedApp.spouse_details?.mobileNumber}</div>
+                      <div><span className="font-medium">Personal Reference Last Name:</span> {viewedApp.personal_reference?.lastName}</div>
+                      <div><span className="font-medium">Personal Reference First Name:</span> {viewedApp.personal_reference?.firstName}</div>
+                      <div><span className="font-medium">Personal Reference Middle Name:</span> {viewedApp.personal_reference?.middleName}</div>
+                      <div><span className="font-medium">Personal Reference Suffix:</span> {viewedApp.personal_reference?.suffix}</div>
+                      <div><span className="font-medium">Personal Reference Mobile Number:</span> {viewedApp.personal_reference?.mobileNumber}</div>
+                      <div><span className="font-medium">Personal Reference Relationship:</span> {viewedApp.personal_reference?.relationship}</div>
+                    </div>
+                  </div>
+                )}
+                {currentModalStep === 3 && (
+                  <div>
+                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Work/Business Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><span className="font-medium">Business/Employer's Name:</span> {viewedApp.work_details?.businessEmployerName}</div>
+                      <div><span className="font-medium">Profession/Occupation:</span> {viewedApp.work_details?.professionOccupation}</div>
+                      <div><span className="font-medium">Nature of Business:</span> {viewedApp.work_details?.natureOfBusiness}</div>
+                      <div><span className="font-medium">Department:</span> {viewedApp.work_details?.department}</div>
+                      <div><span className="font-medium">Landline/Mobile:</span> {viewedApp.work_details?.landlineMobile}</div>
+                      <div><span className="font-medium">Years in Business:</span> {viewedApp.work_details?.yearsInBusiness}</div>
+                      <div><span className="font-medium">Monthly Income:</span> {viewedApp.work_details?.monthlyIncome}</div>
+                      <div><span className="font-medium">Annual Income:</span> {viewedApp.work_details?.annualIncome}</div>
+                      <div><span className="font-medium">Street:</span> {viewedApp.work_details?.address?.street}</div>
+                      <div><span className="font-medium">Barangay:</span> {viewedApp.work_details?.address?.barangay}</div>
+                      <div><span className="font-medium">City:</span> {viewedApp.work_details?.address?.city}</div>
+                      <div><span className="font-medium">Zip Code:</span> {viewedApp.work_details?.address?.zipCode}</div>
+                      <div><span className="font-medium">Unit/Floor:</span> {viewedApp.work_details?.address?.unitFloor}</div>
+                      <div><span className="font-medium">Building/Tower:</span> {viewedApp.work_details?.address?.buildingTower}</div>
+                      <div><span className="font-medium">Lot No.:</span> {viewedApp.work_details?.address?.lotNo}</div>
+                    </div>
+                  </div>
+                )}
+                {currentModalStep === 4 && (
+                  <div>
+                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Credit Card & Bank Preferences</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><span className="font-medium">Bank/Institution:</span> {viewedApp.credit_card_details?.bankInstitution}</div>
+                      <div><span className="font-medium">Card Number:</span> {viewedApp.credit_card_details?.cardNumber}</div>
+                      <div><span className="font-medium">Credit Limit:</span> {viewedApp.credit_card_details?.creditLimit}</div>
+                      <div><span className="font-medium">Member Since:</span> {viewedApp.credit_card_details?.memberSince}</div>
+                      <div><span className="font-medium">Exp. Date:</span> {viewedApp.credit_card_details?.expirationDate}</div>
+                      <div><span className="font-medium">Deliver Card To:</span> {viewedApp.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</div>
+                      <div><span className="font-medium">Best Time to Contact:</span> {viewedApp.credit_card_details?.bestTimeToContact}</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      {viewedApp.bank_preferences && Object.entries(viewedApp.bank_preferences).filter(([_, v]) => v).map(([k]) => (
+                        <span key={k} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                          {k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {currentModalStep === 5 && (
+                  <div>
+                    <h4 className="text-lg font-semibold mb-2 text-blue-700">File Links & Review</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><span className="font-medium">ID Photo URL:</span> {viewedApp.id_photo_url ? <a href={viewedApp.id_photo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a> : 'N/A'}</div>
+                      <div><span className="font-medium">E-Signature URL:</span> {viewedApp.e_signature_url ? <a href={viewedApp.e_signature_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a> : 'N/A'}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Stepper navigation */}
+              <div className="flex justify-between mt-8 pt-6 border-t gap-4">
+                <button
+                  type="button"
+                  onClick={() => setCurrentModalStep(s => Math.max(1, s - 1))}
+                  disabled={currentModalStep === 1}
+                  className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (currentModalStep < 5) setCurrentModalStep(s => Math.min(5, s + 1));
+                    else { setViewedApp(null); setCurrentModalStep(1); }
+                  }}
+                  className={`flex items-center px-4 py-2 rounded-lg ${currentModalStep < 5 ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-green-600 text-white hover:bg-green-700'} text-sm`}
+                >
+                  {currentModalStep < 5 ? 'Next' : 'Close'}
+                </button>
+              </div>
             </div>
           </div>
         )}

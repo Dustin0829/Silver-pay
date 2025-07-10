@@ -26,7 +26,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
     bankPreferences: { rcbc: false, metrobank: false, eastWestBank: false, securityBank: false, bpi: false, pnb: false, robinsonBank: false, maybank: false, aub: false },
     status: 'pending',
   });
-  const [toast, setToast] = useState({ show: false, message: '' });
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [idPhoto, setIdPhoto] = useState<File | null>(null);
   const [eSignature, setESignature] = useState<File | null>(null);
 
@@ -77,7 +77,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
     if (currentStep !== 5) return;
     const missing = validateStep();
     if (missing.length > 0) {
-      setToast({ show: true, message: 'Fill all the requirements' });
+      setToast({ show: true, message: 'Fill all the requirements', type: 'error' });
       return;
     }
 
@@ -87,14 +87,14 @@ const ApplicationForm = ({ isAgentForm = false }) => {
     if (idPhoto) {
       idPhotoUrl = await uploadWithRetry(idPhoto, 'id_photos');
       if (!idPhotoUrl) {
-        setToast({ show: true, message: 'Failed to upload ID photo after retries' });
+        setToast({ show: true, message: 'Failed to upload ID photo after retries', type: 'error' });
         return;
       }
     }
     if (eSignature) {
       eSignatureUrl = await uploadWithRetry(eSignature, 'e_signatures');
       if (!eSignatureUrl) {
-        setToast({ show: true, message: 'Failed to upload e-signature after retries' });
+        setToast({ show: true, message: 'Failed to upload e-signature after retries', type: 'error' });
         return;
       }
     }
@@ -125,12 +125,12 @@ const ApplicationForm = ({ isAgentForm = false }) => {
         code: error.code,
         hint: error.hint,
       });
-      setToast({ show: true, message: `Error submitting application: ${error.message}` });
+      setToast({ show: true, message: `Error submitting application: ${error.message}`, type: 'error' });
       return;
     }
 
     console.log('Application inserted successfully:', data);
-    setToast({ show: true, message: 'Application submitted successfully' });
+    setToast({ show: true, message: 'Application submitted successfully', type: 'success' });
     setTimeout(() => {
       if (isAgentForm) {
         navigate('/agent/applications');
@@ -320,8 +320,8 @@ const ApplicationForm = ({ isAgentForm = false }) => {
     <div className="flex flex-col items-center justify-center min-h-[300px]">
       <div className="w-full max-w-xl bg-white rounded-xl shadow-md p-8 border border-gray-200">
         <h3 className="text-2xl font-bold text-gray-700 mb-6 text-center">Upload Documents</h3>
-        <div className="mb-8"><label className="block text-base font-semibold text-gray-700 mb-3">Upload Valid ID Photo <span className="text-red-500">*</span></label><div className="flex flex-col items-center justify-center border-2 border-dashed border-blue-400 rounded-lg p-6 bg-blue-50 hover:bg-blue-100 transition-colors"><svg className="w-10 h-10 text-blue-500 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h10a4 4 0 004-4M7 10l5-5m0 0l5 5m-5-5v12" /></svg><input type="file" accept="image/png, image/jpeg, image/jpg, image/webp" onChange={e => {const file = e.target.files?.[0]; if (file && (file.size > 25 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type))) {setToast({ show: true, message: 'ID photo must be PNG, JPG, JPEG, or WEBP and less than 25MB' }); e.target.value = ''; setIdPhoto(null); return;} setIdPhoto(file || null);}} className="hidden" id="idPhotoUpload" required /><label htmlFor="idPhotoUpload" className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">Choose File</label>{idPhoto && <span className="mt-2 text-green-700 text-sm font-medium">{idPhoto.name}</span>}{!idPhoto && <span className="mt-2 text-gray-500 text-xs">PNG, JPG, JPEG, WEBP up to 25MB</span>}</div></div>
-        <div className="mb-8"><label className="block text-base font-semibold text-gray-700 mb-3">Upload E-signature Photo <span className="text-red-500">*</span></label><div className="flex flex-col items-center justify-center border-2 border-dashed border-blue-400 rounded-lg p-6 bg-blue-50 hover:bg-blue-100 transition-colors"><svg className="w-10 h-10 text-blue-500 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h10a4 4 0 004-4M7 10l5-5m0 0l5 5m-5-5v12" /></svg><input type="file" accept="image/png, image/jpeg, image/jpg, image/webp" onChange={e => {const file = e.target.files?.[0]; if (file && (file.size > 25 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type))) {setToast({ show: true, message: 'E-signature photo must be PNG, JPG, JPEG, or WEBP and less than 25MB' }); e.target.value = ''; setESignature(null); return;} setESignature(file || null);}} className="hidden" id="eSignatureUpload" required /><label htmlFor="eSignatureUpload" className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">Choose File</label>{eSignature && <span className="mt-2 text-green-700 text-sm font-medium">{eSignature.name}</span>}{!eSignature && <span className="mt-2 text-gray-500 text-xs">PNG, JPG, JPEG, WEBP up to 25MB</span>}</div></div>
+        <div className="mb-8"><label className="block text-base font-semibold text-gray-700 mb-3">Upload Valid ID Photo <span className="text-red-500">*</span></label><div className="flex flex-col items-center justify-center border-2 border-dashed border-blue-400 rounded-lg p-6 bg-blue-50 hover:bg-blue-100 transition-colors"><svg className="w-10 h-10 text-blue-500 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h10a4 4 0 004-4M7 10l5-5m0 0l5 5m-5-5v12" /></svg><input type="file" accept="image/png, image/jpeg, image/jpg, image/webp" onChange={e => {const file = e.target.files?.[0]; if (file && (file.size > 25 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type))) {setToast({ show: true, message: 'ID photo must be PNG, JPG, JPEG, or WEBP and less than 25MB', type: 'error' }); e.target.value = ''; setIdPhoto(null); return;} setIdPhoto(file || null);}} className="hidden" id="idPhotoUpload" required /><label htmlFor="idPhotoUpload" className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">Choose File</label>{idPhoto && <span className="mt-2 text-green-700 text-sm font-medium">{idPhoto.name}</span>}{!idPhoto && <span className="mt-2 text-gray-500 text-xs">PNG, JPG, JPEG, WEBP up to 25MB</span>}</div></div>
+        <div className="mb-8"><label className="block text-base font-semibold text-gray-700 mb-3">Upload E-signature Photo <span className="text-red-500">*</span></label><div className="flex flex-col items-center justify-center border-2 border-dashed border-blue-400 rounded-lg p-6 bg-blue-50 hover:bg-blue-100 transition-colors"><svg className="w-10 h-10 text-blue-500 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h10a4 4 0 004-4M7 10l5-5m0 0l5 5m-5-5v12" /></svg><input type="file" accept="image/png, image/jpeg, image/jpg, image/webp" onChange={e => {const file = e.target.files?.[0]; if (file && (file.size > 25 * 1024 * 1024 || !['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type))) {setToast({ show: true, message: 'E-signature photo must be PNG, JPG, JPEG, or WEBP and less than 25MB', type: 'error' }); e.target.value = ''; setESignature(null); return;} setESignature(file || null);}} className="hidden" id="eSignatureUpload" required /><label htmlFor="eSignatureUpload" className="cursor-pointer px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">Choose File</label>{eSignature && <span className="mt-2 text-green-700 text-sm font-medium">{eSignature.name}</span>}{!eSignature && <span className="mt-2 text-gray-500 text-xs">PNG, JPG, JPEG, WEBP up to 25MB</span>}</div></div>
       </div>
     </div>
   );
@@ -359,7 +359,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
           </form>
         </div>
       </div>
-      <Toast show={toast.show} message={toast.message} onClose={() => setToast({ ...toast, show: false })} />
+      <Toast show={toast.show} message={toast.message} onClose={() => setToast({ ...toast, show: false })} type={toast.type} />
     </div>
   );
 };

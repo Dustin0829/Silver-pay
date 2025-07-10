@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '../supabaseClient';
 import { Application } from '../types';
 
 interface ApplicationContextType {
@@ -12,6 +13,14 @@ const ApplicationContext = createContext<ApplicationContextType | undefined>(und
 
 export const ApplicationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [applications, setApplications] = useState<Application[]>([]);
+
+  useEffect(() => {
+    const fetchApplications = async () => {
+      const { data, error } = await supabase.from('application_form').select('*');
+      if (!error && data) setApplications(data as Application[]);
+    };
+    fetchApplications();
+  }, []);
 
   const addApplication = (applicationData: Omit<Application, 'id' | 'submittedAt'>) => {
     const newApplication: Application = {
