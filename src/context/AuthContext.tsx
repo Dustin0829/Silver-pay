@@ -32,7 +32,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       .single();
     if (profileError || !profile) {
       console.error('Profile error:', profileError?.message);
-      return false;
+    return false;
     }
     // Map to app User type
     setUser({

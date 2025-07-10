@@ -27,6 +27,18 @@ const AdminDashboard: React.FC = () => {
   const [currentEditStep, setCurrentEditStep] = useState(1);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [previewApp, setPreviewApp] = useState<any | null>(null);
+  const sectionTitles = [
+    'Personal Details',
+    "Mother's Details",
+    'Permanent Address',
+    'Spouse Details',
+    'Personal Reference',
+    'Work Details',
+    'Credit Card Details',
+    'Bank Preferences',
+    'File Links',
+  ];
+  const [currentSection, setCurrentSection] = useState(0);
 
   // Sidebar navigation
   const navItems = [
@@ -38,16 +50,49 @@ const AdminDashboard: React.FC = () => {
 
   // Fetch users and applications from Supabase
   useEffect(() => {
-    const fetchData = async () => {
-      // Fetch users
+    // Initial fetch for users
+    const fetchUsers = async () => {
       const { data: usersData, error: usersError } = await supabase.from('users').select('*');
-      console.log('Fetched users:', usersData, 'Error:', usersError); // Debug line
       if (!usersError && usersData) setUsers(usersData);
-      // Fetch applications
-      const { data: appsData, error: appsError } = await supabase.from('application_form').select('*');
-      if (!appsError && appsData) setApplications(appsData);
     };
-    fetchData();
+    fetchUsers();
+
+    // Real-time subscription for users table
+    const usersChannel = supabase
+      .channel('realtime:users')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'users' },
+        (payload) => {
+          fetchUsers();
+        }
+      )
+      .subscribe();
+
+    // Initial fetch for applications
+    const fetchApplications = async () => {
+      const { data, error } = await supabase.from('application_form').select('*');
+      if (!error && data) setApplications(data);
+    };
+    fetchApplications();
+
+    // Subscribe to real-time changes in application_form
+    const channel = supabase
+      .channel('realtime:application_form')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'application_form' },
+        (payload) => {
+          fetchApplications();
+        }
+      )
+      .subscribe();
+
+    // Cleanup on unmount
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(usersChannel);
+    };
   }, []);
 
   // Update dashboard stats
@@ -143,18 +188,27 @@ const AdminDashboard: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl p-6 shadow">
           <h3 className="font-semibold mb-4">Recent Applications</h3>
-          {applications.map(app => (
-            <div key={app.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-4 mb-2">
-              <div className="flex items-center">
-                <div className="bg-blue-100 text-blue-700 rounded-full w-10 h-10 flex items-center justify-center font-bold mr-3">{app.name ?? ''.split(' ').map((n: string) => n[0]).join('')}</div>
-                <div>
-                  <div className="font-medium">{app.name ?? ''}</div>
-                  <div className="text-xs text-gray-500">{app.date}</div>
-                </div>
-              </div>
-              <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-medium">{app.status}</span>
-            </div>
-          ))}
+          {applications && applications.length > 0 ? (
+            <ul>
+              {applications
+                .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
+                .slice(0, 5)
+                .map((app) => (
+                  <li key={app.id} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                    <div>
+                      <span className="font-medium">{`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}</span>
+                      <span className="ml-2 text-xs text-gray-500">{app.submitted_at ? new Date(app.submitted_at).toLocaleDateString() : ''}</span>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ml-2
+                      ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        app.status === 'approved' ? 'bg-green-100 text-green-800' :
+                        app.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>{app.status ?? ''}</span>
+                  </li>
+                ))}
+            </ul>
+          ) : (
+            <div className="text-gray-400 text-sm">No recent applications.</div>
+          )}
         </div>
         <div className="bg-white rounded-xl p-6 shadow">
           <h3 className="font-semibold mb-4">Quick Actions</h3>
@@ -190,7 +244,7 @@ const AdminDashboard: React.FC = () => {
           <tbody>
             {users.map((u, i) => (
               <tr key={i} className="border-t">
-                <td className="py-3 flex items-center"><div className="bg-purple-200 text-purple-700 rounded-full w-8 h-8 flex items-center justify-center font-bold mr-2">{u.name ?? ''.split(' ').map((n: string) => n[0]).join('')}</div>{u.name}</td>
+                <td className="py-3">{u.name}</td>
                 <td className="py-3">{u.email}</td>
                 <td className="py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{u.role}</span></td>
                 <td className="py-3 flex space-x-2">
@@ -203,8 +257,14 @@ const AdminDashboard: React.FC = () => {
                       role: u.role,
                     });
                   }}><Edit className="w-4 h-4" /></button>
-                  <button className="text-red-600 hover:text-red-800" onClick={() => {
+                  <button className="text-red-600 hover:text-red-800" onClick={async () => {
                     if (pendingDeleteIdx === i) {
+                      // Delete user from Supabase
+                      const { error } = await supabase.from('users').delete().eq('email', u.email);
+                      if (error) {
+                        setToast({ show: true, message: 'Failed to delete user: ' + error.message });
+                        return;
+                      }
                       setUsers(prev => prev.filter((_, idx) => idx !== i));
                       setPendingDeleteIdx(null);
                       setToast({ show: false, message: '' });
@@ -224,11 +284,37 @@ const AdminDashboard: React.FC = () => {
             <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md relative">
               <button onClick={() => setShowAddUser(false)} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
               <h3 className="text-xl font-bold mb-4">Add New User</h3>
-              <form onSubmit={e => {
+              <form onSubmit={async e => {
                 e.preventDefault();
-                setUsers(prev => [...prev, { name: newUser.name, email: newUser.email, role: newUser.role, password: newUser.password }]);
-                setShowAddUser(false);
-                setNewUser({ name: '', email: '', password: '', role: 'agent' });
+                // Call backend API to create user in Supabase Auth and users table
+                try {
+                  const response = await fetch('/api/create-user', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      name: newUser.name,
+                      email: newUser.email,
+                      password: newUser.password,
+                      role: newUser.role,
+                    }),
+                  });
+                  const result = await response.json();
+                  if (!response.ok) {
+                    setToast({ show: true, message: 'Failed to add user: ' + (result.error || response.statusText) });
+                    return;
+                  }
+                  setShowAddUser(false);
+                  setNewUser({ name: '', email: '', password: '', role: 'agent' });
+                  setToast({ show: true, message: 'User created successfully!' });
+                } catch (err) {
+                  let errorMsg = 'Unknown error';
+                  if (err instanceof Error) {
+                    errorMsg = err.message;
+                  } else if (typeof err === 'string') {
+                    errorMsg = err;
+                  }
+                  setToast({ show: true, message: 'Failed to add user: ' + errorMsg });
+                }
               }} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Name</label>
@@ -251,6 +337,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
                 <button type="submit" className="w-full bg-blue-700 text-white py-2 rounded-lg font-semibold hover:bg-blue-800">Create Account</button>
               </form>
+              <div className="text-xs text-gray-500 mt-2">User creation is handled securely via a backend API.</div>
             </div>
           </div>
         )}
@@ -259,10 +346,20 @@ const AdminDashboard: React.FC = () => {
             <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md relative">
               <button onClick={() => setEditUserIdx(null)} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
               <h3 className="text-xl font-bold mb-4">Edit User</h3>
-              <form onSubmit={e => {
+              <form onSubmit={async e => {
                 e.preventDefault();
+                // Update user in Supabase (excluding password)
+                const { error } = await supabase.from('users').update({
+                  name: editUser.name,
+                  role: editUser.role
+                }).eq('email', editUser.email);
+                if (error) {
+                  setToast({ show: true, message: 'Failed to update user: ' + error.message });
+                  return;
+                }
                 setUsers(prev => prev.map((u, idx) => idx === editUserIdx ? { ...u, ...editUser } : u));
                 setEditUserIdx(null);
+                setToast({ show: true, message: 'User updated successfully!' });
               }} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Name</label>
@@ -270,11 +367,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Email</label>
-                  <input type="email" value={editUser.email} onChange={e => setEditUser({ ...editUser, email: e.target.value })} className="w-full border rounded-lg px-3 py-2" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Password</label>
-                  <input type="password" value={editUser.password} onChange={e => setEditUser({ ...editUser, password: e.target.value })} className="w-full border rounded-lg px-3 py-2" required />
+                  <input type="email" value={editUser.email} onChange={e => setEditUser({ ...editUser, email: e.target.value })} className="w-full border rounded-lg px-3 py-2" required disabled />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Role</label>
@@ -299,60 +392,61 @@ const AdminDashboard: React.FC = () => {
       <div className="bg-white rounded-xl shadow-md w-full overflow-x-hidden">
         <div className="w-full">
           {/* Desktop Table */}
-          <table className="w-full text-xs sm:text-sm md:text-base table-fixed hidden sm:table">
-            <thead>
-              <tr className="text-xs text-gray-500 uppercase align-middle">
-                <th className="py-2 align-middle">Applicant</th>
-                <th className="py-2 align-middle">Email</th>
-                <th className="py-2 align-middle">Submitted</th>
-                <th className="py-2 align-middle">Status</th>
-                <th className="py-2 align-middle">Submitted By</th>
-                <th className="py-2 align-middle">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {applications.map((app, i) => (
-                <tr key={i} className="border-t">
-                  <td className="py-3 flex items-center pl-6 align-middle"><div className="bg-blue-200 text-blue-700 rounded-full w-8 h-8 flex items-center justify-center font-bold mr-2">{app.name ?? ''.split(' ').map((n: string) => n[0]).join('')}</div>{app.name}</td>
-                  <td className="py-3 break-words">{app.email}</td>
-                  <td className="py-3">{app.date} <span className="block text-xs text-gray-400">{app.time}</span></td>
-                  <td className="py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></td>
-                  <td className="py-3">{app.submittedBy}</td>
-                  <td className="py-3 flex space-x-2">
-                    <button className="text-blue-600 hover:text-blue-800" onClick={() => setViewedApp(app)}><Eye className="w-4 h-4" /></button>
-                    <button className="text-green-600 hover:text-green-800" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a))}><Check className="w-4 h-4" /></button>
-                    <button className="text-red-600 hover:text-red-800" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a))}><X className="w-4 h-4" /></button>
-                  </td>
+          <div className="hidden md:block">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr className="text-xs text-gray-500 uppercase align-middle">
+                  <th className="py-2 align-middle">Applicant</th>
+                  <th className="py-2 align-middle">Email</th>
+                  <th className="py-2 align-middle">Submitted</th>
+                  <th className="py-2 align-middle">Status</th>
+                  <th className="py-2 align-middle">Submitted By</th>
+                  <th className="py-2 align-middle">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {applications.map((app, i) => (
+                  <tr key={app.id} className="border-t hover:bg-gray-50 transition">
+                    <td className="py-3 px-6 align-middle font-semibold whitespace-nowrap">
+                      {`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}
+                    </td>
+                    <td className="py-3 px-2 align-middle whitespace-nowrap text-sm text-gray-600">{app.personal_details?.emailAddress ?? ''}</td>
+                    <td className="py-3 px-8 align-middle text-sm text-gray-600 whitespace-nowrap">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
+                    <td className="py-3 px-6 align-middle whitespace-nowrap">
+                      <span className={`px-10 py-1 rounded-full text-xs font-semibold
+                        ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          app.status === 'approved' ? 'bg-green-100 text-green-800' :
+                          app.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>
+                        {app.status ?? ''}
+                      </span>
+                    </td>
+                    <td className="py-3 px-6 align-middle whitespace-nowrap">{app.submitted_by ?? ''}</td>
+                    <td className="py-3 px-14 align-middle flex space-x-2">
+                      <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={() => setViewedApp(app)}><Eye className="w-5 h-5" /></button>
+                      <button className="text-green-600 hover:text-green-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a))}><Check className="w-5 h-5" /></button>
+                      <button className="text-red-600 hover:text-red-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a))}><X className="w-5 h-5" /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {/* Mobile Card Layout */}
-          <div className="sm:hidden flex flex-col gap-4">
+          <div className="block md:hidden">
             {applications.map((app, i) => (
-              <div key={i} className="rounded-xl shadow p-4 bg-white flex flex-col gap-2 relative">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-blue-200 text-blue-700 rounded-full w-10 h-10 flex items-center justify-center font-bold">{app.name ?? ''.split(' ').map((n: string) => n[0]).join('')}</div>
-                    <div>
-                      <div className="font-semibold text-base text-gray-900">{app.name ?? ''}</div>
-                      <div className="text-xs text-gray-500">{app.email}</div>
-                    </div>
-                  </div>
-                  <div className="text-xs text-gray-500 text-right min-w-fit ml-2">
-                    {app.date} <br />{app.time}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs text-gray-700 mb-2 justify-between items-center w-full">
-                  <div className="flex gap-2 items-center">
-                    <span className="font-semibold">Status:</span> <span className={`px-2 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span>
-                    <span className="font-semibold ml-2">By:</span> {app.submittedBy}
-                  </div>
-                  <div className="flex gap-3 items-center ml-auto">
-                    <button className="text-blue-600 hover:text-blue-800" onClick={() => setViewedApp(app)} title="View"><Eye className="w-5 h-5" /></button>
-                    <button className="text-green-600 hover:text-green-800" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a))} title="Approve"><Check className="w-5 h-5" /></button>
-                    <button className="text-red-600 hover:text-red-800" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a))} title="Reject"><X className="w-5 h-5" /></button>
-                  </div>
+              <div key={app.id} className="p-4 mb-4">
+                <div className="mb-2 font-semibold text-lg">{`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}</div>
+                <div className="mb-1 text-sm"><span className="font-medium">Email:</span> {app.personal_details?.emailAddress ?? ''}</div>
+                <div className="mb-1 text-sm"><span className="font-medium">Submitted:</span> {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</div>
+                <div className="mb-1 text-sm"><span className="font-medium">Status:</span> <span className={`px-3 py-1 rounded-full text-xs font-semibold
+                  ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                    app.status === 'approved' ? 'bg-green-100 text-green-800' :
+                    app.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>{app.status ?? ''}</span></div>
+                <div className="mb-1 text-sm"><span className="font-medium">By:</span> {app.submitted_by ?? ''}</div>
+                <div className="flex space-x-4 mt-2">
+                  <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={() => setViewedApp(app)}><Eye className="w-5 h-5" /></button>
+                  <button className="text-green-600 hover:text-green-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a))}><Check className="w-5 h-5" /></button>
+                  <button className="text-red-600 hover:text-red-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a))}><X className="w-5 h-5" /></button>
                 </div>
               </div>
             ))}
@@ -428,35 +522,6 @@ const AdminDashboard: React.FC = () => {
           </tbody>
         </table>
         {/* Mobile Card Layout */}
-        <div className="sm:hidden flex flex-col gap-4">
-          {applications.map((app, i) => (
-            <div key={i} className="rounded-xl shadow p-4 bg-white flex flex-col gap-2 relative">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-200 text-blue-700 rounded-full w-10 h-10 flex items-center justify-center font-bold">{app.name ?? ''.split(' ').map((n: string) => n[0]).join('')}</div>
-                  <div>
-                    <div className="font-semibold text-base text-gray-900">{app.name ?? ''}</div>
-                    <div className="text-xs text-gray-500">ID: {app.id}</div>
-                  </div>
-                </div>
-                <div className="text-xs text-gray-500 text-right min-w-fit ml-2">
-                  {app.date} <br />{app.time}
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 text-xs text-gray-700 mb-2 justify-between items-center w-full">
-                <div className="flex gap-2 items-center">
-                  <span className="font-semibold">Status:</span> <span className={`px-2 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span>
-                  <span className="font-semibold ml-2">By:</span> {app.submittedBy}
-                </div>
-                <div className="flex gap-3 items-center ml-auto">
-                  <button className="text-blue-600 hover:text-blue-800" onClick={() => setViewedApp(app)} title="View"><Eye className="w-5 h-5" /></button>
-                  <button className="text-green-600 hover:text-green-800" onClick={() => setEditApp(app)} title="Edit"><Edit className="w-5 h-5" /></button>
-                  <button className="text-purple-600 hover:text-purple-800" title="Export PDF" onClick={() => setPreviewApp(app)}><Download className="w-5 h-5" /></button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );
@@ -959,6 +1024,18 @@ const AdminDashboard: React.FC = () => {
     XLSX.utils.book_append_sheet(wb, ws, 'Applications');
     XLSX.writeFile(wb, 'applications_export.xlsx');
   };
+
+  // Reset section when opening/closing modal
+  useEffect(() => {
+    if (viewedApp) setCurrentSection(0);
+  }, [viewedApp]);
+
+  // Place this useEffect at the top level of the component, after other hooks:
+  useEffect(() => {
+    if (viewedApp) {
+      console.log('DEBUG viewedApp:', viewedApp);
+    }
+  }, [viewedApp]);
 
   // Main layout
   return (
@@ -1464,6 +1541,143 @@ const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {viewedApp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6 relative overflow-y-auto max-h-[90vh]">
+            <button
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              onClick={() => setViewedApp(null)}
+              aria-label="Close"
+            >
+              &times;
+            </button>
+            <h2 className="text-xl font-bold mb-4">Application Details</h2>
+            <h3 className="font-semibold text-lg mb-4">{sectionTitles[currentSection]}</h3>
+            <div className="space-y-6">
+              {/* Section content */}
+              {currentSection === 0 && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div><span className="font-medium">First Name:</span> {viewedApp.personal_details?.firstName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Middle Name:</span> {viewedApp.personal_details?.middleName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Last Name:</span> {viewedApp.personal_details?.lastName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Suffix:</span> {viewedApp.personal_details?.suffix ?? 'N/A'}</div>
+                  <div><span className="font-medium">Gender:</span> {viewedApp.personal_details?.gender ?? 'N/A'}</div>
+                  <div><span className="font-medium">TIN:</span> {viewedApp.personal_details?.tin ?? 'N/A'}</div>
+                </div>
+              )}
+              {currentSection === 1 && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div><span className="font-medium">First Name:</span> {viewedApp.mother_details?.firstName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Middle Name:</span> {viewedApp.mother_details?.middleName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Last Name:</span> {viewedApp.mother_details?.lastName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Suffix:</span> {viewedApp.mother_details?.suffix ?? 'N/A'}</div>
+                </div>
+              )}
+              {currentSection === 2 && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div><span className="font-medium">Street:</span> {viewedApp.permanent_address?.street ?? 'N/A'}</div>
+                  <div><span className="font-medium">Barangay:</span> {viewedApp.permanent_address?.barangay ?? 'N/A'}</div>
+                  <div><span className="font-medium">City:</span> {viewedApp.permanent_address?.city ?? 'N/A'}</div>
+                  <div><span className="font-medium">Province:</span> {viewedApp.permanent_address?.province ?? 'N/A'}</div>
+                  <div><span className="font-medium">Zip Code:</span> {viewedApp.permanent_address?.zipCode ?? 'N/A'}</div>
+                </div>
+              )}
+              {currentSection === 3 && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div><span className="font-medium">First Name:</span> {viewedApp.spouse_details?.firstName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Middle Name:</span> {viewedApp.spouse_details?.middleName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Last Name:</span> {viewedApp.spouse_details?.lastName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Suffix:</span> {viewedApp.spouse_details?.suffix ?? 'N/A'}</div>
+                </div>
+              )}
+              {currentSection === 4 && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div><span className="font-medium">First Name:</span> {viewedApp.personal_reference?.firstName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Middle Name:</span> {viewedApp.personal_reference?.middleName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Last Name:</span> {viewedApp.personal_reference?.lastName ?? 'N/A'}</div>
+                  <div><span className="font-medium">Suffix:</span> {viewedApp.personal_reference?.suffix ?? 'N/A'}</div>
+                </div>
+              )}
+              {currentSection === 5 && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div>
+                    <span className="font-medium">Address:</span>
+                    {(() => {
+                      const addr = viewedApp.work_details?.address;
+                      if (addr && typeof addr === 'object' && !Array.isArray(addr)) {
+                        const keys = Object.keys(addr);
+                        if (keys.length > 0) {
+                          return (
+                            <div className="ml-2">
+                              {Object.entries(addr).map(([key, value]) => (
+                                <div key={key} className="text-xs">{key}: {value ?? 'N/A'}</div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return null;
+                      } else if (typeof addr === 'string') {
+                        return <span className="text-xs ml-2">{addr}</span>;
+                      }
+                      return null;
+                    })()}
+                  </div>
+                  <div><span className="font-medium">Department:</span> {viewedApp.work_details?.department ?? 'N/A'}</div>
+                  <div><span className="font-medium">Annual Income:</span> {viewedApp.work_details?.annualIncome ?? 'N/A'}</div>
+                  <div><span className="font-medium">Monthly Income:</span> {viewedApp.work_details?.monthlyIncome ?? 'N/A'}</div>
+                  <div><span className="font-medium">Position:</span> {viewedApp.work_details?.position ?? 'N/A'}</div>
+                  <div><span className="font-medium">Employment Status:</span> {viewedApp.work_details?.employmentStatus ?? 'N/A'}</div>
+                </div>
+              )}
+              {currentSection === 6 && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div><span className="font-medium">Card Number:</span> {viewedApp.credit_card_details?.cardNumber ?? 'N/A'}</div>
+                  <div><span className="font-medium">Credit Limit:</span> {viewedApp.credit_card_details?.creditLimit ?? 'N/A'}</div>
+                  <div><span className="font-medium">Member Since:</span> {viewedApp.credit_card_details?.memberSince ?? 'N/A'}</div>
+                  <div><span className="font-medium">Expiration Date:</span> {viewedApp.credit_card_details?.expirationDate ?? 'N/A'}</div>
+                  <div><span className="font-medium">Bank Institution:</span> {viewedApp.credit_card_details?.bankInstitution ?? 'N/A'}</div>
+                  <div><span className="font-medium">Deliver Card To:</span> {viewedApp.credit_card_details?.deliverCardTo ?? 'N/A'}</div>
+                  <div><span className="font-medium">Best Time To Contact:</span> {viewedApp.credit_card_details?.bestTimeToContact ?? 'N/A'}</div>
+                </div>
+              )}
+              {currentSection === 7 && (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  {viewedApp.bank_preferences && Object.entries(viewedApp.bank_preferences).map(([bank, checked]) => (
+                    <div key={bank}><span className="font-medium">{bank}:</span> {checked ? 'Yes' : 'No'}</div>
+                  ))}
+                </div>
+              )}
+              {currentSection === 8 && (
+                <div className="flex flex-col gap-2">
+                  {viewedApp.id_photo_url && (
+                    <div><span className="font-semibold">ID Photo:</span> <a href={viewedApp.id_photo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline ml-2">View</a></div>
+                  )}
+                  {viewedApp.e_signature_url && (
+                    <div><span className="font-semibold">E-Signature:</span> <a href={viewedApp.e_signature_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline ml-2">View</a></div>
+                  )}
+                </div>
+              )}
+            </div>
+            {/* Navigation Buttons */}
+            <div className="flex justify-between mt-6">
+              <button
+                className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300 disabled:opacity-50"
+                onClick={() => setCurrentSection(s => Math.max(0, s - 1))}
+                disabled={currentSection === 0}
+              >
+                Previous
+              </button>
+              <button
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                onClick={() => setCurrentSection(s => Math.min(sectionTitles.length - 1, s + 1))}
+                disabled={currentSection === sectionTitles.length - 1}
+              >
+                Next
+              </button>
             </div>
           </div>
         </div>
