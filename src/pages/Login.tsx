@@ -1,15 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { LogIn, Mail, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import Toast from '../components/Toast';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showToast, setShowToast] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Show toast when component mounts
+    setShowToast(true);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +42,7 @@ const Login: React.FC = () => {
       <div className="max-w-md w-full bg-white rounded-xl shadow-2xl p-4 sm:p-6">
         <div className="text-center mb-8">
           <LogIn className="h-12 w-12 text-blue-700 mx-auto mb-4" />
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Portal Login</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-red-600">Authorized Personel Only</h2>
           <p className="text-gray-600 mt-2">Access your SilverCard dashboard</p>
         </div>
 
@@ -95,8 +102,14 @@ const Login: React.FC = () => {
             ← Back to Home
           </Link>
         </div>
+              </div>
+        <Toast 
+          message="This is for admin only" 
+          show={showToast} 
+          onClose={() => setShowToast(false)}
+          type="fail"
+        />
       </div>
-    </div>
   );
 };
 

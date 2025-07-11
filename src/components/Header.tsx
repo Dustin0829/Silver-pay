@@ -25,18 +25,6 @@ const Header: React.FC = () => {
           </Link>
 
           <nav className="flex items-center space-x-6">
-            {isLandingPage && !isAuthenticated && (
-              <>
-                <Link 
-                  to="/login" 
-                  className="text-blue-700 hover:text-blue-800 transition-colors"
-                  aria-label="Portal Login"
-                >
-                  <User className="h-6 w-6" />
-                </Link>
-              </>
-            )}
-
             {isAuthenticated && (
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">

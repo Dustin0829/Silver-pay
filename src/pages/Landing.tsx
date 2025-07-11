@@ -330,7 +330,7 @@ const Landing: React.FC = () => {
               <Link to="/credit-cards" className="text-gray-400 hover:text-white text-sm transition-colors">Credit Cards</Link>
               <Link to="/privacy-policy" className="text-gray-400 hover:text-white text-sm transition-colors">Privacy Policy</Link>
               <Link to="/terms-of-service" className="text-gray-400 hover:text-white text-sm transition-colors">Terms of Service</Link>
-              <Link to="/contact" className="text-gray-400 hover:text-white text-sm transition-colors">Contact Us</Link>
+              <Link to="/login" className="text-gray-400 hover:text-white text-sm transition-colors">Portals</Link>
             </div>
           </div>
         </div>
