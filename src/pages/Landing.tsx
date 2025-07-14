@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, Clock, Users, Star, CreditCard, CheckCircle, ArrowRight, TrendingUp, Award, Zap } from 'lucide-react';
+import { Shield, Clock, Users, Star, CreditCard, CheckCircle, ArrowRight, TrendingUp, Award, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
 import RCBCLogo from '../assets/banks/RCBC.jpg';
 import MetrobankLogo from '../assets/banks/metrobank.jpeg';
 import EastWestLogo from '../assets/banks/eastwest.webp';
@@ -23,6 +23,40 @@ const Landing: React.FC = () => {
     { name: 'Maybank', logo: MaybankLogo },
     { name: 'AUB', logo: AUBLogo },
   ];
+
+  const promos = [
+    {
+      title: 'Free Headset',
+      desc: 'Get a high-quality headset when you apply and get approved!',
+      img: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=400&q=80',
+    },
+    {
+      title: 'Premium Earphones',
+      desc: 'Enjoy free premium earphones for every successful application.',
+      img: 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?auto=format&fit=crop&w=400&q=80',
+    },
+    {
+      title: 'Smart Watch',
+      desc: 'Apply now and get a chance to win a smart watch!',
+      img: 'https://images.unsplash.com/photo-1516574187841-cb9cc2ca948b?auto=format&fit=crop&w=400&q=80',
+    },
+    {
+      title: 'Powerbank',
+      desc: 'Stay powered up on the go with a free powerbank!',
+      img: 'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=400&q=80',
+    },
+  ];
+  const [promoIndex, setPromoIndex] = React.useState(0);
+  const isMobile = window.innerWidth < 640;
+  const visiblePromos = isMobile
+    ? [promos[promoIndex]]
+    : [
+        promos[promoIndex],
+        promos[(promoIndex + 1) % promos.length],
+        promos[(promoIndex + 2) % promos.length],
+      ];
+  const handlePrev = () => setPromoIndex((prev) => (prev === 0 ? promos.length - 1 : prev - 1));
+  const handleNext = () => setPromoIndex((prev) => (prev + 1) % promos.length);
 
   return (
     <div className="min-h-screen overflow-x-hidden">
@@ -124,6 +158,46 @@ const Landing: React.FC = () => {
         {/* Background Decorations */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-blue-100 rounded-full -translate-y-48 translate-x-48 opacity-20"></div>
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-100 rounded-full translate-y-32 -translate-x-32 opacity-20"></div>
+      </section>
+
+      {/* Promo Sample Section */}
+      <section className="py-16 bg-white border-b border-gray-100">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Featured Promos</h2>
+            <p className="text-lg text-gray-600 mb-6">Enjoy exclusive freebies when you apply for a credit card!</p>
+          </div>
+          <div className="flex items-center justify-center gap-4 pb-4">
+            <button onClick={handlePrev} aria-label="Previous Promo" className="p-2 rounded-full bg-gray-100 hover:bg-blue-100 transition-colors">
+              <ChevronLeft className="h-6 w-6 text-blue-700" />
+            </button>
+            <div className={`flex gap-4 ${isMobile ? 'w-full justify-center' : ''}`}>
+              {visiblePromos.map((promo, idx) => {
+                const isCenter = isMobile || idx === 1;
+                return (
+                  <div
+                    key={promo.title + idx}
+                    className={
+                      `bg-white rounded-2xl shadow-lg p-6 w-72 flex-shrink-0 flex flex-col items-center border border-gray-100 transition-all duration-500 ease-in-out ` +
+                      (isCenter ? 'scale-110 shadow-2xl z-10' : 'scale-95 opacity-80')
+                    }
+                  >
+                    <img src={promo.img} alt={promo.title} className="w-32 h-32 object-cover rounded-xl mb-4" />
+                    <h3 className="text-xl font-bold text-blue-700 mb-2 text-center">{promo.title}</h3>
+                    <p className="text-gray-600 text-center mb-2">{promo.desc}</p>
+                    <span className="inline-block mt-2 text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">Limited Offer</span>
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={handleNext} aria-label="Next Promo" className="p-2 rounded-full bg-gray-100 hover:bg-blue-100 transition-colors">
+              <ChevronRight className="h-6 w-6 text-blue-700" />
+            </button>
+          </div>
+          <div className="text-center mt-8">
+            <Link to="/promos" className="inline-block bg-blue-600 text-white px-8 py-3 rounded-lg text-lg font-semibold shadow hover:bg-blue-700 hover:scale-105 transition-all">See more promos</Link>
+          </div>
+        </div>
       </section>
 
       {/* Services Section */}
@@ -321,20 +395,6 @@ const Landing: React.FC = () => {
           </Link>
         </div>
       </section>
-      {/* Footer only on Landing page */}
-      <footer className="bg-gray-900 text-white py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <p className="text-gray-400 text-sm">&copy; 2025 SilverCard. All rights reserved.</p>
-            <div className="flex space-x-6 mt-4 md:mt-0">
-              <Link to="/credit-cards" className="text-gray-400 hover:text-white text-sm transition-colors">Credit Cards</Link>
-              <Link to="/privacy-policy" className="text-gray-400 hover:text-white text-sm transition-colors">Privacy Policy</Link>
-              <Link to="/terms-of-service" className="text-gray-400 hover:text-white text-sm transition-colors">Terms of Service</Link>
-              <Link to="/login" className="text-gray-400 hover:text-white text-sm transition-colors">Portals</Link>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };

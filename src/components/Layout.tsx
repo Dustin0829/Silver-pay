@@ -1,6 +1,7 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import Header from './Header';
+import Footer from './Footer';
 
 const clientHeaderRoutes = [
   '/',
@@ -23,7 +24,7 @@ const Layout: React.FC = () => {
       <main className="flex-1">
         <Outlet />
       </main>
-      {/* Footer removed */}
+      <Footer />
     </div>
   );
 };
