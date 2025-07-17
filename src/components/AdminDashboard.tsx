@@ -10,16 +10,29 @@ import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 
+// Add this to the top, after imports
+const BANKS = [
+  { value: 'rcbc', label: 'RCBC' },
+  { value: 'metrobank', label: 'Metrobank' },
+  { value: 'eastWestBank', label: 'EastWest Bank' },
+  { value: 'securityBank', label: 'Security Bank' },
+  { value: 'bpi', label: 'BPI' },
+  { value: 'pnb', label: 'PNB' },
+  { value: 'robinsonBank', label: 'Robinson Bank' },
+  { value: 'maybank', label: 'Maybank' },
+  { value: 'aub', label: 'AUB' },
+];
+
 const AdminDashboard: React.FC = () => {
   const { logout } = useAuth();
   const [activeSection, setActiveSection] = useState('dashboard');
   const [showAddUser, setShowAddUser] = useState(false);
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'agent' });
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
   const [users, setUsers] = useState<any[]>([]); // fetched from Supabase
   const [applications, setApplications] = useState<any[]>([]); // fetched from Supabase
   const [viewedApp, setViewedApp] = useState<any | null>(null);
   const [editUserIdx, setEditUserIdx] = useState<number | null>(null);
-  const [editUser, setEditUser] = useState({ name: '', email: '', password: '', role: 'agent' });
+  const [editUser, setEditUser] = useState({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState<number | null>(null);
   const [editApp, setEditApp] = useState<any | null>(null);
@@ -252,6 +265,7 @@ const AdminDashboard: React.FC = () => {
                       email: u.email,
                       password: u.password || '',
                       role: u.role,
+                      bankCodes: Array.isArray(u.bank_codes) && u.bank_codes.length > 0 ? u.bank_codes : (u.role === 'agent' ? [{ bank: '', code: '' }] : []),
                     });
                   }}><Edit className="w-4 h-4" /></button>
                   <button className="text-red-600 hover:text-red-800" onClick={async () => {
@@ -293,6 +307,7 @@ const AdminDashboard: React.FC = () => {
                       email: newUser.email,
                       password: newUser.password,
                       role: newUser.role,
+                      bank_codes: newUser.bankCodes,
                     }),
                   });
                   const result = await response.json();
@@ -301,7 +316,7 @@ const AdminDashboard: React.FC = () => {
                     return;
                   }
                 setShowAddUser(false);
-                setNewUser({ name: '', email: '', password: '', role: 'agent' });
+                setNewUser({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
                   setToast({ show: true, message: 'User created successfully!', type: 'success' });
                 } catch (err) {
                   let errorMsg = 'Unknown error';
@@ -332,6 +347,44 @@ const AdminDashboard: React.FC = () => {
                     <option value="agent">Agent</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Bank Codes</label>
+                  {(newUser.bankCodes ? newUser.bankCodes : [{ bank: '', code: '' }]).map((entry, idx) => (
+                    <div key={idx} className="flex gap-2 mb-2">
+                      <select
+                        value={entry.bank}
+                        onChange={e => {
+                          const bank = e.target.value;
+                          setNewUser(u => ({
+                            ...u,
+                            bankCodes: u.bankCodes.map((b, i) => i === idx ? { ...b, bank } : b)
+                          }));
+                        }}
+                        className="border rounded-lg px-2 py-1 flex-1"
+                        required
+                      >
+                        <option value="">Select Bank</option>
+                        {BANKS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="Code"
+                        value={entry.code}
+                        onChange={e => {
+                          const code = e.target.value;
+                          setNewUser(u => ({
+                            ...u,
+                            bankCodes: u.bankCodes.map((b, i) => i === idx ? { ...b, code } : b)
+                          }));
+                        }}
+                        className="border rounded-lg px-2 py-1 flex-1"
+                        required
+                      />
+                      <button type="button" onClick={() => setNewUser(u => ({ ...u, bankCodes: u.bankCodes.filter((_, i) => i !== idx) }))} className="text-red-500 px-2">&times;</button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setNewUser(u => ({ ...u, bankCodes: [...u.bankCodes, { bank: '', code: '' }] }))} className="text-blue-600 text-xs underline">+ Add Another</button>
+                </div>
                 <button type="submit" className="w-full bg-blue-700 text-white py-2 rounded-lg font-semibold hover:bg-blue-800">Create Account</button>
               </form>
               <div className="text-xs text-gray-500 mt-2">User creation is handled securely via a backend API.</div>
@@ -348,7 +401,8 @@ const AdminDashboard: React.FC = () => {
                 // Update user in Supabase (excluding password)
                 const { error } = await supabase.from('users').update({
                   name: editUser.name,
-                  role: editUser.role
+                  role: editUser.role,
+                  bank_codes: editUser.bankCodes,
                 }).eq('email', editUser.email);
                 if (error) {
                   setToast({ show: true, message: 'Failed to update user: ' + error.message, type: 'error' });
@@ -372,6 +426,44 @@ const AdminDashboard: React.FC = () => {
                     <option value="admin">Admin</option>
                     <option value="agent">Agent</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Bank Codes</label>
+                  {(editUser.bankCodes ? editUser.bankCodes : [{ bank: '', code: '' }]).map((entry, idx) => (
+                    <div key={idx} className="flex gap-2 mb-2">
+                      <select
+                        value={entry.bank}
+                        onChange={e => {
+                          const bank = e.target.value;
+                          setEditUser(u => ({
+                            ...u,
+                            bankCodes: u.bankCodes.map((b, i) => i === idx ? { ...b, bank } : b)
+                          }));
+                        }}
+                        className="border rounded-lg px-2 py-1 flex-1"
+                        required
+                      >
+                        <option value="">Select Bank</option>
+                        {BANKS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="Code"
+                        value={entry.code}
+                        onChange={e => {
+                          const code = e.target.value;
+                          setEditUser(u => ({
+                            ...u,
+                            bankCodes: u.bankCodes.map((b, i) => i === idx ? { ...b, code } : b)
+                          }));
+                        }}
+                        className="border rounded-lg px-2 py-1 flex-1"
+                        required
+                      />
+                      <button type="button" onClick={() => setEditUser(u => ({ ...u, bankCodes: u.bankCodes.filter((_, i) => i !== idx) }))} className="text-red-500 px-2">&times;</button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setEditUser(u => ({ ...u, bankCodes: [...u.bankCodes, { bank: '', code: '' }] }))} className="text-blue-600 text-xs underline">+ Add Another</button>
                 </div>
                 <button type="submit" className="w-full bg-blue-700 text-white py-2 rounded-lg font-semibold hover:bg-blue-800">Save Changes</button>
               </form>

@@ -175,18 +175,18 @@ const Landing: React.FC = () => {
               {visiblePromos.map((promo, idx) => {
                 const isCenter = isMobile || idx === 1;
                 return (
-                  <div
+                <div
                     key={promo.title + idx}
                     className={
                       `bg-white rounded-2xl shadow-lg p-6 w-72 flex-shrink-0 flex flex-col items-center border border-gray-100 transition-all duration-500 ease-in-out ` +
                       (isCenter ? 'scale-110 shadow-2xl z-10' : 'scale-95 opacity-80')
                     }
-                  >
+                >
                     <img src={promo.img} alt={promo.title} className="w-32 h-32 object-cover rounded-xl mb-4" />
-                    <h3 className="text-xl font-bold text-blue-700 mb-2 text-center">{promo.title}</h3>
-                    <p className="text-gray-600 text-center mb-2">{promo.desc}</p>
-                    <span className="inline-block mt-2 text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">Limited Offer</span>
-                  </div>
+                  <h3 className="text-xl font-bold text-blue-700 mb-2 text-center">{promo.title}</h3>
+                  <p className="text-gray-600 text-center mb-2">{promo.desc}</p>
+                  <span className="inline-block mt-2 text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">Limited Offer</span>
+                </div>
                 );
               })}
             </div>
