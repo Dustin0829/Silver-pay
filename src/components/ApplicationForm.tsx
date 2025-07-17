@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Save, ArrowLeft, ArrowRight } from 'lucide-react';
 import { supabase } from '../supabaseClient'; // Import your Supabase client
 import Toast from './Toast';
+import { useAuth } from '../context/AuthContext';
 import {
   PersonalDetails,
   MotherDetails,
@@ -37,6 +38,7 @@ type FormDataType = {
 
 const ApplicationForm = ({ isAgentForm = false }) => {
   const navigate = useNavigate();
+  const { user } = isAgentForm ? useAuth() : { user: null };
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormDataType>({
     personalDetails: { lastName: '', firstName: '', middleName: '', suffix: '', dateOfBirth: '', placeOfBirth: '', gender: '', civilStatus: '', nationality: '', mobileNumber: '', homeNumber: '', emailAddress: '', sssGsisUmid: '', tin: '' },
@@ -129,7 +131,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       bank_preferences: formData.bankPreferences,
       id_photo_url: idPhotoUrl,
       e_signature_url: eSignatureUrl,
-      submitted_by: null,
+      submitted_by: isAgentForm && user ? user.name : 'direct',
       status: formData.status,
     };
     console.log('Inserting data into application_form table:', JSON.stringify(insertData, null, 2));

@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import Toast from './Toast';
 import Logo from '../assets/Company/Logo.png';
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
@@ -41,6 +42,7 @@ const AdminDashboard: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [previewApp, setPreviewApp] = useState<any | null>(null);
   const [pdfPreviewApp, setPdfPreviewApp] = useState<any | null>(null);
+  const [showExportPreview, setShowExportPreview] = useState(false);
   const sectionTitles = [
     'Personal Details',
     'Family & Address',
@@ -49,6 +51,8 @@ const AdminDashboard: React.FC = () => {
     'File Links & Review',
   ];
   const [currentSection, setCurrentSection] = useState(0);
+  const [bankFilter, setBankFilter] = useState('');
+  const [nameFilter, setNameFilter] = useState('');
 
   // Sidebar navigation
   const navItems = [
@@ -278,7 +282,7 @@ const AdminDashboard: React.FC = () => {
                       }
                       setUsers(prev => prev.filter((_, idx) => idx !== i));
                       setPendingDeleteIdx(null);
-                      setToast({ show: false, message: '', type: toast.type });
+                      setToast({ show: false, message: '', type: undefined });
                     } else {
                       setPendingDeleteIdx(i);
                       setToast({ show: true, message: 'Click again to confirm delete.', type: 'error' });
@@ -485,60 +489,96 @@ const AdminDashboard: React.FC = () => {
             <table className="min-w-full divide-y divide-gray-200">
             <thead>
               <tr className="text-xs text-gray-500 uppercase align-middle">
-                <th className="py-2 align-middle">Applicant</th>
-                <th className="py-2 align-middle">Email</th>
-                <th className="py-2 align-middle">Submitted</th>
-                <th className="py-2 align-middle">Status</th>
-                <th className="py-2 align-middle">Submitted By</th>
-                <th className="py-2 align-middle">Actions</th>
+                <th className="py-2 align-middle w-1/5">Applicant</th>
+                <th className="py-2 align-middle w-1/5">Email</th>
+                <th className="py-2 min-w-[150px] px-4">Submitted</th>
+                <th className="py-2 align-middle w-1/8">Status</th>
+                <th className="py-2 align-middle w-1/8">Submitted By</th>
+                <th className="py-2 align-middle w-1/6">Bank Codes</th>
+                <th className="py-2 align-middle w-1/8">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {applications.map((app, i) => (
+              {applications.map((app, i) => {
+                // Find agent user if not direct
+                let agentBankCodes = null;
+                if (app.submitted_by && app.submitted_by !== 'direct') {
+                  const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
+                  if (agent && Array.isArray(agent.bank_codes) && agent.bank_codes.length > 0) {
+                    agentBankCodes = agent.bank_codes;
+                  }
+                }
+                return (
                   <tr key={app.id} className="border-t hover:bg-gray-50 transition">
-                    <td className="py-3 px-6 align-middle font-semibold whitespace-nowrap">
+                    <td className="py-3 px-6 align-middle font-semibold whitespace-nowrap max-w-[180px] truncate">
                       {`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}
                     </td>
-                    <td className="py-3 px-2 align-middle whitespace-nowrap text-sm text-gray-600">{app.personal_details?.emailAddress ?? ''}</td>
-                    <td className="py-3 px-8 align-middle text-sm text-gray-600 whitespace-nowrap">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
-                    <td className="py-3 px-6 align-middle whitespace-nowrap">
-                      <span className={`px-10 py-1 rounded-full text-xs font-semibold
-                        ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                          app.status === 'approved' ? 'bg-green-100 text-green-800' :
-                          app.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>
-                        {app.status ?? ''}
-                      </span>
+                    <td className="py-3 px-2 align-middle whitespace-nowrap text-sm text-gray-600 max-w-[180px] truncate">{app.personal_details?.emailAddress ?? ''}</td>
+                    <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
+                    <td className="py-3 px-4 text-sm"><span className={`px-3 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></td>
+                    <td className="py-3 px-2 align-middle whitespace-nowrap max-w-[80px] truncate">{!app.submitted_by || app.submitted_by === 'direct' ? 'direct' : app.submitted_by}</td>
+                    <td className="py-3 px-2 align-middle whitespace-nowrap max-w-[140px] truncate">
+                      {agentBankCodes ? (
+                        <ul className="space-y-1">
+                          {agentBankCodes.map((entry: any, idx: any) => (
+                            <li key={idx} className="text-xs bg-blue-50 rounded px-2 py-1 inline-block mr-1 mb-1">
+                              {BANKS.find(b => b.value === entry.bank)?.label || entry.bank}: <span className="font-mono">{entry.code}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
                     </td>
-                    <td className="py-3 px-6 align-middle whitespace-nowrap">{app.submitted_by ?? ''}</td>
-                    <td className="py-3 px-14 align-middle flex space-x-2">
+                    <td className="py-3 px-4 align-middle flex space-x-2">
                       <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={() => setViewedApp(app)}><Eye className="w-5 h-5" /></button>
                       <button className="text-green-600 hover:text-green-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a))}><Check className="w-5 h-5" /></button>
                       <button className="text-red-600 hover:text-red-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a))}><X className="w-5 h-5" /></button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           </div>
           {/* Mobile Card Layout */}
           <div className="block md:hidden">
-            {applications.map((app, i) => (
-              <div key={app.id} className="p-4 mb-4">
-                <div className="mb-2 font-semibold text-lg">{`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}</div>
-                <div className="mb-1 text-sm"><span className="font-medium">Email:</span> {app.personal_details?.emailAddress ?? ''}</div>
-                <div className="mb-1 text-sm"><span className="font-medium">Submitted:</span> {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</div>
-                <div className="mb-1 text-sm"><span className="font-medium">Status:</span> <span className={`px-3 py-1 rounded-full text-xs font-semibold
-                  ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    app.status === 'approved' ? 'bg-green-100 text-green-800' :
-                    app.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>{app.status ?? ''}</span></div>
-                <div className="mb-1 text-sm"><span className="font-medium">By:</span> {app.submitted_by ?? ''}</div>
-                <div className="flex space-x-4 mt-2">
-                  <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={() => setViewedApp(app)}><Eye className="w-5 h-5" /></button>
-                  <button className="text-green-600 hover:text-green-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a))}><Check className="w-5 h-5" /></button>
-                  <button className="text-red-600 hover:text-red-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a))}><X className="w-5 h-5" /></button>
+            {applications.map((app, i) => {
+              let agentBankCodes = null;
+              if (app.submitted_by && app.submitted_by !== 'direct') {
+                const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
+                if (agent && Array.isArray(agent.bank_codes) && agent.bank_codes.length > 0) {
+                  agentBankCodes = agent.bank_codes;
+                }
+              }
+              return (
+                <div key={app.id} className="p-4 mb-4">
+                  <div className="mb-2 font-semibold text-lg">{`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}</div>
+                  <div className="mb-1 text-sm"><span className="font-medium">Email:</span> {app.personal_details?.emailAddress ?? ''}</div>
+                  <div className="mb-1 text-sm"><span className="font-medium">Submitted:</span> {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</div>
+                  <div className="mb-1 text-sm"><span className="font-medium">Status:</span> <span className={`px-3 py-1 rounded-full text-xs font-semibold
+                    ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      app.status === 'approved' ? 'bg-green-100 text-green-800' :
+                      app.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>{app.status ?? ''}</span></div>
+                  <div className="mb-1 text-sm"><span className="font-medium">By:</span> {!app.submitted_by || app.submitted_by === 'direct' ? 'direct' : app.submitted_by}</div>
+                  <div className="mb-1 text-sm"><span className="font-medium">Bank Codes:</span> {agentBankCodes ? (
+                    <ul className="space-y-1">
+                      {agentBankCodes.map((entry: any, idx: any) => (
+                        <li key={idx} className="text-xs bg-blue-50 rounded px-2 py-1 inline-block mr-1 mb-1">
+                          {BANKS.find(b => b.value === entry.bank)?.label || entry.bank}: <span className="font-mono">{entry.code}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <span className="text-gray-400">-</span>}
+                  </div>
+                  <div className="flex space-x-4 mt-2">
+                    <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={() => setViewedApp(app)}><Eye className="w-5 h-5" /></button>
+                    <button className="text-green-600 hover:text-green-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a))}><Check className="w-5 h-5" /></button>
+                    <button className="text-red-600 hover:text-red-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a))}><X className="w-5 h-5" /></button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -569,48 +609,119 @@ const AdminDashboard: React.FC = () => {
         </div>
       </div>
       <div className="bg-white rounded-xl p-6 shadow mb-6 w-full overflow-x-hidden">
-        <div className="flex flex-col gap-2 mb-4">
-          <input className="border rounded-lg px-3 py-2 w-full" placeholder="Search by name..." />
-          <div className="flex gap-2 w-full">
-            <input className="border rounded-lg px-3 py-2 w-1/2" placeholder="mm/dd/yyyy" />
-            <select className="border rounded-lg px-3 py-2 w-1/2">
-              <option>All Status</option>
-              <option>Pending</option>
-              <option>Approved</option>
-              <option>Rejected</option>
-            </select>
-          </div>
+        <div className="flex flex-col sm:flex-row gap-4 w-full mb-4 items-start sm:items-end">
+          <input
+            className="border rounded-lg px-3 py-2 w-full sm:w-1/2 mb-2 sm:mb-0"
+            placeholder="Search by agent name or bank code..."
+            value={nameFilter}
+            onChange={e => setNameFilter(e.target.value)}
+          />
+          <button
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 text-sm whitespace-nowrap ml-0 sm:ml-2"
+            onClick={handleExportPreview}
+            type="button"
+          >
+            Export as PDF
+          </button>
         </div>
-        {/* Desktop Table */}
-        <table className="w-full text-xs sm:text-sm md:text-base table-fixed hidden sm:table">
-          <thead>
-            <tr className="text-left text-xs text-gray-500 uppercase">
-              <th className="py-2">Application ID</th>
-              <th className="py-2">Applicant</th>
-              <th className="py-2">Date & Time</th>
-              <th className="py-2">Status</th>
-              <th className="py-2">Submitted By</th>
-              <th className="py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {applications.map((app, i) => (
+        <div className="flex gap-4 w-full mt-2">
+          <input className="border rounded-lg px-3 py-2 w-1/2" placeholder="mm/dd/yyyy" />
+          <select className="border rounded-lg px-3 py-2 w-1/2">
+            <option>All Status</option>
+            <option>Pending</option>
+            <option>Approved</option>
+            <option>Rejected</option>
+          </select>
+        </div>
+      </div>
+      {/* Desktop Table */}
+      <table className="w-full text-xs sm:text-sm md:text-base table-fixed hidden sm:table">
+        <thead>
+          <tr className="text-left text-xs text-gray-500 uppercase">
+            <th className="py-2">Application ID</th>
+            <th className="py-2">Applicant</th>
+            <th className="py-2 min-w-[150px] px-4">Date & Time</th>
+            <th className="py-2">Status</th>
+            <th className="py-2">Submitted By</th>
+            <th className="py-2">Bank Codes</th>
+            <th className="py-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredApplications.map((app, i) => {
+            // Find agent user if not direct
+            let agentBankCodes = null;
+            if (app.submitted_by && app.submitted_by !== 'direct') {
+              const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
+              if (agent && Array.isArray(agent.bank_codes) && agent.bank_codes.length > 0) {
+                agentBankCodes = agent.bank_codes;
+              }
+            }
+            return (
               <tr key={i} className="border-t">
                 <td className="py-3">#{app.id ? app.id.slice(0, 8) : ''}</td>
                 <td className="py-3">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
-                <td className="py-3">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
-                <td className="py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></td>
-                <td className="py-3">{app.submittedBy}</td>
+                <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
+                <td className="py-3 px-4 text-sm"><span className={`px-3 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></td>
+                <td className="py-3">{app.submitted_by || 'direct'}</td>
+                <td className="py-3">
+                  {agentBankCodes ? (
+                    <ul className="space-y-1">
+                      {agentBankCodes.map((entry: any, idx: any) => (
+                        <li key={idx} className="text-xs bg-blue-50 rounded px-2 py-1 inline-block mr-1 mb-1">
+                          {BANKS.find(b => b.value === entry.bank)?.label || entry.bank}: <span className="font-mono">{entry.code}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
+                </td>
                 <td className="py-3 flex space-x-2">
                   <button className="text-blue-600 hover:text-blue-800" onClick={() => setViewedApp(app)}><Eye className="w-4 h-4" /></button>
                   <button className="text-green-600 hover:text-green-800" onClick={() => setEditApp(app)}><Edit className="w-4 h-4" /></button>
                   <button className="text-purple-600 hover:text-purple-800" title="Export PDF" onClick={() => setPdfPreviewApp(app)}><Download className="w-4 h-4" /></button>
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {/* Mobile Card Layout */}
+            );
+          })}
+        </tbody>
+      </table>
+      {/* Mobile Card Layout */}
+      <div className="block sm:hidden">
+        {applications.map((app, i) => {
+          let agentBankCodes = null;
+          if (app.submitted_by && app.submitted_by !== 'direct') {
+            const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
+            if (agent && Array.isArray(agent.bank_codes) && agent.bank_codes.length > 0) {
+              agentBankCodes = agent.bank_codes;
+            }
+          }
+          return (
+            <div key={i} className="border-b py-4">
+              <div className="font-semibold">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</div>
+              <div className="text-xs text-gray-500 mb-1">ID: #{app.id ? app.id.slice(0, 8) : ''}</div>
+              <div className="text-sm mb-1">Date: {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</div>
+              <div className="text-sm mb-1">Status: <span className={`px-2 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></div>
+              <div className="text-sm mb-1">Submitted By: {app.submitted_by || 'direct'}</div>
+              <div className="text-sm mb-1">Bank Codes: {agentBankCodes ? (
+                <ul className="space-y-1">
+                  {agentBankCodes.map((entry: any, idx: any) => (
+                    <li key={idx} className="text-xs bg-blue-50 rounded px-2 py-1 inline-block mr-1 mb-1">
+                      {BANKS.find(b => b.value === entry.bank)?.label || entry.bank}: <span className="font-mono">{entry.code}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <span className="text-gray-400">-</span>}
+              </div>
+              <div className="flex space-x-2 mt-2">
+                <button className="text-blue-600 hover:text-blue-800" onClick={() => setViewedApp(app)}><Eye className="w-4 h-4" /></button>
+                <button className="text-green-600 hover:text-green-800" onClick={() => setEditApp(app)}><Edit className="w-4 h-4" /></button>
+                <button className="text-purple-600 hover:text-purple-800" title="Export PDF" onClick={() => setPdfPreviewApp(app)}><Download className="w-4 h-4" /></button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -657,7 +768,6 @@ const AdminDashboard: React.FC = () => {
                 <div><span className="font-medium">Last Name:</span> {app.personalDetails?.lastName}</div>
                 <div><span className="font-medium">First Name:</span> {app.personalDetails?.firstName}</div>
                 <div><span className="font-medium">Middle Name:</span> {app.personalDetails?.middleName}</div>
-                <div><span className="font-medium">Suffix:</span> {app.personalDetails?.suffix}</div>
                 <div><span className="font-medium">Date of Birth:</span> {app.personalDetails?.dateOfBirth}</div>
                 <div><span className="font-medium">Place of Birth:</span> {app.personalDetails?.placeOfBirth}</div>
                 <div><span className="font-medium">Gender:</span> {app.personalDetails?.gender}</div>
@@ -1125,6 +1235,67 @@ const AdminDashboard: React.FC = () => {
       console.log('DEBUG viewedApp:', viewedApp);
     }
   }, [viewedApp]);
+
+  const filteredApplications = applications.filter(app => {
+    const search = nameFilter.trim().toLowerCase();
+    if (!search) return true; // Show all if search is empty
+    // Always show public submissions
+    if (!app.submitted_by || app.submitted_by === 'direct') return true;
+    // Agent name match
+    const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
+    const agentName = agent?.name?.toLowerCase() || '';
+    const matchesName = agentName.includes(search);
+    // Bank code match
+    let matchesCode = false;
+    if (agent && Array.isArray(agent.bank_codes)) {
+      matchesCode = agent.bank_codes.some((entry: any) => (entry.code || '').toLowerCase().includes(search));
+    }
+    return matchesName || matchesCode;
+  });
+
+  const exportHistoryToPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('Application History', 20, 20);
+    // Horizontal line after title
+    doc.setLineWidth(0.5);
+    doc.line(20, 25, 190, 25);
+    doc.setFontSize(12);
+    const tableColumn = ['ID', 'Applicant', 'Date & Time', 'Status', 'Submitted By', 'Bank Codes'];
+    const tableRows = filteredApplications.map(app => [
+      `#${app.id ? app.id.slice(0, 8) : ''}`,
+      `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`,
+      app.submitted_at ? new Date(app.submitted_at).toLocaleString() : '',
+      app.status,
+      app.submitted_by || 'direct',
+      (() => {
+        if (!app.submitted_by || app.submitted_by === 'direct') return '-';
+        const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
+        if (agent && Array.isArray(agent.bank_codes) && agent.bank_codes.length > 0) {
+          return agent.bank_codes.map((entry: any) => `${entry.bank}: ${entry.code}`).join(', ');
+        }
+        return '-';
+      })()
+    ]);
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 30,
+      styles: { fontSize: 10, cellPadding: 2 },
+      headStyles: { fillColor: [240, 240, 240], textColor: 0 },
+      margin: { left: 20, right: 20 },
+      tableWidth: 'auto',
+    });
+    doc.save('application_history.pdf');
+  };
+
+  // Export preview modal handlers
+  const handleExportPreview = () => setShowExportPreview(true);
+  const handleClosePreview = () => setShowExportPreview(false);
+  const handleExportPDF = () => {
+    exportHistoryToPDF();
+    setShowExportPreview(false);
+  };
 
   // Main layout
   return (
@@ -2019,6 +2190,42 @@ const AdminDashboard: React.FC = () => {
               >
                 {currentModalStep < 5 ? 'Next' : 'Close'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Export Preview Modal */}
+      {showExportPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-2xl w-full">
+            <h2 className="text-lg font-bold mb-4">Export Preview</h2>
+            <div className="overflow-x-auto max-h-96 mb-4">
+              <table className="w-full text-xs border">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="p-2 border">Application ID</th>
+                    <th className="p-2 border">Applicant</th>
+                    <th className="p-2 border">Date & Time</th>
+                    <th className="p-2 border">Status</th>
+                    <th className="p-2 border">Submitted By</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredApplications.map((app, i) => (
+                    <tr key={i}>
+                      <td className="p-2 border">#{app.id ? app.id.slice(0, 8) : ''}</td>
+                      <td className="p-2 border">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
+                      <td className="p-2 border">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
+                      <td className="p-2 border">{app.status}</td>
+                      <td className="p-2 border">{app.submitted_by || 'direct'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300" onClick={handleClosePreview}>Cancel</button>
+              <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700" onClick={handleExportPDF}>Download PDF</button>
             </div>
           </div>
         </div>
