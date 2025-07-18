@@ -1,5 +1,4 @@
 import React from 'react';
-import Header from '../components/Header';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 
@@ -25,7 +24,6 @@ const Promos: React.FC = () => {
   const navigate = useNavigate();
   return (
     <div className="min-h-[60vh] bg-gray-50 flex flex-col">
-      <Header />
       <button type="button" onClick={() => navigate(-1)} className="fixed top-4 left-4 z-30 flex items-center p-3 border border-gray-300 rounded-full text-gray-700 hover:bg-gray-100 bg-white shadow" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
       <div className="flex-1 flex flex-col items-center justify-start py-8 px-2 w-full">
         <h1 className="text-4xl font-bold text-gray-900 mb-8 text-center animate-fade-in">Current Promotions</h1>
