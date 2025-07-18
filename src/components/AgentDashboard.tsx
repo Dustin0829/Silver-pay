@@ -1,19 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FileText, Plus, Eye, Download, List, History, User, LogOut, Menu, X } from 'lucide-react';
-import { useApplications } from '../context/ApplicationContext';
+import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
 import Logo from '../assets/Company/Logo.png';
 
 const AgentDashboard: React.FC = () => {
-  const { applications } = useApplications();
+  const [applications, setApplications] = useState<any[]>([]);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('dashboard');
   const [viewedApp, setViewedApp] = useState<any | null>(null);
   const [currentModalStep, setCurrentModalStep] = useState(1);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [nameFilter, setNameFilter] = useState('');
 
   // Debug log
   console.log('AgentDashboard applications:', applications);
@@ -21,9 +23,29 @@ const AgentDashboard: React.FC = () => {
     console.log('First application object:', applications[0]);
   }
 
-  // Filter applications submitted by this agent
-  const pendingApplications = applications.filter(app => app.status === 'pending');
-  const approvedApplications = applications.filter(app => app.status === 'approved');
+  // Fetch all applications from Supabase (like admin)
+  useEffect(() => {
+    const fetchApplications = async () => {
+      const { data, error } = await supabase.from('application_form').select('*');
+      if (!error && data) setApplications(data);
+    };
+    fetchApplications();
+    // Subscribe to real-time changes in application_form
+    const channel = supabase
+      .channel('realtime:application_form')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'application_form' },
+        (payload) => {
+          fetchApplications();
+        }
+      )
+      .subscribe();
+    // Cleanup on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const exportToPDF = () => {
     // This would normally generate a PDF report
@@ -57,11 +79,11 @@ const AgentDashboard: React.FC = () => {
         </div>
         <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
           <div className="flex items-center mb-2"><FileText className="w-6 h-6 text-yellow-500 mr-2" /> <span className="font-semibold">Pending</span></div>
-          <div className="text-2xl font-bold text-yellow-600">{pendingApplications.length}</div>
+          <div className="text-2xl font-bold text-yellow-600">{applications.filter(app => app.status === 'pending').length}</div>
         </div>
         <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
           <div className="flex items-center mb-2"><FileText className="w-6 h-6 text-green-500 mr-2" /> <span className="font-semibold">Approved</span></div>
-          <div className="text-2xl font-bold text-green-600">{approvedApplications.length}</div>
+          <div className="text-2xl font-bold text-green-600">{applications.filter(app => app.status === 'approved').length}</div>
         </div>
       </div>
       {/* Quick Actions for Agent */}
@@ -76,63 +98,78 @@ const AgentDashboard: React.FC = () => {
     </div>
   );
 
+  const filteredApplications = applications.filter(app => {
+    const search = nameFilter.trim().toLowerCase();
+    let matchesSearch = true;
+    if (search) {
+      // Agent name match
+      const name = `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.toLowerCase();
+      matchesSearch = name.includes(search);
+    }
+    // Status filter
+    let matchesStatus = true;
+    if (statusFilter) {
+      matchesStatus = (app.status || '').toLowerCase() === statusFilter.toLowerCase();
+    }
+    return matchesSearch && matchesStatus;
+  });
+
   const renderHistory = () => (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-2">
-        <h2 className="text-2xl font-bold">Application History</h2>
+      <h2 className="text-2xl font-bold mb-2">Application History</h2>
+      <p className="text-gray-600 mb-6">View and filter application records</p>
+      <div className="bg-white rounded-xl p-6 shadow mb-6 w-full overflow-x-hidden">
+        <div className="flex flex-col sm:flex-row gap-4 w-full mb-4 items-start sm:items-end">
+          <input
+            className="border rounded-lg px-3 py-2 w-full sm:w-1/2 mb-2 sm:mb-0"
+            placeholder="Search by applicant name..."
+            value={nameFilter}
+            onChange={e => setNameFilter(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-4 w-full mt-2">
+          <select className="border rounded-lg px-3 py-2 w-1/2" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <option value="">All Status</option>
+            <option value="submitted">Submitted</option>
+            <option value="turn-in">Turn-in</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
       </div>
-      <div className="bg-white rounded-xl shadow-md w-full overflow-x-auto">
-        <table className="w-full text-xs sm:text-sm md:text-base table-fixed">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-2 py-3 text-center w-1/6">Client Name</th>
-              <th className="px-2 py-3 text-center w-1/5">Email</th>
-              <th className="px-2 py-3 text-center w-1/6">Mobile</th>
-              <th className="px-2 py-3 text-center w-1/5">Submitted</th>
-              <th className="px-2 py-3 text-center w-1/6">Status</th>
-              <th className="px-2 py-3 text-center w-1/6">Actions</th>
+      <table className="w-full text-xs sm:text-sm md:text-base table-fixed hidden sm:table">
+        <thead>
+          <tr className="text-left text-xs text-gray-500 uppercase">
+            <th className="py-2">Application ID</th>
+            <th className="py-2">Applicant</th>
+            <th className="py-2 min-w-[150px] px-4">Date & Time</th>
+            <th className="py-2">Status</th>
+            <th className="py-2">Submitted By</th>
+            <th className="py-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredApplications.map((app, i) => (
+            <tr key={i} className="border-t">
+              <td className="py-3">#{app.id ? app.id.slice(0, 8) : ''}</td>
+              <td className="py-3">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
+              <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy HH:mm') : ''}</td>
+              <td className="py-3 px-4 text-sm"><span className={`px-3 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : app.status === 'rejected' ? 'bg-red-100 text-red-800' : app.status === 'submitted' ? 'bg-blue-100 text-blue-800' : app.status === 'turn-in' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'}`}>{app.status}</span></td>
+              <td className="py-3">{app.submitted_by || 'direct'}</td>
+              <td className="py-3 flex space-x-2">
+                <button
+                  onClick={() => { setViewedApp(app); setCurrentModalStep(1); }}
+                  className="text-blue-600 hover:text-blue-900 p-1"
+                  title="View Application"
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+              </td>
             </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {applications.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                  No applications found.
-                </td>
-              </tr>
-            ) : (
-              applications.map((application) => (
-                <tr key={application.id}>
-                  <td className="px-2 py-4 text-center">
-                    {(application.personal_details?.firstName || '') + ' ' + (application.personal_details?.lastName || '')}
-                  </td>
-                  <td className="px-2 py-4 text-center">{application.personal_details?.emailAddress || ''}</td>
-                  <td className="px-2 py-4 text-center">{application.personal_details?.mobileNumber || ''}</td>
-                  <td className="px-2 py-4 text-center">{application.submitted_at ? format(new Date(application.submitted_at), 'MMM dd, yyyy HH:mm') : ''}</td>
-                  <td className="px-2 py-4 text-center">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      application.status === 'approved' ? 'bg-green-100 text-green-800' :
-                      application.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {application.status}
-                    </span>
-                  </td>
-                  <td className="px-2 py-4 text-center font-medium">
-                    <button
-                      onClick={() => { setViewedApp(application); setCurrentModalStep(1); }}
-                      className="text-blue-600 hover:text-blue-900 p-1"
-                      title="View Application"
-                    >
-                      <Eye className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 
@@ -362,9 +399,7 @@ const AgentDashboard: React.FC = () => {
               </button>
             ))}
           </nav>
-          <div className="my-8 border-t border-blue-900/40" />
         </div>
-        {/* Footer removed here */}
       </aside>
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
@@ -383,13 +418,23 @@ const AgentDashboard: React.FC = () => {
             <div className="text-xl font-bold text-gray-900">SilverCard</div>
             <div className="text-xs text-gray-500">Credit Card Management System</div>
           </div>
-          {/* Logout button */}
-          <button
-            onClick={logout}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-100 text-sm font-medium ml-2"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
+          {/* Agent Info and Logout */}
+          <div className="flex items-center gap-4 ml-2">
+            {user?.name && (
+              <div className="flex flex-col items-end text-right">
+                <span className="text-blue-900 text-sm font-medium leading-tight truncate max-w-[160px]" title={user.name}>{user.name}</span>
+                <span className="text-blue-400 text-xs break-all max-w-[160px]" title={user.email}>{user.email}</span>
+                <span className="text-blue-300 text-xs mt-0.5 tracking-wide">Agent Account</span>
+              </div>
+            )}
+            <div className="h-8 border-l border-gray-300 mx-2" />
+            <button
+              onClick={logout}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-100 text-sm font-medium"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
         </header>
         {/* Content */}
         <main className="flex-1 p-2 sm:p-8 overflow-x-visible">

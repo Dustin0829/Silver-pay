@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, FileText, BarChart3, Settings, Plus, Check, X, Eye, Edit, LogOut, User, Clock, CheckCircle, List, History, Trash2, Download, Menu } from 'lucide-react';
+import { Users, FileText, BarChart3, Settings, Plus, Check, X, Eye, Edit, LogOut, User, Clock, CheckCircle, List, History, Trash2, Download, Menu, Send, ArrowDownCircle, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { useApplications } from '../context/ApplicationContext';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
@@ -53,6 +53,7 @@ const AdminDashboard: React.FC = () => {
   const [currentSection, setCurrentSection] = useState(0);
   const [bankFilter, setBankFilter] = useState('');
   const [nameFilter, setNameFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   // Sidebar navigation
   const navItems = [
@@ -531,11 +532,44 @@ const AdminDashboard: React.FC = () => {
                       )}
                     </td>
                     <td className="py-3 px-4 align-middle flex space-x-2">
-                      <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={() => setViewedApp(app)}><Eye className="w-5 h-5" /></button>
-                      <button className="text-green-600 hover:text-green-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a))}><Check className="w-5 h-5" /></button>
-                      <button className="text-red-600 hover:text-red-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a))}><X className="w-5 h-5" /></button>
-                  </td>
-                </tr>
+                      <div className="relative group">
+                        <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={async () => {
+                          await supabase.from('application_form').update({ status: 'submitted' }).eq('id', app.id);
+                          setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'submitted' } : a));
+                        }}>
+                          <Send className="w-5 h-5" />
+                        </button>
+                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Submit</span>
+                      </div>
+                      <div className="relative group">
+                        <button className="text-purple-600 hover:text-purple-800 transition-colors" onClick={async () => {
+                          await supabase.from('application_form').update({ status: 'turn-in' }).eq('id', app.id);
+                          setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'turn-in' } : a));
+                        }}>
+                          <ArrowDownCircle className="w-5 h-5" />
+                        </button>
+                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Turn-in</span>
+                      </div>
+                      <div className="relative group">
+                        <button className="text-green-600 hover:text-green-800 transition-colors" onClick={async () => {
+                          await supabase.from('application_form').update({ status: 'approved' }).eq('id', app.id);
+                          setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a));
+                        }}>
+                          <ThumbsUp className="w-5 h-5" />
+                        </button>
+                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Approve</span>
+                      </div>
+                      <div className="relative group">
+                        <button className="text-red-600 hover:text-red-800 transition-colors" onClick={async () => {
+                          await supabase.from('application_form').update({ status: 'rejected' }).eq('id', app.id);
+                          setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a));
+                        }}>
+                          <ThumbsDown className="w-5 h-5" />
+                        </button>
+                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Reject</span>
+                      </div>
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
@@ -626,11 +660,13 @@ const AdminDashboard: React.FC = () => {
         </div>
         <div className="flex gap-4 w-full mt-2">
           <input className="border rounded-lg px-3 py-2 w-1/2" placeholder="mm/dd/yyyy" />
-          <select className="border rounded-lg px-3 py-2 w-1/2">
-            <option>All Status</option>
-            <option>Pending</option>
-            <option>Approved</option>
-            <option>Rejected</option>
+          <select className="border rounded-lg px-3 py-2 w-1/2" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <option value="">All Status</option>
+            <option value="submitted">Submitted</option>
+            <option value="turn-in">Turn-in</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
           </select>
         </div>
       </div>
@@ -1238,19 +1274,29 @@ const AdminDashboard: React.FC = () => {
 
   const filteredApplications = applications.filter(app => {
     const search = nameFilter.trim().toLowerCase();
-    if (!search) return true; // Show all if search is empty
-    // Always show public submissions
-    if (!app.submitted_by || app.submitted_by === 'direct') return true;
-    // Agent name match
-    const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
-    const agentName = agent?.name?.toLowerCase() || '';
-    const matchesName = agentName.includes(search);
-    // Bank code match
-    let matchesCode = false;
-    if (agent && Array.isArray(agent.bank_codes)) {
-      matchesCode = agent.bank_codes.some((entry: any) => (entry.code || '').toLowerCase().includes(search));
+    let matchesSearch = true;
+    if (search) {
+      // Always show public submissions
+      if (!app.submitted_by || app.submitted_by === 'direct') matchesSearch = true;
+      else {
+        // Agent name match
+        const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
+        const agentName = agent?.name?.toLowerCase() || '';
+        const matchesName = agentName.includes(search);
+        // Bank code match
+        let matchesCode = false;
+        if (agent && Array.isArray(agent.bank_codes)) {
+          matchesCode = agent.bank_codes.some((entry: any) => (entry.code || '').toLowerCase().includes(search));
+        }
+        matchesSearch = matchesName || matchesCode;
+      }
     }
-    return matchesName || matchesCode;
+    // Status filter
+    let matchesStatus = true;
+    if (statusFilter) {
+      matchesStatus = (app.status || '').toLowerCase() === statusFilter.toLowerCase();
+    }
+    return matchesSearch && matchesStatus;
   });
 
   const exportHistoryToPDF = () => {
