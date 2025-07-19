@@ -24,17 +24,20 @@ const BANKS = [
   { value: 'aub', label: 'AUB' },
 ];
 
+// Add this at the top after imports
+const initialToastState = { show: false, message: '', type: undefined as 'success' | 'error' | undefined };
+
 const AdminDashboard: React.FC = () => {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [activeSection, setActiveSection] = useState('dashboard');
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
   const [users, setUsers] = useState<any[]>([]); // fetched from Supabase
-  const [applications, setApplications] = useState<any[]>([]); // fetched from Supabase
+  const [applications, setApplications] = useState<any[]>([]); // merged applications
   const [viewedApp, setViewedApp] = useState<any | null>(null);
   const [editUserIdx, setEditUserIdx] = useState<number | null>(null);
   const [editUser, setEditUser] = useState({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [toast, setToast] = useState<typeof initialToastState>(initialToastState);
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState<number | null>(null);
   const [editApp, setEditApp] = useState<any | null>(null);
   const [currentModalStep, setCurrentModalStep] = useState(1);
@@ -54,6 +57,10 @@ const AdminDashboard: React.FC = () => {
   const [bankFilter, setBankFilter] = useState('');
   const [nameFilter, setNameFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  // Add state for pagination
+  const [applicationsPage, setApplicationsPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const PAGE_SIZE = 15;
 
   // Sidebar navigation
   const navItems = [
@@ -65,49 +72,49 @@ const AdminDashboard: React.FC = () => {
 
   // Fetch users and applications from Supabase
   useEffect(() => {
-    // Initial fetch for users
-    const fetchUsers = async () => {
-      const { data: usersData, error: usersError } = await supabase.from('users').select('*');
-      if (!usersError && usersData) setUsers(usersData);
+    let isMounted = true;
+    const fetchAllData = async () => {
+      const [{ data: appData, error: appError }, { data: kycData, error: kycError }] = await Promise.all([
+        supabase.from('application_form').select('*'),
+        supabase.from('kyc_details').select('*'),
+      ]);
+      const normalizedKyc = (kycData || []).map((k: any) => ({
+        id: `kyc-${k.id}`,
+        personal_details: {
+          firstName: k.first_name,
+          lastName: k.last_name,
+          middleName: k.middle_name,
+          suffix: k.suffix,
+          dateOfBirth: k.date_of_birth,
+          placeOfBirth: k.place_of_birth,
+          gender: k.gender,
+          emailAddress: k.email_address,
+        },
+        status: null,
+        submitted_by: k.agent || '',
+        submitted_at: null,
+      }));
+      const merged = [ ...(appData || []), ...normalizedKyc ];
+      if (isMounted) setApplications(merged);
+
+      // Fetch all users from Supabase
+      const { data: userData, error: userError } = await supabase.from('users').select('*');
+      if (userError) {
+        console.error('Failed to fetch users:', userError.message);
+      } else if (isMounted) {
+        setUsers(userData || []);
+      }
     };
-    fetchUsers();
-
-    // Real-time subscription for users table
-    const usersChannel = supabase
-      .channel('realtime:users')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'users' },
-        (payload) => {
-          fetchUsers();
-        }
-      )
-      .subscribe();
-
-    // Initial fetch for applications
-    const fetchApplications = async () => {
-      const { data, error } = await supabase.from('application_form').select('*');
-      if (!error && data) setApplications(data);
-    };
-    fetchApplications();
-
-    // Subscribe to real-time changes in application_form
+    fetchAllData();
     const channel = supabase
       .channel('realtime:application_form')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'application_form' },
-        (payload) => {
-          fetchApplications();
-        }
+        (payload) => { fetchAllData(); }
       )
       .subscribe();
-
-    // Cleanup on unmount
-    return () => {
-      supabase.removeChannel(channel);
-      supabase.removeChannel(usersChannel);
-    };
+    return () => { isMounted = false; supabase.removeChannel(channel); };
   }, []);
 
   // Update dashboard stats
@@ -225,12 +232,13 @@ const AdminDashboard: React.FC = () => {
             <div className="text-gray-400 text-sm">No recent applications.</div>
           )}
         </div>
+        {/* Restore Quick Actions card */}
         <div className="bg-white rounded-xl p-6 shadow">
           <h3 className="font-semibold mb-4">Quick Actions</h3>
           <div className="space-y-2">
             <button className={`w-full flex items-center px-4 py-3 rounded-lg font-medium border-2 ${activeSection === 'dashboard' ? 'bg-blue-50 text-blue-700 border-blue-500' : 'bg-white text-blue-700 border-transparent hover:bg-blue-100'}`} onClick={() => setActiveSection('dashboard')}><List className="w-5 h-5 mr-2" /> Dashboard</button>
-            <button className={`w-full flex items-center px-4 py-3 rounded-lg font-medium border-2 ${activeSection === 'applications' ? 'bg-blue-50 text-blue-700 border-blue-500' : 'bg-white text-blue-700 border-transparent hover:bg-blue-100'}`} onClick={() => setActiveSection('applications')}><FileText className="w-5 h-5 mr-2" /> Client Applications <span className="ml-auto bg-blue-200 text-blue-800 rounded-full px-2 py-0.5 text-xs">{applications.length}</span></button>
-            <button className={`w-full flex items-center px-4 py-3 rounded-lg font-medium border-2 ${activeSection === 'account' ? 'bg-green-50 text-green-700 border-green-400' : 'bg-white text-green-700 border-transparent hover:bg-green-100'}`} onClick={() => setActiveSection('account')}><User className="w-5 h-5 mr-2" /> Account Management <span className="ml-auto bg-green-200 text-green-800 rounded-full px-2 py-0.5 text-xs">{users.length}</span></button>
+            <button className={`w-full flex items-center px-4 py-3 rounded-lg font-medium border-2 ${activeSection === 'applications' ? 'bg-blue-50 text-blue-700 border-blue-500' : 'bg-white text-blue-700 border-transparent hover:bg-blue-100'}`} onClick={() => setActiveSection('applications')}><FileText className="w-5 h-5 mr-2" /> Client Applications</button>
+            <button className={`w-full flex items-center px-4 py-3 rounded-lg font-medium border-2 ${activeSection === 'account' ? 'bg-green-50 text-green-700 border-green-400' : 'bg-white text-green-700 border-transparent hover:bg-green-100'}`} onClick={() => setActiveSection('account')}><User className="w-5 h-5 mr-2" /> Account Management</button>
             <button className={`w-full flex items-center px-4 py-3 rounded-lg font-medium border-2 ${activeSection === 'history' ? 'bg-purple-50 text-purple-700 border-purple-400' : 'bg-white text-purple-700 border-transparent hover:bg-purple-100'}`} onClick={() => setActiveSection('history')}><History className="w-5 h-5 mr-2" /> Application History</button>
           </div>
         </div>
@@ -278,7 +286,7 @@ const AdminDashboard: React.FC = () => {
                       // Delete user from Supabase
                       const { error } = await supabase.from('users').delete().eq('email', u.email);
                       if (error) {
-                        setToast({ show: true, message: 'Failed to delete user: ' + error.message, type: 'error' });
+                        setToast({ show: true, message: 'Failed to delete user: ' + error.message, type: 'error' as const });
                         return;
                       }
                       setUsers(prev => prev.filter((_, idx) => idx !== i));
@@ -286,7 +294,7 @@ const AdminDashboard: React.FC = () => {
                       setToast({ show: false, message: '', type: undefined });
                     } else {
                       setPendingDeleteIdx(i);
-                      setToast({ show: true, message: 'Click again to confirm delete.', type: 'error' });
+                      setToast({ show: true, message: 'Click again to confirm delete.', type: 'error' as const });
                       setTimeout(() => setPendingDeleteIdx(null), 3000);
                     }
                   }}><Trash2 className="w-4 h-4" /></button>
@@ -317,12 +325,12 @@ const AdminDashboard: React.FC = () => {
                   });
                   const result = await response.json();
                   if (!response.ok) {
-                    setToast({ show: true, message: 'Failed to add user: ' + (result.error || response.statusText), type: 'error' });
+                    setToast({ show: true, message: 'Failed to add user: ' + (result.error || response.statusText), type: 'error' as const });
                     return;
                   }
                 setShowAddUser(false);
                 setNewUser({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
-                  setToast({ show: true, message: 'User created successfully!', type: 'success' });
+                  setToast({ show: true, message: 'User created successfully!', type: 'success' as const });
                 } catch (err) {
                   let errorMsg = 'Unknown error';
                   if (err instanceof Error) {
@@ -330,7 +338,7 @@ const AdminDashboard: React.FC = () => {
                   } else if (typeof err === 'string') {
                     errorMsg = err;
                   }
-                  setToast({ show: true, message: 'Failed to add user: ' + errorMsg, type: 'error' });
+                  setToast({ show: true, message: 'Failed to add user: ' + errorMsg, type: 'error' as const });
                 }
               }} className="space-y-4">
                 <div>
@@ -410,12 +418,12 @@ const AdminDashboard: React.FC = () => {
                   bank_codes: editUser.bankCodes,
                 }).eq('email', editUser.email);
                 if (error) {
-                  setToast({ show: true, message: 'Failed to update user: ' + error.message, type: 'error' });
+                  setToast({ show: true, message: 'Failed to update user: ' + error.message, type: 'error' as const });
                   return;
                 }
                 setUsers(prev => prev.map((u, idx) => idx === editUserIdx ? { ...u, ...editUser } : u));
                 setEditUserIdx(null);
-                setToast({ show: true, message: 'User updated successfully!', type: 'success' });
+                setToast({ show: true, message: 'User updated successfully!', type: 'success' as const });
               }} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Name</label>
@@ -500,7 +508,7 @@ const AdminDashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {applications.map((app, i) => {
+              {paginatedApplications.map((app, i) => {
                 // Find agent user if not direct
                 let agentBankCodes = null;
                 if (app.submitted_by && app.submitted_by !== 'direct') {
@@ -514,7 +522,7 @@ const AdminDashboard: React.FC = () => {
                     <td className="py-3 px-6 align-middle font-semibold whitespace-nowrap max-w-[180px] truncate">
                       {`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}
                     </td>
-                    <td className="py-3 px-2 align-middle whitespace-nowrap text-sm text-gray-600 max-w-[180px] truncate">{app.personal_details?.emailAddress ?? ''}</td>
+                    <td className="py-3 px-2 align-middle whitespace-nowrap text-sm text-gray-600 max-w-[180px] truncate">{app.personal_details?.emailAddress || app.email || ''}</td>
                     <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
                     <td className="py-3 px-4 text-sm"><span className={`px-3 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></td>
                     <td className="py-3 px-2 align-middle whitespace-nowrap max-w-[80px] truncate">{!app.submitted_by || app.submitted_by === 'direct' ? 'direct' : app.submitted_by}</td>
@@ -577,7 +585,7 @@ const AdminDashboard: React.FC = () => {
           </div>
           {/* Mobile Card Layout */}
           <div className="block md:hidden">
-            {applications.map((app, i) => {
+            {paginatedApplications.map((app, i) => {
               let agentBankCodes = null;
               if (app.submitted_by && app.submitted_by !== 'direct') {
                 const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
@@ -588,7 +596,7 @@ const AdminDashboard: React.FC = () => {
               return (
                 <div key={app.id} className="p-4 mb-4">
                   <div className="mb-2 font-semibold text-lg">{`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}</div>
-                  <div className="mb-1 text-sm"><span className="font-medium">Email:</span> {app.personal_details?.emailAddress ?? ''}</div>
+                  <div className="mb-1 text-sm"><span className="font-medium">Email:</span> {app.personal_details?.emailAddress || app.email || ''}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Submitted:</span> {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Status:</span> <span className={`px-3 py-1 rounded-full text-xs font-semibold
                     ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
@@ -616,6 +624,13 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+      {applications.length > paginatedApplications.length && (
+        <div className="flex justify-center mt-4">
+          <button className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700" onClick={() => setApplicationsPage(applicationsPage + 1)}>
+            See More
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -674,7 +689,6 @@ const AdminDashboard: React.FC = () => {
       <table className="w-full text-xs sm:text-sm md:text-base table-fixed hidden sm:table">
         <thead>
           <tr className="text-left text-xs text-gray-500 uppercase">
-            <th className="py-2">Application ID</th>
             <th className="py-2">Applicant</th>
             <th className="py-2 min-w-[150px] px-4">Date & Time</th>
             <th className="py-2">Status</th>
@@ -684,7 +698,7 @@ const AdminDashboard: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {filteredApplications.map((app, i) => {
+          {paginatedHistory.map((app, i) => {
             // Find agent user if not direct
             let agentBankCodes = null;
             if (app.submitted_by && app.submitted_by !== 'direct') {
@@ -695,7 +709,6 @@ const AdminDashboard: React.FC = () => {
             }
             return (
               <tr key={i} className="border-t">
-                <td className="py-3">#{app.id ? app.id.slice(0, 8) : ''}</td>
                 <td className="py-3">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
                 <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
                 <td className="py-3 px-4 text-sm"><span className={`px-3 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></td>
@@ -725,7 +738,7 @@ const AdminDashboard: React.FC = () => {
       </table>
       {/* Mobile Card Layout */}
       <div className="block sm:hidden">
-        {applications.map((app, i) => {
+        {paginatedHistory.map((app, i) => {
           let agentBankCodes = null;
           if (app.submitted_by && app.submitted_by !== 'direct') {
             const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
@@ -736,8 +749,7 @@ const AdminDashboard: React.FC = () => {
           return (
             <div key={i} className="border-b py-4">
               <div className="font-semibold">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</div>
-              <div className="text-xs text-gray-500 mb-1">ID: #{app.id ? app.id.slice(0, 8) : ''}</div>
-              <div className="text-sm mb-1">Date: {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</div>
+              <div className="text-xs text-gray-500 mb-1">Date: {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</div>
               <div className="text-sm mb-1">Status: <span className={`px-2 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></div>
               <div className="text-sm mb-1">Submitted By: {app.submitted_by || 'direct'}</div>
               <div className="text-sm mb-1">Bank Codes: {agentBankCodes ? (
@@ -759,6 +771,13 @@ const AdminDashboard: React.FC = () => {
           );
         })}
       </div>
+      {filteredApplications.length > paginatedHistory.length && (
+        <div className="flex justify-center mt-4">
+          <button className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700" onClick={() => setHistoryPage(historyPage + 1)}>
+            See More
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -1307,9 +1326,8 @@ const AdminDashboard: React.FC = () => {
     doc.setLineWidth(0.5);
     doc.line(20, 25, 190, 25);
     doc.setFontSize(12);
-    const tableColumn = ['ID', 'Applicant', 'Date & Time', 'Status', 'Submitted By', 'Bank Codes'];
+    const tableColumn = ['Applicant', 'Date & Time', 'Status', 'Submitted By', 'Bank Codes'];
     const tableRows = filteredApplications.map(app => [
-      `#${app.id ? app.id.slice(0, 8) : ''}`,
       `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`,
       app.submitted_at ? new Date(app.submitted_at).toLocaleString() : '',
       app.status,
@@ -1343,739 +1361,100 @@ const AdminDashboard: React.FC = () => {
     setShowExportPreview(false);
   };
 
+  // In renderApplications, slice the applications array
+  const paginatedApplications = applications.slice(0, applicationsPage * PAGE_SIZE);
+  // In renderHistory, slice the filteredApplications array
+  const paginatedHistory = filteredApplications.slice(0, historyPage * PAGE_SIZE);
+
+  // Reset pagination when switching sections or filters
+  useEffect(() => { setApplicationsPage(1); }, [activeSection]);
+  useEffect(() => { setHistoryPage(1); }, [activeSection, nameFilter, statusFilter]);
+
   // Main layout
   return (
-    <div className="flex min-h-screen bg-gray-50 overflow-x-hidden">
-      {/* Sidebar Overlay for mobile */}
-      <div
-        className={`fixed inset-0 z-40 bg-black bg-opacity-40 transition-opacity duration-300 ${sidebarOpen ? 'block sm:hidden' : 'hidden'}`}
-        onClick={() => setSidebarOpen(false)}
-        aria-hidden="true"
-      />
-      {/* Sidebar */}
-      <aside
-        className={`fixed z-50 top-0 left-0 h-full w-64 bg-gradient-to-b from-[#101624] to-[#1a2236] text-white flex flex-col py-6 px-2 sm:px-6 min-h-fit shadow-xl transform transition-transform duration-300
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} sm:translate-x-0 sm:static sm:w-64 sm:block`}
-        style={{ minHeight: '100vh' }}
-        aria-label="Sidebar"
-      >
-        {/* Close button for mobile */}
-        <button
-          className="absolute top-4 right-4 sm:hidden text-white text-2xl z-50"
-          onClick={() => setSidebarOpen(false)}
-          aria-label="Close sidebar"
-        >
-          <X />
-        </button>
-        <div>
-          <div className="mb-10 flex flex-col items-center">
-            <div className="bg-white rounded-full p-4 shadow-lg mb-4">
-              <img src={Logo} alt="Company Logo" className="h-20 w-auto" />
+    <>
+      <div className="flex min-h-screen">
+        <aside className="fixed top-0 left-0 h-screen w-64 bg-[#101624] text-white flex flex-col py-6 px-2 sm:px-6 shadow-xl z-50">
+          {/* Logo and Title Section */}
+          <div className="flex flex-col items-center mb-10 px-2">
+            <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
+              <img src={Logo} alt="Logo" className="h-16 w-16 object-contain" />
             </div>
-            <div className="text-xl font-extrabold tracking-wide text-blue-200 mb-1">SILVER CARD</div>
-            <div className="text-xs text-gray-300 tracking-widest mb-2">SOLUTIONS</div>
-            <div className="text-xs text-blue-100 font-semibold">Admin Portal</div>
+            <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>SILVER CARD</span>
+            <span className="text-xs uppercase text-gray-400 tracking-widest text-center mb-1">SOLUTIONS</span>
+            <span className="text-sm text-gray-300 text-center">Admin Portal</span>
           </div>
-          <nav className="flex flex-col gap-2 mt-4">
+          {/* Navigation */}
+          <nav className="flex flex-col gap-3 flex-1 items-center">
             {navItems.map(item => (
               <button
                 key={item.key}
-                onClick={() => { setActiveSection(item.key); setSidebarOpen(false); }}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-semibold text-base group
+                className={`flex items-center justify-center w-56 px-4 py-3 rounded-xl font-bold text-lg transition-all mb-1
                   ${activeSection === item.key
-                    ? 'bg-blue-900/80 text-white shadow-md'
-                    : 'hover:bg-blue-800/40 hover:text-blue-200 text-blue-100'}
+                    ? 'bg-blue-900 text-white shadow font-bold'
+                    : 'bg-transparent text-gray-200 hover:bg-blue-800 hover:text-white'}
                 `}
+                onClick={() => setActiveSection(item.key)}
               >
-                <span className={`transition-colors ${activeSection === item.key ? 'text-blue-400' : 'group-hover:text-blue-300 text-blue-200'}`}>{item.icon}</span>
+                <span className="mr-3">{item.icon}</span>
                 <span>{item.label}</span>
+                {/* Notification badges removed */}
               </button>
             ))}
           </nav>
-          <div className="my-8 border-t border-blue-900/40" />
-        </div>
-        {/* Footer removed here */}
-      </aside>
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="flex flex-row items-center justify-between bg-white px-4 sm:px-8 py-4 border-b border-gray-100 relative">
-          {/* Hamburger for mobile */}
-          <button
-            className="sm:hidden mr-2 text-gray-700 hover:text-blue-700 focus:outline-none"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open sidebar"
-          >
-            <Menu className="h-7 w-7" />
+          {/* Optional: Logout at the bottom */}
+          <button onClick={logout} className="flex items-center mt-auto px-4 py-3 rounded-lg text-red-400 hover:text-red-600 border-2 border-transparent hover:bg-white/10 justify-center">
+            <LogOut className="w-5 h-5 mr-2" /> Sign Out
           </button>
-          {/* Centered Title */}
-          <div className="flex-1 flex flex-col items-center">
-            <div className="text-xl font-bold text-gray-900">Silver Card</div>
-            <div className="text-xs text-gray-500">Credit Card Management System</div>
-          </div>
-          {/* Logout button */}
-          <button onClick={logout} className="ml-2 text-gray-400 hover:text-red-600" title="Sign Out">
-            <LogOut className="w-6 h-6" />
-          </button>
-        </header>
-        {/* Content */}
-        <main className="flex-1 p-2 sm:p-8 overflow-x-visible">
-          {activeSection === 'dashboard' && renderDashboard()}
-          {activeSection === 'account' && renderAccount()}
-          {activeSection === 'applications' && renderApplications()}
-          {activeSection === 'history' && renderHistory()}
-        </main>
-        <>
-      {previewApp && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-[1400px] relative overflow-y-auto max-h-[95vh] flex flex-col">
-            <button onClick={() => setPreviewApp(null)} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold">Application Print Preview</h2>
-              <button onClick={handleExportPreviewPDF} className="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 flex items-center"><Download className="w-5 h-5 mr-2" />Export PDF</button>
-            </div>
-            <div
-              id="pdf-preview"
-              style={{
-                width: '1200px',
-                height: '793px',
-                margin: 0,
-                padding: 0,
-                border: 'none',
-                background: '#fff',
-                overflow: 'hidden',
-                boxSizing: 'border-box',
-                display: 'flex',
-                flexDirection: 'row',
-                gap: '2rem'
-              }}
-            >
-              {/* Two-column layout: left for personal/address, right for work/card/bank/images */}
+        </aside>
+        <div className="ml-64 flex-1 flex flex-col min-h-0" style={{height: '100vh'}}>
+            {/* Header */}
+            <header className="flex flex-row items-center justify-between bg-white px-4 sm:px-8 py-4 border-b border-gray-100 relative">
+              {/* Hamburger for mobile */}
+              <button
+                className="sm:hidden mr-2 text-gray-700 hover:text-blue-700 focus:outline-none"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Open sidebar"
+              >
+                <Menu className="h-7 w-7" />
+              </button>
+              {/* Centered Title */}
+              <div className="flex-1 flex flex-col items-center">
+                <div className="text-xl font-bold text-gray-900">Silver Card</div>
+                <div className="text-xs text-gray-500">Credit Card Management System</div>
+              </div>
+              {/* User info only (no avatar, no background, no logout) */}
+              <div className="flex items-center gap-2 ml-4">
+                {user && (
+                  <div className="flex flex-col text-right">
+                    <span className="font-semibold text-sm text-gray-900">{user.name || 'User'}</span>
+                    <span className="text-xs text-gray-500">{user.email}</span>
+                  </div>
+                )}
+              </div>
+            </header>
+            {/* Content */}
+          <main className="flex-1 overflow-y-auto px-8 py-8">
+              {activeSection === 'dashboard' && renderDashboard()}
+              {activeSection === 'account' && renderAccount()}
+              {activeSection === 'applications' && renderApplications()}
+              {activeSection === 'history' && renderHistory()}
+            </main>
               {previewApp && (
-                <div className="flex flex-row h-full w-full gap-8">
-                  {/* LEFT COLUMN */}
-                  <div className="flex-1 flex flex-col gap-2">
-                    {/* Personal Details Table */}
-                    <div className="mb-2">
-                      <div className="bg-gray-800 text-white font-bold px-2 py-1">PERSONAL DETAILS</div>
-                      <table className="w-full border text-xs">
-                        <tbody>
-                          <tr className="border">
-                            <td className="border px-1">LAST NAME</td>
-                                <td className="border px-1">{previewApp.personal_details.lastName}</td>
-                            <td className="border px-1">FIRST NAME</td>
-                                <td className="border px-1">{previewApp.personal_details.firstName}</td>
-                            <td className="border px-1">MIDDLE NAME</td>
-                                <td className="border px-1">{previewApp.personal_details.middleName}</td>
-                            <td className="border px-1">SUFFIX</td>
-                                <td className="border px-1">{previewApp.personal_details.suffix}</td>
-                          </tr>
-                          <tr className="border">
-                            <td className="border px-1">DATE OF BIRTH</td>
-                                <td className="border px-1">{previewApp.personal_details.dateOfBirth}</td>
-                            <td className="border px-1">PLACE OF BIRTH</td>
-                                <td className="border px-1">{previewApp.personal_details.placeOfBirth}</td>
-                            <td className="border px-1">GENDER</td>
-                                <td className="border px-1">{previewApp.personal_details.gender}</td>
-                            <td className="border px-1">CIVIL STATUS</td>
-                                <td className="border px-1">{previewApp.personal_details.civilStatus}</td>
-                          </tr>
-                          <tr className="border">
-                            <td className="border px-1">NATIONALITY</td>
-                                <td className="border px-1">{previewApp.personal_details.nationality}</td>
-                            <td className="border px-1">EMAIL ADDRESS</td>
-                                <td className="border px-1">{previewApp.personal_details.emailAddress}</td>
-                            <td className="border px-1">MOBILE NUMBER</td>
-                                <td className="border px-1">{previewApp.personal_details.mobileNumber}</td>
-                            <td className="border px-1">HOME NUMBER</td>
-                                <td className="border px-1">{previewApp.personal_details.homeNumber}</td>
-                          </tr>
-                          <tr className="border">
-                            <td className="border px-1">SSS/GSIS/UMID</td>
-                                <td className="border px-1">{previewApp.personal_details.sssGsisUmid}</td>
-                            <td className="border px-1">TIN</td>
-                                <td className="border px-1">{previewApp.personal_details.tin}</td>
-                            <td className="border px-1" colSpan={4}></td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    {/* Mother's Maiden Name Table */}
-                    <div className="mb-2">
-                      <div className="bg-gray-800 text-white font-bold px-2 py-1">MOTHER'S MAIDEN NAME</div>
-                      <table className="w-full border text-xs">
-                        <tbody>
-                          <tr className="border">
-                            <td className="border px-1">LAST NAME</td>
-                                <td className="border px-1">{previewApp.mother_details.lastName}</td>
-                            <td className="border px-1">FIRST NAME</td>
-                                <td className="border px-1">{previewApp.mother_details.firstName}</td>
-                            <td className="border px-1">MIDDLE NAME</td>
-                                <td className="border px-1">{previewApp.mother_details.middleName}</td>
-                            <td className="border px-1">SUFFIX</td>
-                                <td className="border px-1">{previewApp.mother_details.suffix}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    {/* Permanent Address Table */}
-                    <div className="mb-2">
-                      <div className="bg-gray-800 text-white font-bold px-2 py-1">PRESENT HOME ADDRESS</div>
-                      <table className="w-full border text-xs">
-                        <tbody>
-                          <tr className="border">
-                            <td className="border px-1">STREET</td>
-                                <td className="border px-1">{previewApp.permanent_address.street}</td>
-                            <td className="border px-1">BARANGAY</td>
-                                <td className="border px-1">{previewApp.permanent_address.barangay}</td>
-                            <td className="border px-1">CITY</td>
-                                <td className="border px-1">{previewApp.permanent_address.city}</td>
-                            <td className="border px-1">ZIP CODE</td>
-                                <td className="border px-1">{previewApp.permanent_address.zipCode}</td>
-                          </tr>
-                          <tr className="border">
-                            <td className="border px-1">YEARS OF STAY</td>
-                                <td className="border px-1">{previewApp.permanent_address.yearsOfStay}</td>
-                            <td className="border px-1" colSpan={6}></td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    {/* Spouse Details Table */}
-                    <div className="mb-2">
-                      <div className="bg-gray-800 text-white font-bold px-2 py-1">SPOUSE DETAILS</div>
-                      <table className="w-full border text-xs">
-                        <tbody>
-                          <tr className="border">
-                            <td className="border px-1">LAST NAME</td>
-                                <td className="border px-1">{previewApp.spouse_details.lastName}</td>
-                            <td className="border px-1">FIRST NAME</td>
-                                <td className="border px-1">{previewApp.spouse_details.firstName}</td>
-                            <td className="border px-1">MIDDLE NAME</td>
-                                <td className="border px-1">{previewApp.spouse_details.middleName}</td>
-                            <td className="border px-1">SUFFIX</td>
-                                <td className="border px-1">{previewApp.spouse_details.suffix}</td>
-                          </tr>
-                          <tr className="border">
-                            <td className="border px-1">MOBILE NUMBER</td>
-                                <td className="border px-1">{previewApp.spouse_details.mobileNumber}</td>
-                            <td className="border px-1" colSpan={6}></td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    {/* Personal Reference Table */}
-                    <div className="mb-2">
-                      <div className="bg-gray-800 text-white font-bold px-2 py-1">PERSONAL REFERENCE</div>
-                      <table className="w-full border text-xs">
-                        <tbody>
-                          <tr className="border">
-                            <td className="border px-1">LAST NAME</td>
-                                <td className="border px-1">{previewApp.personal_reference.lastName}</td>
-                            <td className="border px-1">FIRST NAME</td>
-                                <td className="border px-1">{previewApp.personal_reference.firstName}</td>
-                            <td className="border px-1">MIDDLE NAME</td>
-                                <td className="border px-1">{previewApp.personal_reference.middleName}</td>
-                            <td className="border px-1">SUFFIX</td>
-                                <td className="border px-1">{previewApp.personal_reference.suffix}</td>
-                          </tr>
-                          <tr className="border">
-                            <td className="border px-1">MOBILE NUMBER</td>
-                                <td className="border px-1">{previewApp.personal_reference.mobileNumber}</td>
-                            <td className="border px-1">RELATIONSHIP</td>
-                                <td className="border px-1">{previewApp.personal_reference.relationship}</td>
-                            <td className="border px-1" colSpan={4}></td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                  {/* RIGHT COLUMN */}
-                  <div className="flex-1 flex flex-col gap-2">
-                    {/* Work/Business Details Table */}
-                    <div className="mb-2">
-                      <div className="bg-gray-800 text-white font-bold px-2 py-1">WORK/BUSINESS DETAILS</div>
-                      <table className="w-full border text-xs">
-                        <tbody>
-                          <tr className="border">
-                            <td className="border px-1">BUSINESS/EMPLOYER'S NAME</td>
-                                <td className="border px-1">{previewApp.work_details.businessEmployerName}</td>
-                            <td className="border px-1">PROFESSION/OCCUPATION</td>
-                                <td className="border px-1">{previewApp.work_details.professionOccupation}</td>
-                            <td className="border px-1">NATURE OF BUSINESS</td>
-                                <td className="border px-1">{previewApp.work_details.natureOfBusiness}</td>
-                          </tr>
-                          <tr className="border">
-                            <td className="border px-1">DEPARTMENT</td>
-                                <td className="border px-1">{previewApp.work_details.department}</td>
-                            <td className="border px-1">LANDLINE/MOBILE NO.</td>
-                                <td className="border px-1">{previewApp.work_details.landlineMobile}</td>
-                            <td className="border px-1">YEARS IN BUSINESS</td>
-                                <td className="border px-1">{previewApp.work_details.yearsInBusiness}</td>
-                          </tr>
-                          <tr className="border">
-                            <td className="border px-1">MONTHLY INCOME</td>
-                                <td className="border px-1">{previewApp.work_details.monthlyIncome}</td>
-                            <td className="border px-1">ANNUAL INCOME</td>
-                                <td className="border px-1">{previewApp.work_details.annualIncome}</td>
-                            <td className="border px-1" colSpan={3}></td>
-                          </tr>
-                          <tr className="border">
-                            <td className="border px-1">BUSINESS/OFFICE ADDRESS</td>
-                                <td className="border px-1" colSpan={5}>{previewApp.work_details.address.street}, {previewApp.work_details.address.barangay}, {previewApp.work_details.address.city}, {previewApp.work_details.address.zipCode}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    {/* Credit Card Details Table */}
-                    <div className="mb-2">
-                      <div className="bg-gray-800 text-white font-bold px-2 py-1">CREDIT CARD DETAILS</div>
-                      <table className="w-full border text-xs">
-                        <tbody>
-                          <tr className="border">
-                            <td className="border px-1">BANK/INSTITUTION</td>
-                                <td className="border px-1">{previewApp.credit_card_details.bankInstitution}</td>
-                            <td className="border px-1">CARD NUMBER</td>
-                                <td className="border px-1">{previewApp.credit_card_details.cardNumber}</td>
-                            <td className="border px-1">CREDIT LIMIT</td>
-                                <td className="border px-1">{previewApp.credit_card_details.creditLimit}</td>
-                          </tr>
-                          <tr className="border">
-                            <td className="border px-1">MEMBER SINCE</td>
-                                <td className="border px-1">{previewApp.credit_card_details.memberSince}</td>
-                            <td className="border px-1">EXP. DATE</td>
-                                <td className="border px-1">{previewApp.credit_card_details.expirationDate}</td>
-                            <td className="border px-1">DELIVER CARD TO</td>
-                                <td className="border px-1">{previewApp.credit_card_details.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</td>
-                          </tr>
-                          <tr className="border">
-                            <td className="border px-1">BEST TIME TO CONTACT</td>
-                                <td className="border px-1">{previewApp.credit_card_details.bestTimeToContact}</td>
-                            <td className="border px-1" colSpan={4}></td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    {/* Bank Preferences */}
-                    <div className="mb-2">
-                      <div className="bg-gray-800 text-white font-bold px-2 py-1">BANK PREFERENCES</div>
-                      <div className="flex flex-wrap gap-4 mt-2">
-                            {Object.entries(previewApp.bank_preferences).map(([bank, checked]) => (
-                          <div key={bank} className="flex items-center gap-1">
-                                <input type="checkbox" checked={Boolean(checked)} readOnly className="accent-blue-600" />
-                            <span className="text-xs">{bank.toUpperCase()}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    {/* ID and E-signature inline at bottom right */}
-                    <div className="flex flex-row items-start justify-start min-w-[540px] mt-auto gap-8">
-                      <div className="flex flex-col items-center">
-                        <div className="font-bold text-xs mb-1">Valid ID</div>
-                        {('idPhoto' in previewApp && previewApp.idPhoto) ? (
-                          typeof previewApp.idPhoto === 'string' ? (
-                            <img src={previewApp.idPhoto} alt="Valid ID" className="w-56 h-40 object-contain border" />
-                          ) : (previewApp.idPhoto instanceof File || previewApp.idPhoto instanceof Blob) ? (
-                            <img src={URL.createObjectURL(previewApp.idPhoto)} alt="Valid ID" className="w-56 h-40 object-contain border" />
-                          ) : (
-                            <div className="w-56 h-40 bg-gray-100 border flex items-center justify-center text-gray-400 text-xs">No ID Uploaded</div>
-                          )
-                        ) : (
-                          <div className="w-56 h-40 bg-gray-100 border flex items-center justify-center text-gray-400 text-xs">No ID Uploaded</div>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-center">
-                        <div className="font-bold text-xs mb-1">E-signature</div>
-                        {('eSignature' in previewApp && previewApp.eSignature) ? (
-                          typeof previewApp.eSignature === 'string' ? (
-                            <img src={previewApp.eSignature} alt="E-signature" className="w-56 h-24 object-contain border" />
-                          ) : (previewApp.eSignature instanceof File || previewApp.eSignature instanceof Blob) ? (
-                            <img src={URL.createObjectURL(previewApp.eSignature)} alt="E-signature" className="w-56 h-24 object-contain border" />
-                          ) : (
-                            <div className="w-56 h-24 bg-gray-100 border flex items-center justify-center text-gray-400 text-xs">No Signature Uploaded</div>
-                          )
-                        ) : (
-                          <div className="w-56 h-24 bg-gray-100 border flex items-center justify-center text-gray-400 text-xs">No Signature Uploaded</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            {/* ...previewApp modal content... */}
                 </div>
               )}
-                </div>
+              {editApp && (
+                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            {/* ...editApp modal content... */}
               </div>
-            </div>
-          )}
-          {editApp && (
-            <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[90vh]">
-                <button onClick={() => { setEditApp(null); setCurrentEditStep(1); }} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
-                <h3 className="text-2xl font-bold mb-6">Edit Application</h3>
-                {/* Step 1: Personal Details */}
-                {currentEditStep === 1 && (
-                  <div className="space-y-4">
-                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Details</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><label className="font-medium">First Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.firstName ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, firstName: e.target.value } })} /></div>
-                      <div><label className="font-medium">Middle Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.middleName ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, middleName: e.target.value } })} /></div>
-                      <div><label className="font-medium">Last Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.lastName ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, lastName: e.target.value } })} /></div>
-                      <div><label className="font-medium">Suffix:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.suffix ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, suffix: e.target.value } })} /></div>
-                      <div><label className="font-medium">Gender:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.gender ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, gender: e.target.value } })} /></div>
-                      <div><label className="font-medium">Date of Birth:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.dateOfBirth ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, dateOfBirth: e.target.value } })} /></div>
-                      <div><label className="font-medium">Place of Birth:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.placeOfBirth ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, placeOfBirth: e.target.value } })} /></div>
-                      <div><label className="font-medium">Civil Status:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.civilStatus ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, civilStatus: e.target.value } })} /></div>
-                      <div><label className="font-medium">Nationality:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.nationality ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, nationality: e.target.value } })} /></div>
-                      <div><label className="font-medium">Mobile Number:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.mobileNumber ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, mobileNumber: e.target.value } })} /></div>
-                      <div><label className="font-medium">Home Number:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.homeNumber ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, homeNumber: e.target.value } })} /></div>
-                      <div><label className="font-medium">Email Address:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.emailAddress ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, emailAddress: e.target.value } })} /></div>
-                      <div><label className="font-medium">SSS/GSIS/UMID:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.sssGsisUmid ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, sssGsisUmid: e.target.value } })} /></div>
-                      <div><label className="font-medium">TIN:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_details?.tin ?? ''} onChange={e => setEditApp({ ...editApp, personal_details: { ...editApp.personal_details, tin: e.target.value } })} /></div>
-                    </div>
+            )}
+            {pdfPreviewApp && (
+              <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            {/* ...pdfPreviewApp modal content... */}
                   </div>
-                )}
-                {/* Step 2: Family & Address */}
-                {currentEditStep === 2 && (
-                  <div className="space-y-4">
-                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Family & Address</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Mother's Details */}
-                      <div><label className="font-medium">Mother's First Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.mother_details?.firstName ?? ''} onChange={e => setEditApp({ ...editApp, mother_details: { ...editApp.mother_details, firstName: e.target.value } })} /></div>
-                      <div><label className="font-medium">Mother's Middle Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.mother_details?.middleName ?? ''} onChange={e => setEditApp({ ...editApp, mother_details: { ...editApp.mother_details, middleName: e.target.value } })} /></div>
-                      <div><label className="font-medium">Mother's Last Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.mother_details?.lastName ?? ''} onChange={e => setEditApp({ ...editApp, mother_details: { ...editApp.mother_details, lastName: e.target.value } })} /></div>
-                      <div><label className="font-medium">Mother's Suffix:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.mother_details?.suffix ?? ''} onChange={e => setEditApp({ ...editApp, mother_details: { ...editApp.mother_details, suffix: e.target.value } })} /></div>
-                      {/* Permanent Address */}
-                      <div><label className="font-medium">Street:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.permanent_address?.street ?? ''} onChange={e => setEditApp({ ...editApp, permanent_address: { ...editApp.permanent_address, street: e.target.value } })} /></div>
-                      <div><label className="font-medium">Barangay:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.permanent_address?.barangay ?? ''} onChange={e => setEditApp({ ...editApp, permanent_address: { ...editApp.permanent_address, barangay: e.target.value } })} /></div>
-                      <div><label className="font-medium">City:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.permanent_address?.city ?? ''} onChange={e => setEditApp({ ...editApp, permanent_address: { ...editApp.permanent_address, city: e.target.value } })} /></div>
-                      <div><label className="font-medium">Province:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.permanent_address?.province ?? ''} onChange={e => setEditApp({ ...editApp, permanent_address: { ...editApp.permanent_address, province: e.target.value } })} /></div>
-                      <div><label className="font-medium">Zip Code:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.permanent_address?.zipCode ?? ''} onChange={e => setEditApp({ ...editApp, permanent_address: { ...editApp.permanent_address, zipCode: e.target.value } })} /></div>
-                      <div><label className="font-medium">Years of Stay:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.permanent_address?.yearsOfStay ?? ''} onChange={e => setEditApp({ ...editApp, permanent_address: { ...editApp.permanent_address, yearsOfStay: e.target.value } })} /></div>
-                      {/* Spouse Details */}
-                      <div><label className="font-medium">Spouse First Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.spouse_details?.firstName ?? ''} onChange={e => setEditApp({ ...editApp, spouse_details: { ...editApp.spouse_details, firstName: e.target.value } })} /></div>
-                      <div><label className="font-medium">Spouse Middle Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.spouse_details?.middleName ?? ''} onChange={e => setEditApp({ ...editApp, spouse_details: { ...editApp.spouse_details, middleName: e.target.value } })} /></div>
-                      <div><label className="font-medium">Spouse Last Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.spouse_details?.lastName ?? ''} onChange={e => setEditApp({ ...editApp, spouse_details: { ...editApp.spouse_details, lastName: e.target.value } })} /></div>
-                      <div><label className="font-medium">Spouse Suffix:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.spouse_details?.suffix ?? ''} onChange={e => setEditApp({ ...editApp, spouse_details: { ...editApp.spouse_details, suffix: e.target.value } })} /></div>
-                      <div><label className="font-medium">Spouse Mobile Number:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.spouse_details?.mobileNumber ?? ''} onChange={e => setEditApp({ ...editApp, spouse_details: { ...editApp.spouse_details, mobileNumber: e.target.value } })} /></div>
-                      {/* Personal Reference */}
-                      <div><label className="font-medium">Personal Reference First Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_reference?.firstName ?? ''} onChange={e => setEditApp({ ...editApp, personal_reference: { ...editApp.personal_reference, firstName: e.target.value } })} /></div>
-                      <div><label className="font-medium">Personal Reference Middle Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_reference?.middleName ?? ''} onChange={e => setEditApp({ ...editApp, personal_reference: { ...editApp.personal_reference, middleName: e.target.value } })} /></div>
-                      <div><label className="font-medium">Personal Reference Last Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_reference?.lastName ?? ''} onChange={e => setEditApp({ ...editApp, personal_reference: { ...editApp.personal_reference, lastName: e.target.value } })} /></div>
-                      <div><label className="font-medium">Personal Reference Suffix:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_reference?.suffix ?? ''} onChange={e => setEditApp({ ...editApp, personal_reference: { ...editApp.personal_reference, suffix: e.target.value } })} /></div>
-                      <div><label className="font-medium">Personal Reference Mobile Number:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_reference?.mobileNumber ?? ''} onChange={e => setEditApp({ ...editApp, personal_reference: { ...editApp.personal_reference, mobileNumber: e.target.value } })} /></div>
-                      <div><label className="font-medium">Personal Reference Relationship:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.personal_reference?.relationship ?? ''} onChange={e => setEditApp({ ...editApp, personal_reference: { ...editApp.personal_reference, relationship: e.target.value } })} /></div>
-                    </div>
-                  </div>
-                )}
-                {/* Step 3: Work/Business Details */}
-                {currentEditStep === 3 && (
-                  <div className="space-y-4">
-                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Work/Business Details</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><label className="font-medium">Business/Employer's Name:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.businessEmployerName ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, businessEmployerName: e.target.value } })} /></div>
-                      <div><label className="font-medium">Profession/Occupation:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.professionOccupation ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, professionOccupation: e.target.value } })} /></div>
-                      <div><label className="font-medium">Nature of Business:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.natureOfBusiness ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, natureOfBusiness: e.target.value } })} /></div>
-                      <div><label className="font-medium">Department:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.department ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, department: e.target.value } })} /></div>
-                      <div><label className="font-medium">Landline/Mobile:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.landlineMobile ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, landlineMobile: e.target.value } })} /></div>
-                      <div><label className="font-medium">Years in Business:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.yearsInBusiness ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, yearsInBusiness: e.target.value } })} /></div>
-                      <div><label className="font-medium">Monthly Income:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.monthlyIncome ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, monthlyIncome: e.target.value } })} /></div>
-                      <div><label className="font-medium">Annual Income:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.annualIncome ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, annualIncome: e.target.value } })} /></div>
-                      {/* Address fields in two columns */}
-                      <div className="col-span-2">
-                        <span className="font-medium">Address:</span>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1">
-                          <div><label className="font-medium">City:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.city ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, city: e.target.value } } })} /></div>
-                          <div><label className="font-medium">Lot No.:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.lotNo ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, lotNo: e.target.value } } })} /></div>
-                          <div><label className="font-medium">Street:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.street ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, street: e.target.value } } })} /></div>
-                          <div><label className="font-medium">Zip Code:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.zipCode ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, zipCode: e.target.value } } })} /></div>
-                          <div><label className="font-medium">Barangay:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.barangay ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, barangay: e.target.value } } })} /></div>
-                          <div><label className="font-medium">Unit/Floor:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.unitFloor ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, unitFloor: e.target.value } } })} /></div>
-                          <div><label className="font-medium">Building/Tower:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.work_details?.address?.buildingTower ?? ''} onChange={e => setEditApp({ ...editApp, work_details: { ...editApp.work_details, address: { ...editApp.work_details?.address, buildingTower: e.target.value } } })} /></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {/* Step 4: Credit Card & Bank Preferences */}
-                {currentEditStep === 4 && (
-                  <div className="space-y-4">
-                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Credit Card & Bank Preferences</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><label className="font-medium">Bank/Institution:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.bankInstitution ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, bankInstitution: e.target.value } })} /></div>
-                      <div><label className="font-medium">Card Number:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.cardNumber ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, cardNumber: e.target.value } })} /></div>
-                      <div><label className="font-medium">Credit Limit:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.creditLimit ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, creditLimit: e.target.value } })} /></div>
-                      <div><label className="font-medium">Member Since:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.memberSince ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, memberSince: e.target.value } })} /></div>
-                      <div><label className="font-medium">Exp. Date:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.expirationDate ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, expirationDate: e.target.value } })} /></div>
-                      <div><label className="font-medium">Deliver Card To:</label><select className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.deliverCardTo ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, deliverCardTo: e.target.value as 'home' | 'business' } })}>
-                        <option value="home">Present Home Address</option>
-                        <option value="business">Business Address</option>
-                      </select></div>
-                      <div><label className="font-medium">Best Time to Contact:</label> <input className="border rounded px-2 py-1 w-full" value={editApp.credit_card_details?.bestTimeToContact ?? ''} onChange={e => setEditApp({ ...editApp, credit_card_details: { ...editApp.credit_card_details, bestTimeToContact: e.target.value } })} /></div>
-                      <div className="col-span-2">
-                        <span className="font-medium">Bank Preferences:</span>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {editApp.bank_preferences && Object.entries(editApp.bank_preferences).map(([k, v]) => (
-                            <label key={k} className="flex items-center gap-1">
-                              <input type="checkbox" checked={!!v} onChange={e => setEditApp({ ...editApp, bank_preferences: { ...editApp.bank_preferences, [k]: e.target.checked } })} />
-                              <span>{k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {/* Step 5: File Links & Review */}
-                {currentEditStep === 5 && (
-                  <div className="space-y-4">
-                    <h4 className="text-lg font-semibold mb-2 text-blue-700">File Links & Review</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <span className="font-medium">ID Photo:</span>
-                        {editApp.id_photo_url ? (
-                          <img src={editApp.id_photo_url} alt="ID Photo" className="w-56 h-40 object-contain border mt-2" />
-                        ) : (
-                          <span className="text-xs ml-2">No ID Uploaded</span>
                         )}
-                        <input type="file" accept="image/*" className="mt-2" onChange={e => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            // You may want to handle upload logic here
-                            setEditApp({ ...editApp, id_photo_url: URL.createObjectURL(file) });
-                          }
-                        }} />
-                      </div>
-                      <div>
-                        <span className="font-medium">E-Signature:</span>
-                        {editApp.e_signature_url ? (
-                          <img src={editApp.e_signature_url} alt="E-Signature" className="w-56 h-24 object-contain border mt-2" />
-                        ) : (
-                          <span className="text-xs ml-2">No Signature Uploaded</span>
-                        )}
-                        <input type="file" accept="image/*" className="mt-2" onChange={e => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            // You may want to handle upload logic here
-                            setEditApp({ ...editApp, e_signature_url: URL.createObjectURL(file) });
-                          }
-                        }} />
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {/* Navigation buttons */}
-                <div className="flex justify-between mt-8 pt-6 border-t gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentEditStep(s => Math.max(1, s - 1))}
-                    disabled={currentEditStep === 1}
-                    className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (currentEditStep < 5) {
-                        setCurrentEditStep(s => Math.min(5, s + 1));
-                      } else {
-                        // Debug log: show id and payload
-                        console.log('Updating application:', editApp.id, {
-                          personal_details: editApp.personal_details,
-                          mother_details: editApp.mother_details,
-                          permanent_address: editApp.permanent_address,
-                          spouse_details: editApp.spouse_details,
-                          personal_reference: editApp.personal_reference,
-                          work_details: editApp.work_details,
-                          credit_card_details: editApp.credit_card_details,
-                          bank_preferences: editApp.bank_preferences,
-                          id_photo_url: editApp.id_photo_url,
-                          e_signature_url: editApp.e_signature_url,
-                        });
-                        const { error, data, count } = await supabase.from('application_form').update({
-                          personal_details: editApp.personal_details,
-                          mother_details: editApp.mother_details,
-                          permanent_address: editApp.permanent_address,
-                          spouse_details: editApp.spouse_details,
-                          personal_reference: editApp.personal_reference,
-                          work_details: editApp.work_details,
-                          credit_card_details: editApp.credit_card_details,
-                          bank_preferences: editApp.bank_preferences,
-                          id_photo_url: editApp.id_photo_url,
-                          e_signature_url: editApp.e_signature_url,
-                        }).eq('id', editApp.id);
-                        // Debug log: show result
-                        console.log('Update result:', { error, data, count });
-                        if (error) {
-                          setToast({ show: true, message: 'Failed to update application: ' + error.message, type: 'error' });
-                          return;
-                        }
-                        setEditApp(null);
-                        setCurrentEditStep(1);
-                        setToast({ show: true, message: 'Application updated successfully!', type: 'success' });
-                      }
-                    }}
-                    className={`flex items-center px-4 py-2 rounded-lg ${currentEditStep < 5 ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-green-600 text-white hover:bg-green-700'} text-sm`}
-                  >
-                    {currentEditStep < 5 ? 'Next' : 'Save'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-          {pdfPreviewApp && (
-            <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl shadow-2xl p-4 w-full max-w-[90vw] relative overflow-visible max-h-[90vh]">
-                <button onClick={() => setPdfPreviewApp(null)} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold">PDF Preview</h2>
-                  <button className="mr-10 bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-800 text-sm" onClick={async () => {
-                    const element = document.getElementById('pdf-preview-template');
-                    if (!element) return;
-                    const canvas = await html2canvas(element, { scale: 2 });
-                    const imgData = canvas.toDataURL('image/png');
-                    const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: [canvas.width, canvas.height] });
-                    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-                    pdf.save('application_details.pdf');
-                  }}>Export PDF</button>
-                </div>
-                <div style={{ width: '1500px', height: '800px', display: 'flex', justifyContent: 'center',alignItems: 'center' ,overflow: 'hidden' }}>
-                  <div id="pdf-preview-template" className="bg-white p-2 border rounded mb-4" style={{ fontFamily: 'Arial, sans-serif', fontSize: '15px', color: '#222', width: '100%', maxWidth: '95vw', margin: '0 auto', boxSizing: 'border-box', overflow: 'hidden', transform: 'scale(0.8)', transformOrigin: 'top left' }}>
-                    {/* 5-column main details section */}
-                    <table style={{ width: '100%', maxWidth: '100%', borderCollapse: 'collapse', marginBottom: '8px', tableLayout: 'fixed', fontSize: '14px' }}>
-                      <thead>
-                        <tr>
-                          <th style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>PERSONAL DETAILS</th>
-                          <th style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>FAMILY & ADDRESS</th>
-                          <th style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>SPOUSE DETAILS</th>
-                          <th style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>PERSONAL REFERENCE</th>
-                          <th style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>WORK/BUSINESS DETAILS</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          {/* Personal Details */}
-                          <td style={{ verticalAlign: 'top', padding: '4px' }}>
-                            <b>Last Name:</b> {pdfPreviewApp.personal_details?.lastName ?? ''}<br />
-                            <b>First Name:</b> {pdfPreviewApp.personal_details?.firstName ?? ''}<br />
-                            <b>Middle Name:</b> {pdfPreviewApp.personal_details?.middleName ?? ''}<br />
-                            <b>Suffix:</b> {pdfPreviewApp.personal_details?.suffix ?? ''}<br />
-                            <b>Date of Birth:</b> {pdfPreviewApp.personal_details?.dateOfBirth ?? ''}<br />
-                            <b>Place of Birth:</b> {pdfPreviewApp.personal_details?.placeOfBirth ?? ''}<br />
-                            <b>Gender:</b> {pdfPreviewApp.personal_details?.gender ?? ''}<br />
-                            <b>Civil Status:</b> {pdfPreviewApp.personal_details?.civilStatus ?? ''}<br />
-                            <b>Nationality:</b> {pdfPreviewApp.personal_details?.nationality ?? ''}<br />
-                            <b>Email Address:</b> {pdfPreviewApp.personal_details?.emailAddress ?? ''}<br />
-                            <b>Mobile Number:</b> {pdfPreviewApp.personal_details?.mobileNumber ?? ''}<br />
-                            <b>Home Number:</b> {pdfPreviewApp.personal_details?.homeNumber ?? ''}<br />
-                            <b>SSS/GSIS/UMID:</b> {pdfPreviewApp.personal_details?.sssGsisUmid ?? ''}<br />
-                            <b>TIN:</b> {pdfPreviewApp.personal_details?.tin ?? ''}
-                          </td>
-                          {/* Family & Address */}
-                          <td style={{ verticalAlign: 'top', padding: '4px' }}>
-                            <b>Mother's Last Name:</b> {pdfPreviewApp.mother_details?.lastName ?? ''}<br />
-                            <b>Mother's First Name:</b> {pdfPreviewApp.mother_details?.firstName ?? ''}<br />
-                            <b>Mother's Middle Name:</b> {pdfPreviewApp.mother_details?.middleName ?? ''}<br />
-                            <b>Mother's Suffix:</b> {pdfPreviewApp.mother_details?.suffix ?? ''}<br />
-                            <b>Street:</b> {pdfPreviewApp.permanent_address?.street ?? ''}<br />
-                            <b>Barangay:</b> {pdfPreviewApp.permanent_address?.barangay ?? ''}<br />
-                            <b>City:</b> {pdfPreviewApp.permanent_address?.city ?? ''}<br />
-                            <b>Province:</b> {pdfPreviewApp.permanent_address?.province ?? ''}<br />
-                            <b>Zip Code:</b> {pdfPreviewApp.permanent_address?.zipCode ?? ''}<br />
-                            <b>Years of Stay:</b> {pdfPreviewApp.permanent_address?.yearsOfStay ?? ''}
-                          </td>
-                          {/* Spouse Details */}
-                          <td style={{ verticalAlign: 'top', padding: '4px' }}>
-                            <b>Last Name:</b> {pdfPreviewApp.spouse_details?.lastName ?? ''}<br />
-                            <b>First Name:</b> {pdfPreviewApp.spouse_details?.firstName ?? ''}<br />
-                            <b>Middle Name:</b> {pdfPreviewApp.spouse_details?.middleName ?? ''}<br />
-                            <b>Suffix:</b> {pdfPreviewApp.spouse_details?.suffix ?? ''}<br />
-                            <b>Mobile Number:</b> {pdfPreviewApp.spouse_details?.mobileNumber ?? ''}
-                          </td>
-                          {/* Personal Reference */}
-                          <td style={{ verticalAlign: 'top', padding: '4px' }}>
-                            <b>Last Name:</b> {pdfPreviewApp.personal_reference?.lastName ?? ''}<br />
-                            <b>First Name:</b> {pdfPreviewApp.personal_reference?.firstName ?? ''}<br />
-                            <b>Middle Name:</b> {pdfPreviewApp.personal_reference?.middleName ?? ''}<br />
-                            <b>Suffix:</b> {pdfPreviewApp.personal_reference?.suffix ?? ''}<br />
-                            <b>Mobile Number:</b> {pdfPreviewApp.personal_reference?.mobileNumber ?? ''}<br />
-                            <b>Relationship:</b> {pdfPreviewApp.personal_reference?.relationship ?? ''}
-                          </td>
-                          {/* Work/Business Details */}
-                          <td style={{ verticalAlign: 'top', padding: '4px' }}>
-                            <b>Business/Employer's Name:</b> {pdfPreviewApp.work_details?.businessEmployerName ?? ''}<br />
-                            <b>Profession/Occupation:</b> {pdfPreviewApp.work_details?.professionOccupation ?? ''}<br />
-                            <b>Nature of Business:</b> {pdfPreviewApp.work_details?.natureOfBusiness ?? ''}<br />
-                            <b>Department:</b> {pdfPreviewApp.work_details?.department ?? ''}<br />
-                            <b>Landline/Mobile No.:</b> {pdfPreviewApp.work_details?.landlineMobile ?? ''}<br />
-                            <b>Years in Business:</b> {pdfPreviewApp.work_details?.yearsInBusiness ?? ''}<br />
-                            <b>Monthly Income:</b> {pdfPreviewApp.work_details?.monthlyIncome ?? ''}<br />
-                            <b>Annual Income:</b> {pdfPreviewApp.work_details?.annualIncome ?? ''}<br />
-                            <b>Business/Office Address:</b> {pdfPreviewApp.work_details?.address ? `${pdfPreviewApp.work_details.address.street}, ${pdfPreviewApp.work_details.address.barangay}, ${pdfPreviewApp.work_details.address.city}, ${pdfPreviewApp.work_details.address.zipCode}` : ''}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                    {/* Credit Card Details, Bank Preferences, and Images below */}
-                    <div style={{ display: 'flex', width: '95%', gap: '24px', marginTop: '12px', alignItems: 'flex-start' }}>
-                      {/* Left: Credit Card Details & Bank Preferences */}
-                      <div style={{ flex: 3, minWidth: 0 }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '8px' }}>
-                          <tbody>
-                            <tr>
-                              <td colSpan={2} style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>CREDIT CARD DETAILS</td>
-                              <td colSpan={2} style={{ fontWeight: 'bold', fontSize: '15px', background: '#222', color: '#fff', padding: '6px' }}>BANK PREFERENCES</td>
-                            </tr>
-                            <tr>
-                              {/* Credit Card Details */}
-                              <td colSpan={2} style={{ verticalAlign: 'top', padding: '4px' }}>
-                                <b>Bank/Institution:</b> {pdfPreviewApp.credit_card_details?.bankInstitution ?? ''}<br />
-                                <b>Card Number:</b> {pdfPreviewApp.credit_card_details?.cardNumber ?? ''}<br />
-                                <b>Credit Limit:</b> {pdfPreviewApp.credit_card_details?.creditLimit ?? ''}<br />
-                                <b>Member Since:</b> {pdfPreviewApp.credit_card_details?.memberSince ?? ''}<br />
-                                <b>Exp. Date:</b> {pdfPreviewApp.credit_card_details?.expirationDate ?? ''}<br />
-                                <b>Deliver Card To:</b> {pdfPreviewApp.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}<br />
-                                <b>Best Time to Contact:</b> {pdfPreviewApp.credit_card_details?.bestTimeToContact ?? ''}
-                              </td>
-                              {/* Bank Preferences */}
-                              <td colSpan={2} style={{ verticalAlign: 'top', padding: '4px' }}>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                  {pdfPreviewApp.bank_preferences && Object.entries(pdfPreviewApp.bank_preferences).filter(([_, v]) => v).map(([k]) => (
-                                    <span key={k} style={{ background: '#e0e7ff', color: '#3730a3', padding: '2px 8px', borderRadius: '10px', fontSize: '13px', fontWeight: 500 }}>
-                                      {k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                                    </span>
-                                  ))}
-                                </div>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                      {/* Right: ID Photo & E-Signature */}
-                      <div style={{ flex: 2, minWidth: 0, display: 'flex', flexDirection: 'row', gap: '16px', alignItems: 'flex-start', justifyContent: 'center' }}>
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '14px' }}>ID PHOTO</div>
-                          {pdfPreviewApp.id_photo_url ? (
-                            <img src={pdfPreviewApp.id_photo_url} alt="ID Photo" style={{ width: '180px', maxWidth: '100%', height: '120px', objectFit: 'contain', border: '1px solid #ccc', background: '#f9f9f9', display: 'block', margin: '0 auto' }} />
-                          ) : (
-                            <div style={{ width: '180px', height: '120px', border: '1px solid #ccc', background: '#f9f9f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: '13px' }}>No ID</div>
-                          )}
-                        </div>
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '14px' }}>E-SIGNATURE</div>
-                          {pdfPreviewApp.e_signature_url ? (
-                            <img src={pdfPreviewApp.e_signature_url} alt="E-Signature" style={{ width: '180px', maxWidth: '100%', height: '120px', objectFit: 'contain', border: '1px solid #ccc', background: '#f9f9f9', display: 'block', margin: '0 auto' }} />
-                          ) : (
-                            <div style={{ width: '180px', height: '120px', border: '1px solid #ccc', background: '#f9f9f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#aaa', fontSize: '13px' }}>No Signature</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </>
       </div>
       <Toast show={toast.show} message={toast.message} onClose={() => setToast({ ...toast, show: false })} type={toast.type} />
       {viewedApp && (
@@ -2249,23 +1628,83 @@ const AdminDashboard: React.FC = () => {
               <table className="w-full text-xs border">
                 <thead>
                   <tr className="bg-gray-100">
-                    <th className="p-2 border">Application ID</th>
                     <th className="p-2 border">Applicant</th>
                     <th className="p-2 border">Date & Time</th>
                     <th className="p-2 border">Status</th>
                     <th className="p-2 border">Submitted By</th>
+                    <th className="p-2 border">Bank Codes</th>
+                    <th className="p-2 border">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredApplications.map((app, i) => (
-                    <tr key={i}>
-                      <td className="p-2 border">#{app.id ? app.id.slice(0, 8) : ''}</td>
-                      <td className="p-2 border">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
-                      <td className="p-2 border">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
-                      <td className="p-2 border">{app.status}</td>
-                      <td className="p-2 border">{app.submitted_by || 'direct'}</td>
-                    </tr>
-                  ))}
+                  {filteredApplications.map((app, i) => {
+                    let agentBankCodes = null;
+                    if (app.submitted_by && app.submitted_by !== 'direct') {
+                      const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
+                      if (agent && Array.isArray(agent.bank_codes) && agent.bank_codes.length > 0) {
+                        agentBankCodes = agent.bank_codes;
+                      }
+                    }
+                    return (
+                      <tr key={i}>
+                        <td className="p-2 border">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
+                        <td className="p-2 border">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
+                        <td className="p-2 border">{app.status}</td>
+                        <td className="p-2 border">{app.submitted_by || 'direct'}</td>
+                        <td className="p-2 border">
+                          {agentBankCodes ? (
+                            <ul className="space-y-1">
+                              {agentBankCodes.map((entry: any, idx: any) => (
+                                <li key={idx} className="text-xs bg-blue-50 rounded px-2 py-1 inline-block mr-1 mb-1">
+                                  {BANKS.find(b => b.value === entry.bank)?.label || entry.bank}: <span className="font-mono">{entry.code}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="p-2 border flex space-x-2">
+                          <div className="relative group">
+                            <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={async () => {
+                              await supabase.from('application_form').update({ status: 'submitted' }).eq('id', app.id);
+                              setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'submitted' } : a));
+                            }}>
+                              <Send className="w-5 h-5" />
+                            </button>
+                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Submit</span>
+                          </div>
+                          <div className="relative group">
+                            <button className="text-purple-600 hover:text-purple-800 transition-colors" onClick={async () => {
+                              await supabase.from('application_form').update({ status: 'turn-in' }).eq('id', app.id);
+                              setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'turn-in' } : a));
+                            }}>
+                              <ArrowDownCircle className="w-5 h-5" />
+                            </button>
+                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Turn-in</span>
+                          </div>
+                          <div className="relative group">
+                            <button className="text-green-600 hover:text-green-800 transition-colors" onClick={async () => {
+                              await supabase.from('application_form').update({ status: 'approved' }).eq('id', app.id);
+                              setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a));
+                            }}>
+                              <ThumbsUp className="w-5 h-5" />
+                            </button>
+                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Approve</span>
+                          </div>
+                          <div className="relative group">
+                            <button className="text-red-600 hover:text-red-800 transition-colors" onClick={async () => {
+                              await supabase.from('application_form').update({ status: 'rejected' }).eq('id', app.id);
+                              setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a));
+                            }}>
+                              <ThumbsDown className="w-5 h-5" />
+                            </button>
+                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Reject</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -2276,7 +1715,8 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+       </div>
+      </>
   );
 };
 

@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 import Logo from '../assets/Company/Logo.png';
 
 const AgentDashboard: React.FC = () => {
-  const [applications, setApplications] = useState<any[]>([]);
+  const [applications, setApplications] = useState<any[]>([]); // merged applications
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('dashboard');
@@ -16,6 +16,7 @@ const AgentDashboard: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [nameFilter, setNameFilter] = useState('');
+  const [visibleCount, setVisibleCount] = useState(20);
 
   // Debug log
   console.log('AgentDashboard applications:', applications);
@@ -25,26 +26,40 @@ const AgentDashboard: React.FC = () => {
 
   // Fetch all applications from Supabase (like admin)
   useEffect(() => {
-    const fetchApplications = async () => {
-      const { data, error } = await supabase.from('application_form').select('*');
-      if (!error && data) setApplications(data);
+    let isMounted = true;
+    const fetchAllData = async () => {
+      const [{ data: appData, error: appError }, { data: kycData, error: kycError }] = await Promise.all([
+        supabase.from('application_form').select('*'),
+        supabase.from('kyc_details').select('*'),
+      ]);
+      const normalizedKyc = (kycData || []).map((k: any) => ({
+        id: `kyc-${k.id}`,
+        personal_details: {
+          firstName: k.first_name,
+          lastName: k.last_name,
+          middleName: k.middle_name,
+          suffix: k.suffix,
+          dateOfBirth: k.date_of_birth,
+          placeOfBirth: k.place_of_birth,
+          gender: k.gender,
+        },
+        status: null, // or ''
+        submitted_by: k.agent || '', // assumes agent_name column exists, otherwise set as needed
+        submitted_at: null,
+      }));
+      const merged = [ ...(appData || []), ...normalizedKyc ];
+      if (isMounted) setApplications(merged);
     };
-    fetchApplications();
-    // Subscribe to real-time changes in application_form
+    fetchAllData();
     const channel = supabase
       .channel('realtime:application_form')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'application_form' },
-        (payload) => {
-          fetchApplications();
-        }
+        (payload) => { fetchAllData(); }
       )
       .subscribe();
-    // Cleanup on unmount
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { isMounted = false; supabase.removeChannel(channel); };
   }, []);
 
   const exportToPDF = () => {
@@ -114,6 +129,8 @@ const AgentDashboard: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
+  const visibleApplications = filteredApplications.slice(0, visibleCount);
+
   const renderHistory = () => (
     <div>
       <h2 className="text-2xl font-bold mb-2">Application History</h2>
@@ -141,7 +158,6 @@ const AgentDashboard: React.FC = () => {
       <table className="w-full text-xs sm:text-sm md:text-base table-fixed hidden sm:table">
         <thead>
           <tr className="text-left text-xs text-gray-500 uppercase">
-            <th className="py-2">Application ID</th>
             <th className="py-2">Applicant</th>
             <th className="py-2 min-w-[150px] px-4">Date & Time</th>
             <th className="py-2">Status</th>
@@ -150,9 +166,8 @@ const AgentDashboard: React.FC = () => {
           </tr>
         </thead>
         <tbody>
-          {filteredApplications.map((app, i) => (
+          {visibleApplications.map((app, i) => (
             <tr key={i} className="border-t">
-              <td className="py-3">#{app.id ? app.id.slice(0, 8) : ''}</td>
               <td className="py-3">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
               <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy HH:mm') : ''}</td>
               <td className="py-3 px-4 text-sm"><span className={`px-3 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : app.status === 'rejected' ? 'bg-red-100 text-red-800' : app.status === 'submitted' ? 'bg-blue-100 text-blue-800' : app.status === 'turn-in' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'}`}>{app.status}</span></td>
@@ -170,6 +185,15 @@ const AgentDashboard: React.FC = () => {
           ))}
         </tbody>
       </table>
+      {filteredApplications.length > visibleCount && (
+        <div className="flex justify-center mt-4">
+          <button onClick={() => setVisibleCount(c => c + 20)} className="p-2 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-700" title="See More">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -359,236 +383,237 @@ const AgentDashboard: React.FC = () => {
         onClick={() => setSidebarOpen(false)}
         aria-hidden="true"
       />
-      {/* Sidebar */}
-      <aside
-        className={`fixed z-50 top-0 left-0 h-full w-64 bg-gradient-to-b from-[#101624] to-[#1a2236] text-white flex flex-col py-6 px-2 sm:px-6 min-h-fit shadow-xl transform transition-transform duration-300
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} sm:translate-x-0 sm:static sm:w-64 sm:block`}
-        style={{ minHeight: '100vh' }}
-        aria-label="Sidebar"
-      >
-        {/* Close button for mobile */}
-        <button
-          className="absolute top-4 right-4 sm:hidden text-white text-2xl z-50"
-          onClick={() => setSidebarOpen(false)}
-          aria-label="Close sidebar"
+      {/* Sidebar: ensure it uses h-full and its parent uses min-h-0 and flex-grow for content height */}
+      <div className="flex min-h-0 bg-gray-50 overflow-x-hidden" style={{height: '100%'}}>
+        <aside
+          className="fixed z-50 top-0 left-0 h-full w-64 bg-gradient-to-b from-[#101624] to-[#1a2236] text-white flex flex-col py-6 px-2 sm:px-6 h-full shadow-xl transform transition-transform duration-300
+            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} sm:translate-x-0 sm:static sm:w-64 sm:block"
+          aria-label="Sidebar"
         >
-          <X />
-        </button>
-        <div>
-          <div className="mb-10 flex flex-col items-center">
-            <div className="bg-white rounded-full p-4 shadow-lg mb-4">
-              <img src={Logo} alt="Company Logo" className="h-20 w-auto" />
-            </div>
-            <div className="text-xl font-extrabold tracking-wide text-blue-200 mb-1">SILVER CARD</div>
-            <div className="text-xs text-gray-300 tracking-widest mb-2">SOLUTIONS</div>
-            <div className="text-xs text-blue-100 font-semibold">Agent Portal</div>
-          </div>
-          <nav className="flex flex-col gap-2 mt-4">
-            {navItems.map(item => (
-              <button
-                key={item.key}
-                onClick={() => { setActiveSection(item.key); setSidebarOpen(false); }}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-semibold text-base group
-                  ${activeSection === item.key
-                    ? 'bg-blue-900/80 text-white shadow-md'
-                    : 'hover:bg-blue-800/40 hover:text-blue-200 text-blue-100'}
-                `}
-              >
-                <span className={`transition-colors ${activeSection === item.key ? 'text-blue-400' : 'group-hover:text-blue-300 text-blue-200'}`}>{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </nav>
-        </div>
-      </aside>
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="flex flex-row items-center justify-between bg-white px-4 sm:px-8 py-4 border-b border-gray-100 relative">
-          {/* Hamburger for mobile */}
+          {/* Close button for mobile */}
           <button
-            className="sm:hidden mr-2 text-gray-700 hover:text-blue-700 focus:outline-none"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open sidebar"
+            className="absolute top-4 right-4 sm:hidden text-white text-2xl z-50"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close sidebar"
           >
-            <Menu className="h-7 w-7" />
+            <X />
           </button>
-          {/* Centered Title */}
-          <div className="flex-1 flex flex-col items-center">
-            <div className="text-xl font-bold text-gray-900">SilverCard</div>
-            <div className="text-xs text-gray-500">Credit Card Management System</div>
-          </div>
-          {/* Agent Info and Logout */}
-          <div className="flex items-center gap-4 ml-2">
-            {user?.name && (
-              <div className="flex flex-col items-end text-right">
-                <span className="text-blue-900 text-sm font-medium leading-tight truncate max-w-[160px]" title={user.name}>{user.name}</span>
-                <span className="text-blue-400 text-xs break-all max-w-[160px]" title={user.email}>{user.email}</span>
-                <span className="text-blue-300 text-xs mt-0.5 tracking-wide">Agent Account</span>
+          <div>
+            <div className="mb-10 flex flex-col items-center">
+              <div className="bg-white rounded-full p-4 shadow-lg mb-4">
+                <img src={Logo} alt="Company Logo" className="h-20 w-auto" />
               </div>
-            )}
-            <div className="h-8 border-l border-gray-300 mx-2" />
+              <div className="text-xl font-extrabold tracking-wide text-blue-200 mb-1">SILVER CARD</div>
+              <div className="text-xs text-gray-300 tracking-widest mb-2">SOLUTIONS</div>
+              <div className="text-xs text-blue-100 font-semibold">Agent Portal</div>
+            </div>
+            <nav className="flex flex-col gap-2 mt-4">
+              {navItems.map(item => (
+                <button
+                  key={item.key}
+                  onClick={() => { setActiveSection(item.key); setSidebarOpen(false); }}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-semibold text-base group
+                    ${activeSection === item.key
+                      ? 'bg-blue-900/80 text-white shadow-md'
+                      : 'hover:bg-blue-800/40 hover:text-blue-200 text-blue-100'}
+                  `}
+                >
+                  <span className={`transition-colors ${activeSection === item.key ? 'text-blue-400' : 'group-hover:text-blue-300 text-blue-200'}`}>{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+        </aside>
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col min-h-0" style={{minHeight: '100%'}}>
+          {/* Header */}
+          <header className="flex flex-row items-center justify-between bg-white px-4 sm:px-8 py-4 border-b border-gray-100 relative">
+            {/* Hamburger for mobile */}
             <button
-              onClick={logout}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-100 text-sm font-medium"
+              className="sm:hidden mr-2 text-gray-700 hover:text-blue-700 focus:outline-none"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open sidebar"
             >
-              <LogOut className="h-4 w-4" />
+              <Menu className="h-7 w-7" />
             </button>
-          </div>
-        </header>
-        {/* Content */}
-        <main className="flex-1 p-2 sm:p-8 overflow-x-visible">
-          {activeSection === 'dashboard' && renderDashboard()}
-          {activeSection === 'history' && renderHistory()}
-        </main>
-        {/* Read-only Application Details Modal */}
-        {viewedApp && (
-          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[90vh]">
-              <button onClick={() => { setViewedApp(null); setCurrentModalStep(1); }} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
-              {viewedApp.status && (
-                <span
-                  className={`absolute top-3 right-12 px-3 py-1 rounded-full text-sm font-medium ${
-                    viewedApp.status === 'pending'
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : viewedApp.status === 'approved'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}
-                  style={{ zIndex: 10 }}
-                >
-                  {viewedApp.status}
-                </span>
+            {/* Centered Title */}
+            <div className="flex-1 flex flex-col items-center">
+              <div className="text-xl font-bold text-gray-900">SilverCard</div>
+              <div className="text-xs text-gray-500">Credit Card Management System</div>
+            </div>
+            {/* Agent Info and Logout */}
+            <div className="flex items-center gap-4 ml-2">
+              {user?.name && (
+                <div className="flex flex-col items-end text-right">
+                  <span className="text-blue-900 text-sm font-medium leading-tight truncate max-w-[160px]" title={user.name}>{user.name}</span>
+                  <span className="text-blue-400 text-xs break-all max-w-[160px]" title={user.email}>{user.email}</span>
+                  <span className="text-blue-300 text-xs mt-0.5 tracking-wide">Agent Account</span>
+                </div>
               )}
-              <h3 className="text-2xl font-bold mb-6">Application Details</h3>
-              {/* Step content */}
-              <div className="space-y-8">
-                {currentModalStep === 1 && (
-                  <div>
-                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Details</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><span className="font-medium">Last Name:</span> {viewedApp.personal_details?.lastName}</div>
-                      <div><span className="font-medium">First Name:</span> {viewedApp.personal_details?.firstName}</div>
-                      <div><span className="font-medium">Middle Name:</span> {viewedApp.personal_details?.middleName}</div>
-                      <div><span className="font-medium">Suffix:</span> {viewedApp.personal_details?.suffix}</div>
-                      <div><span className="font-medium">Date of Birth:</span> {viewedApp.personal_details?.dateOfBirth}</div>
-                      <div><span className="font-medium">Place of Birth:</span> {viewedApp.personal_details?.placeOfBirth}</div>
-                      <div><span className="font-medium">Gender:</span> {viewedApp.personal_details?.gender}</div>
-                      <div><span className="font-medium">Civil Status:</span> {viewedApp.personal_details?.civilStatus}</div>
-                      <div><span className="font-medium">Nationality:</span> {viewedApp.personal_details?.nationality}</div>
-                      <div><span className="font-medium">Mobile Number:</span> {viewedApp.personal_details?.mobileNumber}</div>
-                      <div><span className="font-medium">Home Number:</span> {viewedApp.personal_details?.homeNumber}</div>
-                      <div><span className="font-medium">Email Address:</span> {viewedApp.personal_details?.emailAddress}</div>
-                      <div><span className="font-medium">SSS/GSIS/UMID:</span> {viewedApp.personal_details?.sssGsisUmid}</div>
-                      <div><span className="font-medium">TIN:</span> {viewedApp.personal_details?.tin}</div>
-                    </div>
-                  </div>
+              <div className="h-8 border-l border-gray-300 mx-2" />
+              <button
+                onClick={logout}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-100 text-sm font-medium"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+          </header>
+          {/* Content */}
+          <main className="flex-1 p-2 sm:p-8 overflow-x-visible">
+            {activeSection === 'dashboard' && renderDashboard()}
+            {activeSection === 'history' && renderHistory()}
+          </main>
+          {/* Read-only Application Details Modal */}
+          {viewedApp && (
+            <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[90vh]">
+                <button onClick={() => { setViewedApp(null); setCurrentModalStep(1); }} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
+                {viewedApp.status && (
+                  <span
+                    className={`absolute top-3 right-12 px-3 py-1 rounded-full text-sm font-medium ${
+                      viewedApp.status === 'pending'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : viewedApp.status === 'approved'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}
+                    style={{ zIndex: 10 }}
+                  >
+                    {viewedApp.status}
+                  </span>
                 )}
-                {currentModalStep === 2 && (
-                  <div>
-                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Family & Address</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><span className="font-medium">Mother's Last Name:</span> {viewedApp.mother_details?.lastName}</div>
-                      <div><span className="font-medium">Mother's First Name:</span> {viewedApp.mother_details?.firstName}</div>
-                      <div><span className="font-medium">Mother's Middle Name:</span> {viewedApp.mother_details?.middleName}</div>
-                      <div><span className="font-medium">Mother's Suffix:</span> {viewedApp.mother_details?.suffix}</div>
-                      <div><span className="font-medium">Street:</span> {viewedApp.permanent_address?.street}</div>
-                      <div><span className="font-medium">Barangay:</span> {viewedApp.permanent_address?.barangay}</div>
-                      <div><span className="font-medium">City:</span> {viewedApp.permanent_address?.city}</div>
-                      <div><span className="font-medium">Province:</span> {viewedApp.permanent_address?.province}</div>
-                      <div><span className="font-medium">Zip Code:</span> {viewedApp.permanent_address?.zipCode}</div>
-                      <div><span className="font-medium">Years of Stay:</span> {viewedApp.permanent_address?.yearsOfStay}</div>
-                      <div><span className="font-medium">Spouse Last Name:</span> {viewedApp.spouse_details?.lastName}</div>
-                      <div><span className="font-medium">Spouse First Name:</span> {viewedApp.spouse_details?.firstName}</div>
-                      <div><span className="font-medium">Spouse Middle Name:</span> {viewedApp.spouse_details?.middleName}</div>
-                      <div><span className="font-medium">Spouse Suffix:</span> {viewedApp.spouse_details?.suffix}</div>
-                      <div><span className="font-medium">Spouse Mobile Number:</span> {viewedApp.spouse_details?.mobileNumber}</div>
-                      <div><span className="font-medium">Personal Reference Last Name:</span> {viewedApp.personal_reference?.lastName}</div>
-                      <div><span className="font-medium">Personal Reference First Name:</span> {viewedApp.personal_reference?.firstName}</div>
-                      <div><span className="font-medium">Personal Reference Middle Name:</span> {viewedApp.personal_reference?.middleName}</div>
-                      <div><span className="font-medium">Personal Reference Suffix:</span> {viewedApp.personal_reference?.suffix}</div>
-                      <div><span className="font-medium">Personal Reference Mobile Number:</span> {viewedApp.personal_reference?.mobileNumber}</div>
-                      <div><span className="font-medium">Personal Reference Relationship:</span> {viewedApp.personal_reference?.relationship}</div>
+                <h3 className="text-2xl font-bold mb-6">Application Details</h3>
+                {/* Step content */}
+                <div className="space-y-8">
+                  {currentModalStep === 1 && (
+                    <div>
+                      <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Details</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><span className="font-medium">Last Name:</span> {viewedApp.personal_details?.lastName}</div>
+                        <div><span className="font-medium">First Name:</span> {viewedApp.personal_details?.firstName}</div>
+                        <div><span className="font-medium">Middle Name:</span> {viewedApp.personal_details?.middleName}</div>
+                        <div><span className="font-medium">Suffix:</span> {viewedApp.personal_details?.suffix}</div>
+                        <div><span className="font-medium">Date of Birth:</span> {viewedApp.personal_details?.dateOfBirth}</div>
+                        <div><span className="font-medium">Place of Birth:</span> {viewedApp.personal_details?.placeOfBirth}</div>
+                        <div><span className="font-medium">Gender:</span> {viewedApp.personal_details?.gender}</div>
+                        <div><span className="font-medium">Civil Status:</span> {viewedApp.personal_details?.civilStatus}</div>
+                        <div><span className="font-medium">Nationality:</span> {viewedApp.personal_details?.nationality}</div>
+                        <div><span className="font-medium">Mobile Number:</span> {viewedApp.personal_details?.mobileNumber}</div>
+                        <div><span className="font-medium">Home Number:</span> {viewedApp.personal_details?.homeNumber}</div>
+                        <div><span className="font-medium">Email Address:</span> {viewedApp.personal_details?.emailAddress}</div>
+                        <div><span className="font-medium">SSS/GSIS/UMID:</span> {viewedApp.personal_details?.sssGsisUmid}</div>
+                        <div><span className="font-medium">TIN:</span> {viewedApp.personal_details?.tin}</div>
+                      </div>
                     </div>
-                  </div>
-                )}
-                {currentModalStep === 3 && (
-                  <div>
-                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Work/Business Details</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><span className="font-medium">Business/Employer's Name:</span> {viewedApp.work_details?.businessEmployerName}</div>
-                      <div><span className="font-medium">Profession/Occupation:</span> {viewedApp.work_details?.professionOccupation}</div>
-                      <div><span className="font-medium">Nature of Business:</span> {viewedApp.work_details?.natureOfBusiness}</div>
-                      <div><span className="font-medium">Department:</span> {viewedApp.work_details?.department}</div>
-                      <div><span className="font-medium">Landline/Mobile:</span> {viewedApp.work_details?.landlineMobile}</div>
-                      <div><span className="font-medium">Years in Business:</span> {viewedApp.work_details?.yearsInBusiness}</div>
-                      <div><span className="font-medium">Monthly Income:</span> {viewedApp.work_details?.monthlyIncome}</div>
-                      <div><span className="font-medium">Annual Income:</span> {viewedApp.work_details?.annualIncome}</div>
-                      <div><span className="font-medium">Street:</span> {viewedApp.work_details?.address?.street}</div>
-                      <div><span className="font-medium">Barangay:</span> {viewedApp.work_details?.address?.barangay}</div>
-                      <div><span className="font-medium">City:</span> {viewedApp.work_details?.address?.city}</div>
-                      <div><span className="font-medium">Zip Code:</span> {viewedApp.work_details?.address?.zipCode}</div>
-                      <div><span className="font-medium">Unit/Floor:</span> {viewedApp.work_details?.address?.unitFloor}</div>
-                      <div><span className="font-medium">Building/Tower:</span> {viewedApp.work_details?.address?.buildingTower}</div>
-                      <div><span className="font-medium">Lot No.:</span> {viewedApp.work_details?.address?.lotNo}</div>
+                  )}
+                  {currentModalStep === 2 && (
+                    <div>
+                      <h4 className="text-lg font-semibold mb-2 text-blue-700">Family & Address</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><span className="font-medium">Mother's Last Name:</span> {viewedApp.mother_details?.lastName}</div>
+                        <div><span className="font-medium">Mother's First Name:</span> {viewedApp.mother_details?.firstName}</div>
+                        <div><span className="font-medium">Mother's Middle Name:</span> {viewedApp.mother_details?.middleName}</div>
+                        <div><span className="font-medium">Mother's Suffix:</span> {viewedApp.mother_details?.suffix}</div>
+                        <div><span className="font-medium">Street:</span> {viewedApp.permanent_address?.street}</div>
+                        <div><span className="font-medium">Barangay:</span> {viewedApp.permanent_address?.barangay}</div>
+                        <div><span className="font-medium">City:</span> {viewedApp.permanent_address?.city}</div>
+                        <div><span className="font-medium">Province:</span> {viewedApp.permanent_address?.province}</div>
+                        <div><span className="font-medium">Zip Code:</span> {viewedApp.permanent_address?.zipCode}</div>
+                        <div><span className="font-medium">Years of Stay:</span> {viewedApp.permanent_address?.yearsOfStay}</div>
+                        <div><span className="font-medium">Spouse Last Name:</span> {viewedApp.spouse_details?.lastName}</div>
+                        <div><span className="font-medium">Spouse First Name:</span> {viewedApp.spouse_details?.firstName}</div>
+                        <div><span className="font-medium">Spouse Middle Name:</span> {viewedApp.spouse_details?.middleName}</div>
+                        <div><span className="font-medium">Spouse Suffix:</span> {viewedApp.spouse_details?.suffix}</div>
+                        <div><span className="font-medium">Spouse Mobile Number:</span> {viewedApp.spouse_details?.mobileNumber}</div>
+                        <div><span className="font-medium">Personal Reference Last Name:</span> {viewedApp.personal_reference?.lastName}</div>
+                        <div><span className="font-medium">Personal Reference First Name:</span> {viewedApp.personal_reference?.firstName}</div>
+                        <div><span className="font-medium">Personal Reference Middle Name:</span> {viewedApp.personal_reference?.middleName}</div>
+                        <div><span className="font-medium">Personal Reference Suffix:</span> {viewedApp.personal_reference?.suffix}</div>
+                        <div><span className="font-medium">Personal Reference Mobile Number:</span> {viewedApp.personal_reference?.mobileNumber}</div>
+                        <div><span className="font-medium">Personal Reference Relationship:</span> {viewedApp.personal_reference?.relationship}</div>
+                      </div>
                     </div>
-                  </div>
-                )}
-                {currentModalStep === 4 && (
-                  <div>
-                    <h4 className="text-lg font-semibold mb-2 text-blue-700">Credit Card & Bank Preferences</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><span className="font-medium">Bank/Institution:</span> {viewedApp.credit_card_details?.bankInstitution}</div>
-                      <div><span className="font-medium">Card Number:</span> {viewedApp.credit_card_details?.cardNumber}</div>
-                      <div><span className="font-medium">Credit Limit:</span> {viewedApp.credit_card_details?.creditLimit}</div>
-                      <div><span className="font-medium">Member Since:</span> {viewedApp.credit_card_details?.memberSince}</div>
-                      <div><span className="font-medium">Exp. Date:</span> {viewedApp.credit_card_details?.expirationDate}</div>
-                      <div><span className="font-medium">Deliver Card To:</span> {viewedApp.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</div>
-                      <div><span className="font-medium">Best Time to Contact:</span> {viewedApp.credit_card_details?.bestTimeToContact}</div>
+                  )}
+                  {currentModalStep === 3 && (
+                    <div>
+                      <h4 className="text-lg font-semibold mb-2 text-blue-700">Work/Business Details</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><span className="font-medium">Business/Employer's Name:</span> {viewedApp.work_details?.businessEmployerName}</div>
+                        <div><span className="font-medium">Profession/Occupation:</span> {viewedApp.work_details?.professionOccupation}</div>
+                        <div><span className="font-medium">Nature of Business:</span> {viewedApp.work_details?.natureOfBusiness}</div>
+                        <div><span className="font-medium">Department:</span> {viewedApp.work_details?.department}</div>
+                        <div><span className="font-medium">Landline/Mobile:</span> {viewedApp.work_details?.landlineMobile}</div>
+                        <div><span className="font-medium">Years in Business:</span> {viewedApp.work_details?.yearsInBusiness}</div>
+                        <div><span className="font-medium">Monthly Income:</span> {viewedApp.work_details?.monthlyIncome}</div>
+                        <div><span className="font-medium">Annual Income:</span> {viewedApp.work_details?.annualIncome}</div>
+                        <div><span className="font-medium">Street:</span> {viewedApp.work_details?.address?.street}</div>
+                        <div><span className="font-medium">Barangay:</span> {viewedApp.work_details?.address?.barangay}</div>
+                        <div><span className="font-medium">City:</span> {viewedApp.work_details?.address?.city}</div>
+                        <div><span className="font-medium">Zip Code:</span> {viewedApp.work_details?.address?.zipCode}</div>
+                        <div><span className="font-medium">Unit/Floor:</span> {viewedApp.work_details?.address?.unitFloor}</div>
+                        <div><span className="font-medium">Building/Tower:</span> {viewedApp.work_details?.address?.buildingTower}</div>
+                        <div><span className="font-medium">Lot No.:</span> {viewedApp.work_details?.address?.lotNo}</div>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {viewedApp.bank_preferences && Object.entries(viewedApp.bank_preferences).filter(([_, v]) => v).map(([k]) => (
-                        <span key={k} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
-                          {k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                        </span>
-                      ))}
+                  )}
+                  {currentModalStep === 4 && (
+                    <div>
+                      <h4 className="text-lg font-semibold mb-2 text-blue-700">Credit Card & Bank Preferences</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><span className="font-medium">Bank/Institution:</span> {viewedApp.credit_card_details?.bankInstitution}</div>
+                        <div><span className="font-medium">Card Number:</span> {viewedApp.credit_card_details?.cardNumber}</div>
+                        <div><span className="font-medium">Credit Limit:</span> {viewedApp.credit_card_details?.creditLimit}</div>
+                        <div><span className="font-medium">Member Since:</span> {viewedApp.credit_card_details?.memberSince}</div>
+                        <div><span className="font-medium">Exp. Date:</span> {viewedApp.credit_card_details?.expirationDate}</div>
+                        <div><span className="font-medium">Deliver Card To:</span> {viewedApp.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</div>
+                        <div><span className="font-medium">Best Time to Contact:</span> {viewedApp.credit_card_details?.bestTimeToContact}</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-4">
+                        {viewedApp.bank_preferences && Object.entries(viewedApp.bank_preferences).filter(([_, v]) => v).map(([k]) => (
+                          <span key={k} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                            {k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-                {currentModalStep === 5 && (
-                  <div>
-                    <h4 className="text-lg font-semibold mb-2 text-blue-700">File Links & Review</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><span className="font-medium">ID Photo URL:</span> {viewedApp.id_photo_url ? <a href={viewedApp.id_photo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a> : 'N/A'}</div>
-                      <div><span className="font-medium">E-Signature URL:</span> {viewedApp.e_signature_url ? <a href={viewedApp.e_signature_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a> : 'N/A'}</div>
+                  )}
+                  {currentModalStep === 5 && (
+                    <div>
+                      <h4 className="text-lg font-semibold mb-2 text-blue-700">File Links & Review</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><span className="font-medium">ID Photo URL:</span> {viewedApp.id_photo_url ? <a href={viewedApp.id_photo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a> : 'N/A'}</div>
+                        <div><span className="font-medium">E-Signature URL:</span> {viewedApp.e_signature_url ? <a href={viewedApp.e_signature_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a> : 'N/A'}</div>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-              {/* Stepper navigation */}
-              <div className="flex justify-between mt-8 pt-6 border-t gap-4">
-                <button
-                  type="button"
-                  onClick={() => setCurrentModalStep(s => Math.max(1, s - 1))}
-                  disabled={currentModalStep === 1}
-                  className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (currentModalStep < 5) setCurrentModalStep(s => Math.min(5, s + 1));
-                    else { setViewedApp(null); setCurrentModalStep(1); }
-                  }}
-                  className={`flex items-center px-4 py-2 rounded-lg ${currentModalStep < 5 ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-green-600 text-white hover:bg-green-700'} text-sm`}
-                >
-                  {currentModalStep < 5 ? 'Next' : 'Close'}
-                </button>
+                  )}
+                </div>
+                {/* Stepper navigation */}
+                <div className="flex justify-between mt-8 pt-6 border-t gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentModalStep(s => Math.max(1, s - 1))}
+                    disabled={currentModalStep === 1}
+                    className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (currentModalStep < 5) setCurrentModalStep(s => Math.min(5, s + 1));
+                      else { setViewedApp(null); setCurrentModalStep(1); }
+                    }}
+                    className={`flex items-center px-4 py-2 rounded-lg ${currentModalStep < 5 ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-green-600 text-white hover:bg-green-700'} text-sm`}
+                  >
+                    {currentModalStep < 5 ? 'Next' : 'Close'}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
