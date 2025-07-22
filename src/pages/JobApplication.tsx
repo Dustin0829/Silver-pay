@@ -26,7 +26,7 @@ const JobApplication: React.FC = () => {
     <div className="max-w-3xl mx-auto py-16 px-4">
       <h1 className="text-3xl font-bold mb-6">Job Openings</h1>
       <p className="text-gray-700 mb-8">Join our team! Explore our current job openings and send us your resume to be part of SilverCard.</p>
-      <div className="space-y-6 mb-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
         {jobPositions.map((job, idx) => (
           <div key={idx} className="bg-white rounded-lg shadow p-6 border border-gray-100">
             <h2 className="text-xl font-semibold text-blue-700 mb-2">{job.title}</h2>
