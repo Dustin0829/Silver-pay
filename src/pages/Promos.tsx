@@ -10,29 +10,29 @@ const banks = [
     promoPage: 'https://rcbccredit.com/promos/all/exclusive-for-new-cardholders',
     promos: [
       {
-        title: 'Buy One, Get One Bento at Tokyo Tokyo',
-        desc: 'Buy one, get one FREE Bento à la carte every Tuesday with your RCBC JCB Credit Card!',
-        img: '/src/assets/placeholder/tokyo-tokyo.jpg', // Replace with a relevant image
+        title: 'Spend Anywhere & Get FREE Red Ribbon Baked Goodies',
+        desc: 'Spend with your RCBC JCB Credit Card and get free Red Ribbon treats for qualified purchases.',
+        img: 'https://rcbccredit.com/uploads/rr1_20230831104035000-76dc611d6ebaafc66cc0879c71b5db5c.png',
       },
       {
-        title: 'Up to ₱3,000 CASHBACK with RCBC Pay',
-        desc: 'Get up to ₱3,000 Cashback for RCBC Pay purchases + EXTRA ₱100 for new RCBC Pay users.',
-        img: '/src/assets/placeholder/cashback.jpg',
+        title: 'Welcome Gift for New RCBC Mastercard Credit Cardholders',
+        desc: 'Apply for a new RCBC Mastercard and get a Nike Park eGift or Marshall Earbuds/Speaker as a welcome gift.',
+        img: 'https://rcbccredit.com/uploads/RCBC-World-Mastercard_20221109180849000-8d5e957f297893487bd98fa830fa6413.png',
+      },
+      {
+        title: 'Spend Anywhere & Get FREE Greenwich Treats',
+        desc: 'Spend with your RCBC Mastercard and get free Greenwich meals for qualified purchases.',
+        img: 'https://rcbccredit.com/uploads/MC-GW-1_20230904190527000-fc221309746013ac554571fbd180e1c8.png',
+      },
+      {
+        title: 'Up to ₱8,000 Cashback with RCBC Credit Card',
+        desc: 'Register and spend with your RCBC Credit Card to earn up to ₱8,000 cashback.',
+        img: 'https://rcbccredit.com/img/card/RCBC-World-Mastercard.png',
       },
       {
         title: 'FREE US$200 Cathay Pacific Voucher Welcome Gift',
-        desc: 'Get FREE US$200 Cathay Pacific Voucher Code with your new RCBC Visa Platinum Credit Card!',
-        img: '/src/assets/placeholder/cathay-pacific.jpg',
-      },
-      {
-        title: 'Up to ₱5,000 ZARA eVoucher Welcome Gift',
-        desc: 'Get FREE up to ₱5,000 ZARA eVoucher with your new RCBC Visa Credit Card!',
-        img: '/src/assets/placeholder/zara.jpg',
-      },
-      {
-        title: 'Marshall Earphones or Speaker Welcome Gift',
-        desc: 'Get a FREE Marshall Earphones or Speaker with your new RCBC Mastercard Credit Card!',
-        img: '/src/assets/placeholder/marshall.jpg',
+        desc: 'Get a free US$200 Cathay Pacific voucher with your new RCBC Visa Platinum Credit Card.',
+        img: 'https://rcbccredit.com/img/card/visa-platinum.png',
       },
     ],
   },
@@ -294,85 +294,94 @@ const banks = [
   },
 ];
 
-// Add a color mapping for each bank (brand color or closest Tailwind color)
-const bankBgColors: Record<string, string> = {
-  'RCBC': 'from-[#0072CE] to-[#00AEEF]', // RCBC blue gradient
-  'BPI': 'from-[#A6192E] to-[#F5B400]', // BPI maroon to gold
-  'AUB': 'from-[#F9B233] to-[#F39200]', // AUB yellow/orange
-  'EastWest': 'from-[#7A1FA2] to-[#D4145A]', // EastWest purple to magenta
-  'Maybank': 'from-[#FFD100] to-[#FFB300]', // Maybank yellow
-  'Metrobank': 'from-[#00529B] to-[#0072CE]', // Metrobank blue
-  'PNB': 'from-[#003A6C] to-[#E30613]', // PNB blue to red
-  'Robinsons Bank': 'from-[#8DC63F] to-[#006838]', // Robinsons green
-  'Security Bank': 'from-[#0072CE] to-[#8DC63F]', // Security Bank blue to green
-};
-
 const Promos: React.FC = () => {
   const navigate = useNavigate();
-  const [showAll, setShowAll] = useState(false);
-  const visibleBanks = showAll ? banks : [banks[0]];
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedBankIdx, setSelectedBankIdx] = useState(0);
+  const selectedBank = banks[selectedBankIdx];
+
   return (
-    <div className="min-h-[60vh] bg-gray-50 flex flex-col">
+    <div className="min-h-[60vh] bg-gray-100 flex flex-col">
       <button type="button" onClick={() => navigate(-1)} className="fixed top-4 left-4 z-30 flex items-center p-3 border border-gray-300 rounded-full text-gray-700 hover:bg-gray-100 bg-white shadow" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
-      <div className="flex-1 flex flex-col items-center justify-start py-8 px-2 w-full">
-        <h1 className="text-4xl font-bold text-gray-900 mb-8 text-center animate-fade-in">Bank Partner Promos</h1>
-        <div className="w-full max-w-7xl flex flex-col gap-12">
-          {visibleBanks.map((bank, bankIdx) => (
-            <div
-              key={bankIdx}
-              className={`rounded-2xl shadow-lg p-6 border border-gray-100 animate-fade-in bg-gradient-to-br ${bankBgColors[bank.name] || 'from-gray-100 to-gray-50'}`}
-            >
-              <div className="flex items-center mb-6">
-                <img src={bank.logo} alt={bank.name} className="w-14 h-14 rounded-lg object-contain bg-gray-100 mr-4" />
-                <h2 className="text-2xl font-bold text-white drop-shadow-md" style={{textShadow: '0 2px 8px rgba(0,0,0,0.25)'}}>{bank.name}</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-6">
-                {bank.promos.map((promo, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-gray-50 rounded-xl shadow p-4 flex flex-col items-center hover:scale-105 hover:shadow-lg transition-all duration-300 border border-gray-100 group cursor-pointer relative overflow-hidden w-full"
+      <div className="flex-1 flex flex-row w-full max-w-7xl mx-auto py-8 px-2">
+        {/* Sidebar */}
+        <div className="hidden md:flex flex-col w-64 pr-6">
+          <div className="bg-white rounded-xl shadow-md p-4 mb-4">
+            <h2 className="text-lg font-bold text-gray-800 mb-4">Banks</h2>
+            <ul className="space-y-2">
+              {banks.map((bank, idx) => (
+                <li key={bank.name}>
+                  <button
+                    onClick={() => setSelectedBankIdx(idx)}
+                    className={`w-full text-left px-4 py-2 rounded-lg font-medium transition-colors ${selectedBankIdx === idx ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-blue-100'}`}
                   >
-                    <div className="w-28 h-28 mb-3 rounded-lg overflow-hidden flex items-center justify-center bg-gradient-to-br from-blue-100 to-purple-100 group-hover:from-blue-200 group-hover:to-purple-200 transition-colors">
-                      <img src={promo.img} alt={promo.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
-                    </div>
-                    <h3 className="text-base font-semibold text-blue-700 mb-1 text-center group-hover:text-blue-900 transition-colors">{promo.title}</h3>
-                    <p className="text-xs text-gray-600 text-center group-hover:text-gray-800 transition-colors">{promo.desc}</p>
-                  </div>
+                    {bank.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        {/* Mobile Sidebar Toggle */}
+        <div className="md:hidden flex flex-col mr-2">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="mb-4 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold shadow"
+          >
+            {sidebarOpen ? 'Close Banks' : 'Show Banks'}
+          </button>
+          {sidebarOpen && (
+            <div className="bg-white rounded-xl shadow-md p-4 mb-4 z-40 absolute left-2 top-20 w-56">
+              <h2 className="text-lg font-bold text-gray-800 mb-4">Banks</h2>
+              <ul className="space-y-2">
+                {banks.map((bank, idx) => (
+                  <li key={bank.name}>
+                    <button
+                      onClick={() => { setSelectedBankIdx(idx); setSidebarOpen(false); }}
+                      className={`w-full text-left px-4 py-2 rounded-lg font-medium transition-colors ${selectedBankIdx === idx ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-blue-100'}`}
+                    >
+                      {bank.name}
+                    </button>
+                  </li>
                 ))}
-              </div>
-              <div className="flex justify-end">
-                <a
-                  href={bank.promoPage}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block px-6 py-2 bg-blue-600 text-white rounded-full font-semibold shadow hover:bg-blue-700 transition-colors"
-                >
-                  See full details
-                </a>
-              </div>
-            </div>
-          ))}
-          {!showAll && banks.length > 1 && (
-            <div className="flex justify-center mt-8">
-              <button
-                onClick={() => setShowAll(true)}
-                className="px-8 py-3 bg-blue-500 text-white rounded-full font-semibold shadow hover:bg-blue-700 transition-colors"
-              >
-                See more
-              </button>
-            </div>
-          )}
-          {showAll && banks.length > 1 && (
-            <div className="flex justify-center mt-8">
-              <button
-                onClick={() => setShowAll(false)}
-                className="px-8 py-3 bg-gray-300 text-gray-800 rounded-full font-semibold shadow hover:bg-gray-400 transition-colors"
-              >
-                Collapse
-              </button>
+              </ul>
             </div>
           )}
         </div>
+        {/* Main Content */}
+        <main className="flex-1">
+          <h1 className="text-4xl font-bold text-gray-900 mb-8 text-center animate-fade-in">Bank Partner Promos</h1>
+          <section className="mb-8">
+            <div className="flex items-center mb-6 justify-center">
+              <img src={selectedBank.logo} alt={selectedBank.name} className="w-14 h-14 rounded-lg object-contain bg-gray-100 mr-4" />
+              <h2 className="text-2xl font-bold text-gray-900">{selectedBank.name}</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+              {selectedBank.promos.map((promo, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white rounded-xl shadow-md flex flex-col overflow-hidden border border-gray-200 h-full"
+                >
+                  <div className="w-full h-48 overflow-hidden flex items-center justify-center bg-gray-50">
+                    <img src={promo.img} alt={promo.title} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 flex flex-col justify-between p-4">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">{promo.title}</h3>
+                    <p className="text-sm text-gray-600 mb-4 flex-1">{promo.desc}</p>
+                    <a
+                      href={selectedBank.promoPage}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 font-medium hover:underline mt-auto"
+                    >
+                      Read More
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </main>
       </div>
     </div>
   );
