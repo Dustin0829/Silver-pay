@@ -13,6 +13,7 @@ const clientFooterRoutes = [
   '/contact',
   '/credit-cards',
   '/promos',
+  '/jobs',
 ];
 
 const Layout: React.FC = () => {
@@ -28,6 +29,7 @@ const Layout: React.FC = () => {
     '/contact',
     '/credit-cards',
     '/promos',
+    '/jobs',
   ].includes(location.pathname);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);

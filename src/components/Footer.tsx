@@ -44,6 +44,7 @@ const Footer: React.FC<FooterProps> = ({ onShowTerms, onShowPrivacy }) => {
               ) : (
                 <Link to="/privacy-policy" className="hover:text-blue-400 transition-colors px-2 py-1">Privacy Policy</Link>
               )}
+              <Link to="/jobs" className="hover:text-blue-400 transition-colors px-2 py-1">Careers</Link>
               <a href="/login" className="hover:text-blue-400 transition-colors px-2 py-1">Portals</a>
             </div>
             {/* Credit Cards Section Column */}

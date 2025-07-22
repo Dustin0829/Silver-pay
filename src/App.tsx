@@ -14,6 +14,7 @@ import TermsOfService from './pages/TermsOfService';
 import Contact from './pages/Contact';
 import CreditCards from './pages/CreditCards';
 import Promos from './pages/Promos';
+import JobApplication from './pages/JobApplication';
 
 function App() {  
   return (
@@ -74,6 +75,7 @@ function App() {
               <Route path="contact" element={<Contact />} />
               <Route path="credit-cards" element={<CreditCards />} />
               <Route path="promos" element={<Promos />} />
+              <Route path="jobs" element={<JobApplication />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

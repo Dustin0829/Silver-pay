@@ -16,7 +16,7 @@ export const ApplicationProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   useEffect(() => {
     const fetchApplications = async () => {
-      const { data, error } = await supabase.from('application_form').select('*');
+      const { data, error } = await supabase.from('kyc_details').select('*');
       if (!error && data) setApplications(data as Application[]);
     };
     fetchApplications();

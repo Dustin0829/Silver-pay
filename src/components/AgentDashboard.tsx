@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import Logo from '../assets/Company/Logo.png';
 
 const AgentDashboard: React.FC = () => {
+  console.log('Input rendered!');
   const [applications, setApplications] = useState<any[]>([]); // merged applications
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -17,21 +18,21 @@ const AgentDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [nameFilter, setNameFilter] = useState('');
   const [visibleCount, setVisibleCount] = useState(20);
+  const [users, setUsers] = useState<any[]>([]); // Add users state
 
   // Debug log
-  console.log('AgentDashboard applications:', applications);
+  console.log('[DEBUG] applications:', applications);
   if (applications.length > 0) {
     console.log('First application object:', applications[0]);
   }
+  console.log('[DEBUG] search value:', nameFilter);
 
   // Fetch all applications from Supabase (like admin)
   useEffect(() => {
     let isMounted = true;
     const fetchAllData = async () => {
-      const [{ data: appData, error: appError }, { data: kycData, error: kycError }] = await Promise.all([
-        supabase.from('application_form').select('*'),
-        supabase.from('kyc_details').select('*'),
-      ]);
+      const { data: kycData, error: kycError } = await supabase.from('kyc_details').select('*');
+      const { data: userData, error: userError } = await supabase.from('users').select('*');
       const normalizedKyc = (kycData || []).map((k: any) => ({
         id: `kyc-${k.id}`,
         personal_details: {
@@ -42,20 +43,39 @@ const AgentDashboard: React.FC = () => {
           dateOfBirth: k.date_of_birth,
           placeOfBirth: k.place_of_birth,
           gender: k.gender,
+          civilStatus: k.civil_status || '',
+          nationality: k.nationality || '',
+          mobileNumber: k.mobile_number || '',
+          homeNumber: k.home_number || '',
+          emailAddress: k.email_address || '',
+          sssGsisUmid: k.sss_gsis_umid || '',
+          tin: k.tin || '',
         },
-        status: null, // or ''
-        submitted_by: k.agent || '', // assumes agent_name column exists, otherwise set as needed
-        submitted_at: null,
+        mother_details: k.mother_details || {},
+        permanent_address: k.permanent_address || {},
+        spouse_details: k.spouse_details || {},
+        personal_reference: k.personal_reference || {},
+        work_details: k.work_details || {},
+        credit_card_details: k.credit_card_details || {},
+        bank_preferences: k.bank_preferences || {},
+        id_photo_url: k.id_photo_url || '',
+        e_signature_url: k.e_signature_url || '',
+        status: k.status || null,
+        submitted_by: k.agent || '',
+        agent: k.agent || '',
+        submitted_at: k.submitted_at || null,
       }));
-      const merged = [ ...(appData || []), ...normalizedKyc ];
-      if (isMounted) setApplications(merged);
+      if (isMounted) {
+        setApplications(normalizedKyc);
+        setUsers(userData || []);
+      }
     };
     fetchAllData();
     const channel = supabase
-      .channel('realtime:application_form')
+      .channel('realtime:kyc_details')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'application_form' },
+        { event: '*', schema: 'public', table: 'kyc_details' },
         (payload) => { fetchAllData(); }
       )
       .subscribe();
@@ -67,7 +87,7 @@ const AgentDashboard: React.FC = () => {
     alert('PDF export functionality would be implemented here');
   };
 
-  // Sidebar navigation
+  // 1. Sidebar navigation (match AdminDashboard)
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: <List className="w-5 h-5 mr-2" /> },
     { key: 'history', label: 'Application History', icon: <History className="w-5 h-5 mr-2" /> },
@@ -117,9 +137,52 @@ const AgentDashboard: React.FC = () => {
     const search = nameFilter.trim().toLowerCase();
     let matchesSearch = true;
     if (search) {
-      // Agent name match
-      const name = `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.toLowerCase();
-      matchesSearch = name.includes(search);
+      // Applicant name
+      const applicantName = `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.toLowerCase();
+      // Agent name from both possible fields
+      const agentName1 = (app.submitted_by ?? '').toLowerCase();
+      const agentName2 = (app.agent ?? '').toLowerCase();
+      // Find agent in users for bank code search
+      const agent = users.find((u: any) =>
+        u.name?.toLowerCase() === agentName1 ||
+        u.email?.toLowerCase() === agentName1 ||
+        u.name?.toLowerCase() === agentName2 ||
+        u.email?.toLowerCase() === agentName2
+      );
+      const agentName = agent?.name?.toLowerCase() || '';
+      // Bank codes from agent
+      let bankCodes = '';
+      if (agent && Array.isArray(agent.bank_codes)) {
+        bankCodes = agent.bank_codes.map((entry: any) => (entry.code || '').toLowerCase()).join(' ');
+      }
+      matchesSearch =
+        applicantName.includes(search) ||
+        agentName1.includes(search) ||
+        agentName2.includes(search) ||
+        agentName.includes(search) ||
+        bankCodes.includes(search);
+      // Debug log for each application
+      if (matchesSearch) {
+        console.log('[DEBUG] MATCH:', {
+          search,
+          applicantName,
+          agentName1,
+          agentName2,
+          agentName,
+          bankCodes,
+          app
+        });
+      } else {
+        console.log('[DEBUG] NO MATCH:', {
+          search,
+          applicantName,
+          agentName1,
+          agentName2,
+          agentName,
+          bankCodes,
+          app
+        });
+      }
     }
     // Status filter
     let matchesStatus = true;
@@ -129,7 +192,10 @@ const AgentDashboard: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const visibleApplications = filteredApplications.slice(0, visibleCount);
+  const sortedApplications = [...applications].sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+  const sortedFilteredApplications = [...filteredApplications].sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+
+  const visibleApplications = sortedFilteredApplications.slice(0, visibleCount);
 
   const renderHistory = () => (
     <div>
@@ -142,6 +208,12 @@ const AgentDashboard: React.FC = () => {
             placeholder="Search by applicant name..."
             value={nameFilter}
             onChange={e => setNameFilter(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                console.log('[DEBUG][ENTER] search value:', nameFilter);
+                console.log('[DEBUG][ENTER] applications:', applications);
+              }
+            }}
           />
         </div>
         <div className="flex gap-4 w-full mt-2">
@@ -164,14 +236,14 @@ const AgentDashboard: React.FC = () => {
             <th className="py-2">Submitted By</th>
             <th className="py-2">Actions</th>
           </tr>
-        </thead>
+        </thead>  
         <tbody>
           {visibleApplications.map((app, i) => (
             <tr key={i} className="border-t">
               <td className="py-3">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
               <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy HH:mm') : ''}</td>
               <td className="py-3 px-4 text-sm"><span className={`px-3 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : app.status === 'rejected' ? 'bg-red-100 text-red-800' : app.status === 'submitted' ? 'bg-blue-100 text-blue-800' : app.status === 'turn-in' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'}`}>{app.status}</span></td>
-              <td className="py-3">{app.submitted_by || 'direct'}</td>
+              <td className="py-3">{app.submitted_by || app.agent || 'direct'}</td>
               <td className="py-3 flex space-x-2">
                 <button
                   onClick={() => { setViewedApp(app); setCurrentModalStep(1); }}
@@ -375,58 +447,44 @@ const AgentDashboard: React.FC = () => {
     navigate('/agent/apply');
   }
 
+  // 2. Main layout (match AdminDashboard)
   return (
-    <div className="flex min-h-screen bg-gray-50 overflow-x-hidden">
-      {/* Sidebar Overlay for mobile */}
-      <div
-        className={`fixed inset-0 z-40 bg-black bg-opacity-40 transition-opacity duration-300 ${sidebarOpen ? 'block sm:hidden' : 'hidden'}`}
-        onClick={() => setSidebarOpen(false)}
-        aria-hidden="true"
-      />
-      {/* Sidebar: ensure it uses h-full and its parent uses min-h-0 and flex-grow for content height */}
-      <div className="flex min-h-0 bg-gray-50 overflow-x-hidden" style={{height: '100%'}}>
-        <aside
-          className="fixed z-50 top-0 left-0 h-full w-64 bg-gradient-to-b from-[#101624] to-[#1a2236] text-white flex flex-col py-6 px-2 sm:px-6 h-full shadow-xl transform transition-transform duration-300
-            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} sm:translate-x-0 sm:static sm:w-64 sm:block"
-          aria-label="Sidebar"
-        >
-          {/* Close button for mobile */}
-          <button
-            className="absolute top-4 right-4 sm:hidden text-white text-2xl z-50"
-            onClick={() => setSidebarOpen(false)}
-            aria-label="Close sidebar"
-          >
-            <X />
-          </button>
-          <div>
-            <div className="mb-10 flex flex-col items-center">
-              <div className="bg-white rounded-full p-4 shadow-lg mb-4">
-                <img src={Logo} alt="Company Logo" className="h-20 w-auto" />
-              </div>
-              <div className="text-xl font-extrabold tracking-wide text-blue-200 mb-1">SILVER CARD</div>
-              <div className="text-xs text-gray-300 tracking-widest mb-2">SOLUTIONS</div>
-              <div className="text-xs text-blue-100 font-semibold">Agent Portal</div>
+    <>
+      <div className="flex min-h-screen">
+        {/* Sidebar */}
+        <aside className="fixed top-0 left-0 h-screen w-64 bg-[#101624] text-white flex flex-col py-6 px-2 sm:px-6 shadow-xl z-50">
+          {/* Logo and Title Section */}
+          <div className="flex flex-col items-center mb-10 px-2">
+            <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
+              <img src={Logo} alt="Logo" className="h-16 w-16 object-contain" />
             </div>
-            <nav className="flex flex-col gap-2 mt-4">
-              {navItems.map(item => (
-                <button
-                  key={item.key}
-                  onClick={() => { setActiveSection(item.key); setSidebarOpen(false); }}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-semibold text-base group
-                    ${activeSection === item.key
-                      ? 'bg-blue-900/80 text-white shadow-md'
-                      : 'hover:bg-blue-800/40 hover:text-blue-200 text-blue-100'}
-                  `}
-                >
-                  <span className={`transition-colors ${activeSection === item.key ? 'text-blue-400' : 'group-hover:text-blue-300 text-blue-200'}`}>{item.icon}</span>
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </nav>
+            <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>SILVER CARD</span>
+            <span className="text-xs uppercase text-gray-400 tracking-widest text-center mb-1">SOLUTIONS</span>
+            <span className="text-sm text-gray-300 text-center">Agent Portal</span>
           </div>
+          {/* Navigation */}
+          <nav className="flex flex-col gap-3 flex-1 items-center">
+            {navItems.map(item => (
+              <button
+                key={item.key}
+                className={`flex items-center justify-center w-56 px-4 py-3 rounded-xl font-bold text-lg transition-all mb-1
+                  ${activeSection === item.key
+                    ? 'bg-blue-900 text-white shadow font-bold'
+                    : 'bg-transparent text-gray-200 hover:bg-blue-800 hover:text-white'}
+                `}
+                onClick={() => setActiveSection(item.key)}
+              >
+                <span className="mr-3">{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+          {/* Logout at the bottom */}
+          <button onClick={logout} className="flex items-center mt-auto px-4 py-3 rounded-lg text-red-400 hover:text-red-600 border-2 border-transparent hover:bg-white/10 justify-center">
+            <LogOut className="w-5 h-5 mr-2" /> Sign Out
+          </button>
         </aside>
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col min-h-0" style={{minHeight: '100%'}}>
+        <div className="ml-64 flex-1 flex flex-col min-h-0" style={{height: '100vh'}}>
           {/* Header */}
           <header className="flex flex-row items-center justify-between bg-white px-4 sm:px-8 py-4 border-b border-gray-100 relative">
             {/* Hamburger for mobile */}
@@ -439,33 +497,25 @@ const AgentDashboard: React.FC = () => {
             </button>
             {/* Centered Title */}
             <div className="flex-1 flex flex-col items-center">
-              <div className="text-xl font-bold text-gray-900">SilverCard</div>
+              <div className="text-xl font-bold text-gray-900">Silver Card</div>
               <div className="text-xs text-gray-500">Credit Card Management System</div>
             </div>
-            {/* Agent Info and Logout */}
-            <div className="flex items-center gap-4 ml-2">
-              {user?.name && (
-                <div className="flex flex-col items-end text-right">
-                  <span className="text-blue-900 text-sm font-medium leading-tight truncate max-w-[160px]" title={user.name}>{user.name}</span>
-                  <span className="text-blue-400 text-xs break-all max-w-[160px]" title={user.email}>{user.email}</span>
-                  <span className="text-blue-300 text-xs mt-0.5 tracking-wide">Agent Account</span>
+            {/* User info only (no avatar, no background, no logout) */}
+            <div className="flex items-center gap-2 ml-4">
+              {user && (
+                <div className="flex flex-col text-right">
+                  <span className="font-semibold text-sm text-gray-900">{user.name || 'User'}</span>
+                  <span className="text-xs text-gray-500">{user.email}</span>
                 </div>
               )}
-              <div className="h-8 border-l border-gray-300 mx-2" />
-              <button
-                onClick={logout}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-100 text-sm font-medium"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
             </div>
           </header>
           {/* Content */}
-          <main className="flex-1 p-2 sm:p-8 overflow-x-visible">
+          <main className="flex-1 overflow-y-auto px-8 py-8">
             {activeSection === 'dashboard' && renderDashboard()}
             {activeSection === 'history' && renderHistory()}
           </main>
-          {/* Read-only Application Details Modal */}
+          {/* Application Details Modal (unchanged) */}
           {viewedApp && (
             <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
               <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[90vh]">
@@ -615,7 +665,7 @@ const AgentDashboard: React.FC = () => {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

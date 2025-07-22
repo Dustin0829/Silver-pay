@@ -10,6 +10,13 @@ import PNBLogo from '../assets/banks/pnb.png';
 import RobinsonLogo from '../assets/banks/robinson.jpg';
 import MaybankLogo from '../assets/banks/maybank.png';
 import AUBLogo from '../assets/banks/AUB.jpg';
+import { useState } from 'react';
+
+// Add Job type
+interface Job {
+  title: string;
+  description: string;
+}
 
 const Landing: React.FC = () => {
   const partnerBanks = [
@@ -57,6 +64,18 @@ const Landing: React.FC = () => {
       ];
   const handlePrev = () => setPromoIndex((prev) => (prev === 0 ? promos.length - 1 : prev - 1));
   const handleNext = () => setPromoIndex((prev) => (prev + 1) % promos.length);
+
+  // Add job positions for preview
+  const jobPositions: Job[] = [
+    { title: 'Sales Agent', description: 'Responsible for acquiring new clients and managing relationships.' },
+    { title: 'Customer Support Specialist', description: 'Assist customers with inquiries and resolve issues.' },
+    { title: 'Marketing Coordinator', description: 'Plan and execute marketing campaigns for SilverCard.' },
+    { title: 'Software Engineer', description: 'Develop and maintain SilverCard web applications.' },
+    { title: 'Compliance Officer', description: 'Ensure all operations comply with regulations and company policies.' },
+  ];
+
+  // Modal state for job preview
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   return (
     <div className="min-h-screen overflow-x-hidden">
@@ -394,6 +413,63 @@ const Landing: React.FC = () => {
             Start Your Application <ArrowRight className="ml-2 h-5 w-5" />
           </Link>
         </div>
+      </section>
+      {/* Careers Preview Section */}
+      <section className="py-16 bg-white border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">Careers at SilverCard</h2>
+            <p className="text-gray-600 text-lg">Join our team! Here are some of our current job openings:</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8 mb-8">
+            {jobPositions.slice(0, 3).map((job, idx) => (
+              <div
+                key={idx}
+                className="bg-gray-50 rounded-xl shadow p-6 border border-gray-100 flex flex-col items-start cursor-pointer group transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:border-blue-200 relative overflow-hidden"
+                onClick={() => setSelectedJob(job)}
+                tabIndex={0}
+                role="button"
+                aria-label={`View details for ${job.title}`}
+              >
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-10 bg-blue-400 transition-opacity rounded-xl pointer-events-none" />
+                <h3 className="text-xl font-semibold text-blue-700 mb-2 group-hover:text-blue-900 transition-colors">{job.title}</h3>
+                <p className="text-gray-600 mb-4 group-hover:text-gray-800 transition-colors">{job.description}</p>
+                <span className="mt-auto px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-800 transition-colors text-sm inline-block">See Details</span>
+              </div>
+            ))}
+          </div>
+          <div className="text-center">
+            <Link to="/jobs" className="inline-block bg-blue-600 text-white px-8 py-3 rounded-lg text-lg font-semibold shadow hover:bg-blue-700 hover:scale-105 transition-all">See all careers</Link>
+          </div>
+        </div>
+        {/* Modal for job details */}
+        {selectedJob && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 animate-fade-in">
+            <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md relative animate-slide-in-up">
+              <button
+                onClick={() => setSelectedJob(null)}
+                className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl"
+                aria-label="Close"
+              >
+                &times;
+              </button>
+              <h2 className="text-2xl font-bold text-blue-700 mb-4">{selectedJob.title}</h2>
+              <p className="text-gray-700 mb-6">{selectedJob.description}</p>
+              <Link
+                to="/jobs"
+                className="inline-block bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold shadow hover:bg-blue-700 hover:scale-105 transition-all"
+              >
+                View All Jobs
+              </Link>
+            </div>
+            <style>{`
+              @keyframes fade-in { 0% { opacity: 0; } 100% { opacity: 1; } }
+              .animate-fade-in { animation: fade-in 0.3s ease; }
+              @keyframes slide-in-up { 0% { transform: translateY(40px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+              .animate-slide-in-up { animation: slide-in-up 0.3s cubic-bezier(0.4,0,0.2,1); }
+            `}</style>
+          </div>
+        )}
       </section>
     </div>
   );

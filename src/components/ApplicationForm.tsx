@@ -119,25 +119,55 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       }
     }
 
-    // Prepare data for insert with null handling
+    // Prepare data for insert with null handling, FLATTENED for kyc_details
     const insertData = {
-      personal_details: formData.personalDetails,
-      mother_details: formData.motherDetails,
-      permanent_address: formData.permanentAddress,
-      spouse_details: formData.spouseDetails || {},
-      personal_reference: formData.personalReference || {},
-      work_details: formData.workDetails,
-      credit_card_details: formData.creditCardDetails,
-      bank_preferences: formData.bankPreferences,
-      id_photo_url: idPhotoUrl,
-      e_signature_url: eSignatureUrl,
-      submitted_by: isAgentForm && user ? user.name : 'direct',
-      status: formData.status,
+      last_name: formData.personalDetails.lastName,
+      first_name: formData.personalDetails.firstName,
+      middle_name: formData.personalDetails.middleName,
+      suffix: formData.personalDetails.suffix,
+      date_of_birth: formData.personalDetails.dateOfBirth,
+      place_of_birth: formData.personalDetails.placeOfBirth,
+      gender: formData.personalDetails.gender,
+      civil_status: formData.personalDetails.civilStatus,
+      nationality: formData.personalDetails.nationality,
+      mobile_number: formData.personalDetails.mobileNumber,
+      email_address: formData.personalDetails.emailAddress,
+      home_number: formData.personalDetails.homeNumber,
+      "sss/gsis/umid": formData.personalDetails.sssGsisUmid,
+      tin: formData.personalDetails.tin,
+      relative_name: formData.motherDetails.lastName ? `${formData.motherDetails.lastName}, ${formData.motherDetails.firstName} ${formData.motherDetails.middleName} ${formData.motherDetails.suffix}`.trim() : null,
+      address: formData.permanentAddress.street ? `${formData.permanentAddress.street}, ${formData.permanentAddress.barangay}, ${formData.permanentAddress.city}, ${formData.permanentAddress.zipCode}`.trim() : null,
+      years_of_stay: formData.permanentAddress.yearsOfStay ? Number(formData.permanentAddress.yearsOfStay) : null,
+      relative2_name: formData.spouseDetails.lastName ? `${formData.spouseDetails.lastName}, ${formData.spouseDetails.firstName} ${formData.spouseDetails.middleName} ${formData.spouseDetails.suffix}`.trim() : null,
+      business: formData.workDetails.businessEmployerName,
+      profession: formData.workDetails.professionOccupation,
+      nature_of_business: formData.workDetails.natureOfBusiness,
+      department: formData.workDetails.department,
+      contact_number: formData.workDetails.landlineMobile,
+      years_in_business: formData.workDetails.yearsInBusiness ? Number(formData.workDetails.yearsInBusiness) : null,
+      monthly_income: formData.workDetails.monthlyIncome ? Number(formData.workDetails.monthlyIncome) : null,
+      annual_income: formData.workDetails.annualIncome ? Number(formData.workDetails.annualIncome) : null,
+      business_address: formData.workDetails.address.street ? `${formData.workDetails.address.street}, ${formData.workDetails.address.barangay}, ${formData.workDetails.address.city}, ${formData.workDetails.address.zipCode}, ${formData.workDetails.address.unitFloor}, ${formData.workDetails.address.buildingTower}, ${formData.workDetails.address.lotNo}`.trim() : null,
+      bank_institution: formData.creditCardDetails.bankInstitution,
+      card_number: formData.creditCardDetails.cardNumber,
+      credit_limit: formData.creditCardDetails.creditLimit ? Number(formData.creditCardDetails.creditLimit) : null,
+      member_since: formData.creditCardDetails.memberSince,
+      expiry_date: formData.creditCardDetails.expirationDate,
+      deliver_card_to: formData.creditCardDetails.deliverCardTo,
+      best_time_to_contact: formData.creditCardDetails.bestTimeToContact,
+      location: '', // Not collected in form, set as empty or add if available
+      agent: isAgentForm && user ? user.name : 'direct',
+      relative3_name: formData.personalReference.lastName ? `${formData.personalReference.lastName}, ${formData.personalReference.firstName} ${formData.personalReference.middleName} ${formData.personalReference.suffix} (${formData.personalReference.relationship}) ${formData.personalReference.mobileNumber}`.trim() : null,
+      remarks: '', // Not collected in form, set as empty or add if available
+      bank_applied: Object.keys(formData.bankPreferences).filter(k => formData.bankPreferences[k]).join(', '),
+      status: 'pending', // Always set status for dashboard filtering
+      // id_photo_url and e_signature_url are not in your schema, so not included
+      // status is not in your schema, so not included
     };
-    console.log('Inserting data into application_form table:', JSON.stringify(insertData, null, 2));
+    console.log('Inserting data into kyc_details table:', JSON.stringify(insertData, null, 2));
 
     // Insert data into Supabase
-    const { error, data } = await supabase.from('application_form').insert(insertData);
+    const { error, data } = await supabase.from('kyc_details').insert(insertData);
     if (error) {
       console.error('Application Insert Error:', {
         message: error.message,

@@ -27,6 +27,152 @@ const BANKS = [
 // Add this at the top after imports
 const initialToastState = { show: false, message: '', type: undefined as 'success' | 'error' | undefined };
 
+// Helper to flatten nested application data
+function flattenApplicationData(data: any) {
+  return {
+    ...data,
+    ...(data.personal_details || {}),
+    ...(data.mother_details || {}),
+    ...(data.permanent_address || {}),
+    ...(data.spouse_details || {}),
+    ...(data.personal_reference || {}),
+    ...(data.work_details || {}),
+    ...(data.credit_card_details || {}),
+    // Add more as needed
+  };
+}
+
+// Add this helper function near flattenApplicationData
+function mapFlatToNestedApp(data: any) {
+  // Helper to split relative_name into parts
+  function parseRelativeName(name: string) {
+    if (!name) return { lastName: '', firstName: '', middleName: '', suffix: '' };
+    let lastName = '', firstName = '', middleName = '', suffix = '';
+    let parts = name.split(',');
+    if (parts.length === 2) {
+      lastName = parts[0].trim();
+      const rest = parts[1].trim().split(' ');
+      firstName = rest[0] || '';
+      middleName = rest.slice(1).join(' ') || '';
+    } else {
+      const tokens = name.trim().split(' ');
+      lastName = tokens[0] || '';
+      firstName = tokens[1] || '';
+      middleName = tokens.slice(2).join(' ') || '';
+    }
+    return { lastName, firstName, middleName, suffix };
+  }
+  // Map bank preferences
+  const bankPreferences = {
+    rcbc: !!data.rcbc,
+    metrobank: !!data.metrobank,
+    eastWestBank: !!data.eastwestbank || !!data.eastWestBank,
+    securityBank: !!data.securitybank || !!data.securityBank,
+    bpi: !!data.bpi,
+    pnb: !!data.pnb,
+    robinsonBank: !!data.robinsonbank || !!data.robinsonBank,
+    maybank: !!data.maybank,
+    aub: !!data.aub,
+  };
+  return {
+    ...data,
+    personal_details: {
+      firstName: data.first_name || '',
+      middleName: data.middle_name || '',
+      lastName: data.last_name || '',
+      suffix: data.suffix || '',
+      gender: data.gender || '',
+      dateOfBirth: data.date_of_birth || '',
+      placeOfBirth: data.place_of_birth || '',
+      civilStatus: data.civil_status || '',
+      nationality: data.nationality || '',
+      mobileNumber: data.mobile_number || '',
+      homeNumber: data.home_number || '',
+      emailAddress: data.email_address || '',
+      sssGsisUmid: data.sss_gsis_umid || '',
+      tin: data.tin || '',
+    },
+    mother_details: data.relative_name
+      ? parseRelativeName(data.relative_name)
+      : {
+          firstName: data.mother_first_name || '',
+          middleName: data.mother_middle_name || '',
+          lastName: data.mother_last_name || '',
+          suffix: data.mother_suffix || '',
+        },
+    permanent_address: {
+      street: data.address || '',
+      barangay: data.barangay || '',
+      city: data.city || '',
+      province: data.province || '',
+      zipCode: data.zip_code || '',
+      yearsOfStay: data.years_of_stay || '',
+    },
+    spouse_details: {
+      firstName: data.spouse_first_name || '',
+      middleName: data.spouse_middle_name || '',
+      lastName: data.spouse_last_name || '',
+      suffix: data.spouse_suffix || '',
+      mobileNumber: data.spouse_mobile_number || '',
+    },
+    personal_reference: {
+      firstName: data.reference_first_name || '',
+      middleName: data.reference_middle_name || '',
+      lastName: data.reference_last_name || '',
+      suffix: data.reference_suffix || '',
+      mobileNumber: data.reference_mobile_number || '',
+      relationship: data.reference_relationship || '',
+    },
+    work_details: {
+      businessEmployerName: data.business || '',
+      professionOccupation: data.profession || '',
+      natureOfBusiness: data.nature_of_business || '',
+      department: data.department || '',
+      landlineMobile: data.landline_mobile || '',
+      yearsInBusiness: data.years_in_business || '',
+      monthlyIncome: data.monthly_income || '',
+      annualIncome: data.annual_income || '',
+      address: {
+        street: data.placeholder || '', // business office address from 'placeholder' column
+        barangay: data.work_barangay || '',
+        city: data.work_city || '',
+        zipCode: data.work_zip_code || '',
+        unitFloor: data.unit_floor || '',
+        buildingTower: data.building_tower || '',
+        lotNo: data.lot_no || '',
+      },
+    },
+    credit_card_details: {
+      bankInstitution: data.bank_institution || '',
+      cardNumber: data.card_number || '',
+      creditLimit: data.credit_limit || '',
+      memberSince: data.member_since || '',
+      expirationDate: data.expiry_date || data.expiration_date || '',
+      deliverCardTo: data.deliver_card_to || '',
+      bestTimeToContact: data.best_time_to_contact || '',
+    },
+    bank_preferences: bankPreferences,
+    // Add more mappings as needed
+  };
+}
+
+// Helper to render objects as readable key-value pairs
+function renderObjectDetails(obj: any) {
+  if (!obj || typeof obj !== 'object') return <span>N/A</span>;
+  return (
+    <div className="pl-2">
+      {Object.entries(obj).map(([k, v]) => (
+        <div key={k}>
+          <span className="font-medium">{k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</span>{' '}
+          {typeof v === 'object' && v !== null
+            ? renderObjectDetails(v)
+            : (v === null || v === undefined || v === '') ? 'N/A' : String(v)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const AdminDashboard: React.FC = () => {
   const { logout, user } = useAuth();
   const [activeSection, setActiveSection] = useState('dashboard');
@@ -74,10 +220,8 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
     const fetchAllData = async () => {
-      const [{ data: appData, error: appError }, { data: kycData, error: kycError }] = await Promise.all([
-        supabase.from('application_form').select('*'),
-        supabase.from('kyc_details').select('*'),
-      ]);
+      const { data: kycData, error: kycError } = await supabase.from('kyc_details').select('*');
+      // Map all fields needed for display, including submitted_at
       const normalizedKyc = (kycData || []).map((k: any) => ({
         id: `kyc-${k.id}`,
         personal_details: {
@@ -88,14 +232,21 @@ const AdminDashboard: React.FC = () => {
           dateOfBirth: k.date_of_birth,
           placeOfBirth: k.place_of_birth,
           gender: k.gender,
+          civilStatus: k.civil_status,
+          nationality: k.nationality,
+          mobileNumber: k.mobile_number,
+          homeNumber: k.home_number,
           emailAddress: k.email_address,
+          sssGsisUmid: k.sss_gsis_umid,
+          tin: k.tin,
         },
-        status: null,
+        status: k.status || null,
         submitted_by: k.agent || '',
-        submitted_at: null,
+        agent: k.agent || '',
+        submitted_at: k.created_at || k.submitted_at || null, // Use created_at if submitted_at is missing
+        // Add any other fields you want to display
       }));
-      const merged = [ ...(appData || []), ...normalizedKyc ];
-      if (isMounted) setApplications(merged);
+      if (isMounted) setApplications(normalizedKyc);
 
       // Fetch all users from Supabase
       const { data: userData, error: userError } = await supabase.from('users').select('*');
@@ -107,10 +258,10 @@ const AdminDashboard: React.FC = () => {
     };
     fetchAllData();
     const channel = supabase
-      .channel('realtime:application_form')
+      .channel('realtime:kyc_details')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'application_form' },
+        { event: '*', schema: 'public', table: 'kyc_details' },
         (payload) => { fetchAllData(); }
       )
       .subscribe();
@@ -727,9 +878,25 @@ const AdminDashboard: React.FC = () => {
                   )}
                 </td>
                 <td className="py-3 flex space-x-2">
-                  <button className="text-blue-600 hover:text-blue-800" onClick={() => setViewedApp(app)}><Eye className="w-4 h-4" /></button>
-                  <button className="text-green-600 hover:text-green-800" onClick={() => setEditApp(app)}><Edit className="w-4 h-4" /></button>
-                  <button className="text-purple-600 hover:text-purple-800" title="Export PDF" onClick={() => setPdfPreviewApp(app)}><Download className="w-4 h-4" /></button>
+                  <button className="text-blue-600 hover:text-blue-800" onClick={() => handleViewApp(app)}><Eye className="w-4 h-4" /></button>
+                  <button className="text-green-600 hover:text-green-800" onClick={() => handleEditApp(app)} disabled={loadingEditApp}><Edit className="w-4 h-4" /></button>
+                  <button className="text-purple-600 hover:text-purple-800" title="Export PDF" onClick={() => handleSingleExportPreview(app)}><Download className="w-4 h-4" /></button>
+                  <button className="text-red-600 hover:text-red-800" title="Delete Application" onClick={async () => {
+                    if (!window.confirm('Are you sure you want to delete this application? This action cannot be undone.')) return;
+                    let table = 'application_form';
+                    let appId = app.id;
+                    if (typeof app.id === 'string' && app.id.startsWith('kyc-')) {
+                      table = 'kyc_details';
+                      appId = app.id.replace('kyc-', '');
+                    }
+                    const { error } = await supabase.from(table).delete().eq('id', appId);
+                    if (error) {
+                      setToast({ show: true, message: 'Failed to delete application: ' + error.message, type: 'error' });
+                    } else {
+                      setApplications(apps => apps.filter(a => a.id !== app.id));
+                      setToast({ show: true, message: 'Application deleted successfully!', type: 'success' });
+                    }
+                  }}><Trash2 className="w-4 h-4" /></button>
                 </td>
               </tr>
             );
@@ -763,9 +930,25 @@ const AdminDashboard: React.FC = () => {
               ) : <span className="text-gray-400">-</span>}
               </div>
               <div className="flex space-x-2 mt-2">
-                <button className="text-blue-600 hover:text-blue-800" onClick={() => setViewedApp(app)}><Eye className="w-4 h-4" /></button>
-                <button className="text-green-600 hover:text-green-800" onClick={() => setEditApp(app)}><Edit className="w-4 h-4" /></button>
-                <button className="text-purple-600 hover:text-purple-800" title="Export PDF" onClick={() => setPdfPreviewApp(app)}><Download className="w-4 h-4" /></button>
+                <button className="text-blue-600 hover:text-blue-800" onClick={() => handleViewApp(app)}><Eye className="w-4 h-4" /></button>
+                <button className="text-green-600 hover:text-green-800" onClick={() => handleEditApp(app)} disabled={loadingEditApp}><Edit className="w-4 h-4" /></button>
+                <button className="text-purple-600 hover:text-purple-800" title="Export PDF" onClick={() => handleSingleExportPreview(app)}><Download className="w-4 h-4" /></button>
+                <button className="text-red-600 hover:text-red-800" title="Delete Application" onClick={async () => {
+                  if (!window.confirm('Are you sure you want to delete this application? This action cannot be undone.')) return;
+                  let table = 'application_form';
+                  let appId = app.id;
+                  if (typeof app.id === 'string' && app.id.startsWith('kyc-')) {
+                    table = 'kyc_details';
+                    appId = app.id.replace('kyc-', '');
+                  }
+                  const { error } = await supabase.from(table).delete().eq('id', appId);
+                  if (error) {
+                    setToast({ show: true, message: 'Failed to delete application: ' + error.message, type: 'error' });
+                  } else {
+                    setApplications(apps => apps.filter(a => a.id !== app.id));
+                    setToast({ show: true, message: 'Application deleted successfully!', type: 'success' });
+                  }
+                }}><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           );
@@ -1295,20 +1478,30 @@ const AdminDashboard: React.FC = () => {
     const search = nameFilter.trim().toLowerCase();
     let matchesSearch = true;
     if (search) {
-      // Always show public submissions
-      if (!app.submitted_by || app.submitted_by === 'direct') matchesSearch = true;
-      else {
-        // Agent name match
-        const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
-        const agentName = agent?.name?.toLowerCase() || '';
-        const matchesName = agentName.includes(search);
-        // Bank code match
-        let matchesCode = false;
-        if (agent && Array.isArray(agent.bank_codes)) {
-          matchesCode = agent.bank_codes.some((entry: any) => (entry.code || '').toLowerCase().includes(search));
-        }
-        matchesSearch = matchesName || matchesCode;
+      // Applicant name
+      const applicantName = `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.toLowerCase();
+      // Agent name from both possible fields
+      const agentName1 = (app.submitted_by ?? '').toLowerCase();
+      const agentName2 = (app.agent ?? '').toLowerCase();
+      // Find agent in users for bank code search
+      const agent = users.find((u: any) =>
+        u.name?.toLowerCase() === agentName1 ||
+        u.email?.toLowerCase() === agentName1 ||
+        u.name?.toLowerCase() === agentName2 ||
+        u.email?.toLowerCase() === agentName2
+      );
+      const agentName = agent?.name?.toLowerCase() || '';
+      // Bank codes from agent
+      let bankCodes = '';
+      if (agent && Array.isArray(agent.bank_codes)) {
+        bankCodes = agent.bank_codes.map((entry: any) => (entry.code || '').toLowerCase()).join(' ');
       }
+      matchesSearch =
+        applicantName.includes(search) ||
+        agentName1.includes(search) ||
+        agentName2.includes(search) ||
+        agentName.includes(search) ||
+        bankCodes.includes(search);
     }
     // Status filter
     let matchesStatus = true;
@@ -1361,14 +1554,177 @@ const AdminDashboard: React.FC = () => {
     setShowExportPreview(false);
   };
 
-  // In renderApplications, slice the applications array
-  const paginatedApplications = applications.slice(0, applicationsPage * PAGE_SIZE);
-  // In renderHistory, slice the filteredApplications array
-  const paginatedHistory = filteredApplications.slice(0, historyPage * PAGE_SIZE);
+  // Add this after applications is defined and before any rendering:
+  const sortedApplications = [...applications].sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+
+  // For filtered lists:
+  const sortedFilteredApplications = [...filteredApplications].sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+
+  // Update paginated lists:
+  const paginatedApplications = sortedApplications.slice(0, applicationsPage * PAGE_SIZE);
+  const paginatedHistory = sortedFilteredApplications.slice(0, historyPage * PAGE_SIZE);
 
   // Reset pagination when switching sections or filters
   useEffect(() => { setApplicationsPage(1); }, [activeSection]);
   useEffect(() => { setHistoryPage(1); }, [activeSection, nameFilter, statusFilter]);
+
+  // 1. Add state for loading and fetchedApp
+  const [loadingApp, setLoadingApp] = useState(false);
+  const [fetchedApp, setFetchedApp] = useState<any | null>(null);
+
+  // 2. Update the function that opens the modal to fetch from Supabase
+  const handleViewApp = async (app: any) => {
+    setLoadingApp(true);
+    setViewedApp(app); // still set for modal open
+    let table = 'application_form';
+    if (app.id && typeof app.id === 'string' && app.id.startsWith('kyc-')) {
+      table = 'kyc_details';
+    }
+    const id = app.id.startsWith('kyc-') ? app.id.replace('kyc-', '') : app.id;
+    // Ensure all columns are fetched
+    const { data, error } = await supabase.from(table).select('*').eq('id', id).single();
+    if (!error && data) {
+      setFetchedApp(flattenApplicationData(data));
+    } else {
+      setFetchedApp(null);
+    }
+    setLoadingApp(false);
+  };
+
+  // 4. In the modal, use fetchedApp if available, otherwise fallback to viewedApp
+  const appToShow = fetchedApp || viewedApp;
+
+  // 5. Show loading spinner if loadingApp is true
+  {viewedApp && (
+    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[90vh]">
+        <button onClick={() => { setViewedApp(null); setFetchedApp(null); setCurrentModalStep(1); }} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
+        {loadingApp ? (
+          <div className="flex items-center justify-center h-40">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-700"></div>
+          </div>
+        ) : appToShow && (
+          typeof appToShow.id === 'number' ? (
+            <div>
+              <h3 className="text-2xl font-bold mb-6">KYC Application Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(appToShow)
+                  .filter(([key]) => !['created_at', 'updated_at'].includes(key))
+                  .map(([key, value]) => (
+                    <div key={key} className="border-b pb-2">
+                      <span className="font-medium text-gray-700">{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</span>{' '}
+                      <span className="text-gray-900">
+                        {value === null || value === undefined 
+                          ? 'N/A' 
+                          : typeof value === 'object' 
+                            ? JSON.stringify(value) 
+                            : String(value)
+                        }
+                      </span>
+                    </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            // ...existing stepper/modal logic for application_form records...
+            <div>
+              <h3 className="text-2xl font-bold mb-6">Application Details</h3>
+              <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><span className="font-medium">First Name:</span> {appToShow.firstName}</div>
+                <div><span className="font-medium">Last Name:</span> {appToShow.lastName}</div>
+                <div><span className="font-medium">Middle Name:</span> {appToShow.middleName}</div>
+                <div><span className="font-medium">Suffix:</span> {appToShow.suffix}</div>
+                <div><span className="font-medium">Gender:</span> {appToShow.gender}</div>
+                <div><span className="font-medium">Date of Birth:</span> {appToShow.dateOfBirth}</div>
+                <div><span className="font-medium">Place of Birth:</span> {appToShow.placeOfBirth}</div>
+                <div><span className="font-medium">Civil Status:</span> {appToShow.civilStatus}</div>
+                <div><span className="font-medium">Nationality:</span> {appToShow.nationality}</div>
+                <div><span className="font-medium">Mobile Number:</span> {appToShow.mobileNumber}</div>
+                <div><span className="font-medium">Home Number:</span> {appToShow.homeNumber}</div>
+                <div><span className="font-medium">Email Address:</span> {appToShow.emailAddress}</div>
+                <div><span className="font-medium">SSS/GSIS/UMID:</span> {appToShow.sssGsisUmid}</div>
+                <div><span className="font-medium">TIN:</span> {appToShow.tin}</div>
+              </div>
+              {/* Add more sections/steps as needed for application_form */}
+            </div>
+          )
+        )}
+      </div>
+    </div>
+  )}
+
+  if (fetchedApp) {
+    console.log('[DEBUG] fetchedApp:', fetchedApp);
+  }
+
+  // 1. Add a loading state for editing
+  const [loadingEditApp, setLoadingEditApp] = useState(false);
+
+  // 2. Add a function to fetch and open the edit modal
+  const handleEditApp = async (app: any) => {
+    setLoadingEditApp(true);
+    let table = 'application_form';
+    if (app.id && typeof app.id === 'string' && app.id.startsWith('kyc-')) {
+      table = 'kyc_details';
+    }
+    const id = app.id.startsWith('kyc-') ? app.id.replace('kyc-', '') : app.id;
+    const { data, error } = await supabase.from(table).select('*').eq('id', id).single();
+    if (!error && data) {
+      setEditApp(mapFlatToNestedApp(data));
+    } else {
+      setEditApp(null);
+      setToast({ show: true, message: 'Failed to fetch application for editing', type: 'error' });
+    }
+    setCurrentEditStep(1);
+    setLoadingEditApp(false);
+  };
+
+  // Add a state for the application to preview for export
+  const [exportPreviewApp, setExportPreviewApp] = useState<any | null>(null);
+  const [exportingPDF, setExportingPDF] = useState(false);
+
+  // Handler for the purple download button
+  const handleSingleExportPreview = async (app: any) => {
+    setExportingPDF(true);
+    let table = 'application_form';
+    let appId = app.id;
+    if (typeof app.id === 'string' && app.id.startsWith('kyc-')) {
+      table = 'kyc_details';
+      appId = app.id.replace('kyc-', '');
+    }
+    console.log('[DEBUG] Export Preview - Fetching app:', { app, table, appId });
+    const { data, error } = await supabase.from(table).select('*').eq('id', appId).single();
+    console.log('[DEBUG] Supabase fetch result:', { data, error });
+    if (!error && data) {
+      setExportPreviewApp(mapFlatToNestedApp(data));
+    } else {
+      setExportPreviewApp(null);
+      setToast({ show: true, message: 'Failed to fetch application for export preview', type: 'error' });
+    }
+    setExportingPDF(false);
+  };
+
+  // Handler to export the preview as PDF
+  const handleExportSinglePDF = async () => {
+    if (!exportPreviewApp) return;
+    setExportingPDF(true);
+    const previewElement = document.getElementById('single-app-pdf-preview');
+    if (!previewElement) return;
+    const canvas = await html2canvas(previewElement, {
+      scale: 2,
+      backgroundColor: '#fff',
+      useCORS: true
+    });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save(`Application_${exportPreviewApp.personal_details?.lastName || 'app'}.pdf`);
+    setExportingPDF(false);
+    setExportPreviewApp(null);
+  };
 
   // Main layout
   return (
@@ -1446,10 +1802,90 @@ const AdminDashboard: React.FC = () => {
                 </div>
               )}
               {editApp && (
-                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-            {/* ...editApp modal content... */}
-              </div>
-            )}
+                (() => {
+                  try {
+                    if (!editApp) return null;
+                    console.log('DEBUG: editApp value:', editApp);
+                    return (
+                      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[90vh]">
+                          <button
+                            onClick={() => { setEditApp(null); setCurrentEditStep(1); }}
+                            className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl"
+                          >&times;</button>
+                          <h3 className="text-2xl font-bold mb-6">Edit Application</h3>
+                          {renderEditStepIndicator()}
+                          {renderEditStepContent(editApp, setEditApp)}
+                          <div className="flex justify-between mt-8 pt-6 border-t gap-4">
+                            <button
+                              type="button"
+                              onClick={() => setCurrentEditStep(s => Math.max(1, s - 1))}
+                              disabled={currentEditStep === 1}
+                              className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            >
+                              Previous
+                            </button>
+                            {currentEditStep < 4 ? (
+                              <button
+                                type="button"
+                                onClick={() => setCurrentEditStep(s => Math.min(4, s + 1))}
+                                className="flex items-center px-4 py-2 rounded-lg bg-blue-700 text-white hover:bg-blue-800 text-sm"
+                              >
+                                Next
+                              </button>
+                            ) : (
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => { setEditApp(null); setCurrentEditStep(1); }}
+                                  className="flex items-center px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 text-sm"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    // Save changes to Supabase
+                                    const { id, ...updateData } = editApp;
+                                    const { error } = await supabase.from('application_form').update(updateData).eq('id', id);
+                                    if (error) {
+                                      setToast({ show: true, message: 'Failed to update application: ' + error.message, type: 'error' });
+                                      return;
+                                    }
+                                    setApplications(apps => apps.map(a => a.id === id ? { ...a, ...updateData } : a));
+                                    setToast({ show: true, message: 'Application updated successfully!', type: 'success' });
+                                    setEditApp(null);
+                                    setCurrentEditStep(1);
+                                  }}
+                                  className="flex items-center px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 text-sm"
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  } catch (err) {
+                    console.error('Error rendering editApp modal:', err);
+                    return (
+                      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[90vh] flex flex-col items-center justify-center">
+                          <div className="text-red-600 font-bold text-lg mb-4">Error rendering edit modal</div>
+                          <div className="text-gray-700 text-sm mb-4">{err ? String(err) : ''}</div>
+                          <button
+                            onClick={() => { setEditApp(null); setCurrentEditStep(1); }}
+                            className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 text-sm"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                })()
+              )}
             {pdfPreviewApp && (
               <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
             {/* ...pdfPreviewApp modal content... */}
@@ -1462,160 +1898,194 @@ const AdminDashboard: React.FC = () => {
           <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full p-6 relative overflow-y-auto max-h-[90vh]">
             <button
               className="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-2xl font-bold"
-              onClick={() => setViewedApp(null)}
+              onClick={() => { setViewedApp(null); setFetchedApp(null); setCurrentModalStep(1); }}
               aria-label="Close"
             >
               &times;
             </button>
             <h3 className="text-2xl font-bold mb-6">Application Details</h3>
             {/* Section content for 5 steps */}
-            {currentModalStep === 1 && (
-              <div className="space-y-4">
-                <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Details</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><span className="font-medium">First Name:</span> {viewedApp.personal_details?.firstName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Middle Name:</span> {viewedApp.personal_details?.middleName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Last Name:</span> {viewedApp.personal_details?.lastName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Suffix:</span> {viewedApp.personal_details?.suffix ?? 'N/A'}</div>
-                  <div><span className="font-medium">Gender:</span> {viewedApp.personal_details?.gender ?? 'N/A'}</div>
-                  <div><span className="font-medium">Date of Birth:</span> {viewedApp.personal_details?.dateOfBirth ?? 'N/A'}</div>
-                  <div><span className="font-medium">Place of Birth:</span> {viewedApp.personal_details?.placeOfBirth ?? 'N/A'}</div>
-                  <div><span className="font-medium">Civil Status:</span> {viewedApp.personal_details?.civilStatus ?? 'N/A'}</div>
-                  <div><span className="font-medium">Nationality:</span> {viewedApp.personal_details?.nationality ?? 'N/A'}</div>
-                  <div><span className="font-medium">Mobile Number:</span> {viewedApp.personal_details?.mobileNumber ?? 'N/A'}</div>
-                  <div><span className="font-medium">Home Number:</span> {viewedApp.personal_details?.homeNumber ?? 'N/A'}</div>
-                  <div><span className="font-medium">Email Address:</span> {viewedApp.personal_details?.emailAddress ?? 'N/A'}</div>
-                  <div><span className="font-medium">SSS/GSIS/UMID:</span> {viewedApp.personal_details?.sssGsisUmid ?? 'N/A'}</div>
-                  <div><span className="font-medium">TIN:</span> {viewedApp.personal_details?.tin ?? 'N/A'}</div>
-                </div>
+            {loadingApp ? (
+              <div className="flex items-center justify-center h-40">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-700"></div>
               </div>
-            )}
-            {currentModalStep === 2 && (
-              <div className="space-y-4">
-                <h4 className="text-lg font-semibold mb-2 text-blue-700">Family & Address</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><span className="font-medium">Mother's First Name:</span> {viewedApp.mother_details?.firstName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Mother's Middle Name:</span> {viewedApp.mother_details?.middleName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Mother's Last Name:</span> {viewedApp.mother_details?.lastName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Mother's Suffix:</span> {viewedApp.mother_details?.suffix ?? 'N/A'}</div>
-                  <div><span className="font-medium">Street:</span> {viewedApp.permanent_address?.street ?? 'N/A'}</div>
-                  <div><span className="font-medium">Barangay:</span> {viewedApp.permanent_address?.barangay ?? 'N/A'}</div>
-                  <div><span className="font-medium">City:</span> {viewedApp.permanent_address?.city ?? 'N/A'}</div>
-                  <div><span className="font-medium">Province:</span> {viewedApp.permanent_address?.province ?? 'N/A'}</div>
-                  <div><span className="font-medium">Zip Code:</span> {viewedApp.permanent_address?.zipCode ?? 'N/A'}</div>
-                  <div><span className="font-medium">Years of Stay:</span> {viewedApp.permanent_address?.yearsOfStay ?? 'N/A'}</div>
-                  <div><span className="font-medium">Spouse First Name:</span> {viewedApp.spouse_details?.firstName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Spouse Middle Name:</span> {viewedApp.spouse_details?.middleName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Spouse Last Name:</span> {viewedApp.spouse_details?.lastName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Spouse Suffix:</span> {viewedApp.spouse_details?.suffix ?? 'N/A'}</div>
-                  <div><span className="font-medium">Spouse Mobile Number:</span> {viewedApp.spouse_details?.mobileNumber ?? 'N/A'}</div>
-                  <div><span className="font-medium">Personal Reference First Name:</span> {viewedApp.personal_reference?.firstName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Personal Reference Middle Name:</span> {viewedApp.personal_reference?.middleName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Personal Reference Last Name:</span> {viewedApp.personal_reference?.lastName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Personal Reference Suffix:</span> {viewedApp.personal_reference?.suffix ?? 'N/A'}</div>
-                  <div><span className="font-medium">Personal Reference Mobile Number:</span> {viewedApp.personal_reference?.mobileNumber ?? 'N/A'}</div>
-                  <div><span className="font-medium">Personal Reference Relationship:</span> {viewedApp.personal_reference?.relationship ?? 'N/A'}</div>
-                </div>
-              </div>
-            )}
-            {currentModalStep === 3 && (
-              <div className="space-y-4">
-                <h4 className="text-lg font-semibold mb-2 text-blue-700">Work/Business Details</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><span className="font-medium">Business/Employer's Name:</span> {viewedApp.work_details?.businessEmployerName ?? 'N/A'}</div>
-                  <div><span className="font-medium">Profession/Occupation:</span> {viewedApp.work_details?.professionOccupation ?? 'N/A'}</div>
-                  <div><span className="font-medium">Nature of Business:</span> {viewedApp.work_details?.natureOfBusiness ?? 'N/A'}</div>
-                  <div><span className="font-medium">Department:</span> {viewedApp.work_details?.department ?? 'N/A'}</div>
-                  <div><span className="font-medium">Landline/Mobile:</span> {viewedApp.work_details?.landlineMobile ?? 'N/A'}</div>
-                  <div><span className="font-medium">Years in Business:</span> {viewedApp.work_details?.yearsInBusiness ?? 'N/A'}</div>
-                  <div><span className="font-medium">Monthly Income:</span> {viewedApp.work_details?.monthlyIncome ?? 'N/A'}</div>
-                  <div><span className="font-medium">Annual Income:</span> {viewedApp.work_details?.annualIncome ?? 'N/A'}</div>
-                  <div className="col-span-2">
-                    <span className="font-medium">Address:</span>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1">
-                      {(() => {
-                        const addr = viewedApp.work_details?.address;
-                        if (addr && typeof addr === 'object' && !Array.isArray(addr)) {
-                          return Object.entries(addr).map(([key, value]) => (
-                            <div key={key}>{key}: {value ?? 'N/A'}</div>
-                          ));
-                        } else if (typeof addr === 'string') {
-                          return <div>{addr}</div>;
-                        }
-                        return <div>N/A</div>;
-                      })()}
-                    </div>
+            ) : appToShow && (
+              <>
+                {/* If fetchedApp is present, show all available fields */}
+                {fetchedApp ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Object.entries(appToShow)
+                      .filter(([key]) => !['created_at', 'updated_at'].includes(key))
+                      .map(([key, value]) => (
+                        <div key={key} className="border-b pb-2">
+                          <span className="font-medium text-gray-700">{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</span>{' '}
+                          <span className="text-gray-900">
+                            {typeof value === 'object' && value !== null
+                              ? renderObjectDetails(value)
+                              : (value === null || value === undefined || value === '') ? 'N/A' : String(value)}
+                          </span>
+                        </div>
+                    ))}
                   </div>
-                </div>
-              </div>
-            )}
-            {currentModalStep === 4 && (
-              <div className="space-y-4">
-                <h4 className="text-lg font-semibold mb-2 text-blue-700">Credit Card & Bank Preferences</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><span className="font-medium">Bank/Institution:</span> {viewedApp.credit_card_details?.bankInstitution ?? 'N/A'}</div>
-                  <div><span className="font-medium">Card Number:</span> {viewedApp.credit_card_details?.cardNumber ?? 'N/A'}</div>
-                  <div><span className="font-medium">Credit Limit:</span> {viewedApp.credit_card_details?.creditLimit ?? 'N/A'}</div>
-                  <div><span className="font-medium">Member Since:</span> {viewedApp.credit_card_details?.memberSince ?? 'N/A'}</div>
-                  <div><span className="font-medium">Exp. Date:</span> {viewedApp.credit_card_details?.expirationDate ?? 'N/A'}</div>
-                  <div><span className="font-medium">Deliver Card To:</span> {viewedApp.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</div>
-                  <div><span className="font-medium">Best Time to Contact:</span> {viewedApp.credit_card_details?.bestTimeToContact ?? 'N/A'}</div>
-                  <div className="col-span-2">
-                    <span className="font-medium">Bank Preferences:</span>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {viewedApp.bank_preferences && Object.entries(viewedApp.bank_preferences).filter(([_, v]) => v).map(([k]) => (
-                        <span key={k} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
-                          {k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            {currentModalStep === 5 && (
-              <div className="space-y-4">
-                <h4 className="text-lg font-semibold mb-2 text-blue-700">File Links & Review</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <span className="font-medium">ID Photo:</span>
-                    {viewedApp.id_photo_url ? (
-                      <img src={viewedApp.id_photo_url} alt="ID Photo" className="w-56 h-40 object-contain border mt-2" />
-                    ) : (
-                      <span className="text-xs ml-2">No ID Uploaded</span>
+                ) : (
+                  // Fallback to old modal for viewedApp if not fetched
+                  <>
+                    {currentModalStep === 1 && (
+                      <div className="space-y-4">
+                        <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Details</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div><span className="font-medium">First Name:</span> {viewedApp.personal_details?.firstName ?? 'N/A'}</div>
+                          <div><span className="font-medium">Middle Name:</span> {viewedApp.personal_details?.middleName ?? 'N/A'}</div>
+                          <div><span className="font-medium">Last Name:</span> {viewedApp.personal_details?.lastName ?? 'N/A'}</div>
+                          <div><span className="font-medium">Suffix:</span> {viewedApp.personal_details?.suffix ?? 'N/A'}</div>
+                          <div><span className="font-medium">Gender:</span> {viewedApp.personal_details?.gender ?? 'N/A'}</div>
+                          <div><span className="font-medium">Date of Birth:</span> {viewedApp.personal_details?.dateOfBirth ?? 'N/A'}</div>
+                          <div><span className="font-medium">Place of Birth:</span> {viewedApp.personal_details?.placeOfBirth ?? 'N/A'}</div>
+                          <div><span className="font-medium">Civil Status:</span> {viewedApp.personal_details?.civilStatus ?? 'N/A'}</div>
+                          <div><span className="font-medium">Nationality:</span> {viewedApp.personal_details?.nationality ?? 'N/A'}</div>
+                          <div><span className="font-medium">Mobile Number:</span> {viewedApp.personal_details?.mobileNumber ?? 'N/A'}</div>
+                          <div><span className="font-medium">Home Number:</span> {viewedApp.personal_details?.homeNumber ?? 'N/A'}</div>
+                          <div><span className="font-medium">Email Address:</span> {viewedApp.personal_details?.emailAddress ?? 'N/A'}</div>
+                          <div><span className="font-medium">SSS/GSIS/UMID:</span> {viewedApp.personal_details?.sssGsisUmid ?? 'N/A'}</div>
+                          <div><span className="font-medium">TIN:</span> {viewedApp.personal_details?.tin ?? 'N/A'}</div>
+                        </div>
+                      </div>
                     )}
-                  </div>
-                  <div>
-                    <span className="font-medium">E-Signature:</span>
-                    {viewedApp.e_signature_url ? (
-                      <img src={viewedApp.e_signature_url} alt="E-Signature" className="w-56 h-24 object-contain border mt-2" />
-                    ) : (
-                      <span className="text-xs ml-2">No Signature Uploaded</span>
+                    {currentModalStep === 2 && (
+                      <div className="space-y-4">
+                        <h4 className="text-lg font-semibold mb-2 text-blue-700">Family & Address</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div><span className="font-medium">Mother's First Name:</span> {viewedApp.mother_details?.firstName ?? 'N/A'}</div>
+                          <div><span className="font-medium">Mother's Middle Name:</span> {viewedApp.mother_details?.middleName ?? 'N/A'}</div>
+                          <div><span className="font-medium">Mother's Last Name:</span> {viewedApp.mother_details?.lastName ?? 'N/A'}</div>
+                          <div><span className="font-medium">Mother's Suffix:</span> {viewedApp.mother_details?.suffix ?? 'N/A'}</div>
+                          <div><span className="font-medium">Street:</span> {viewedApp.permanent_address?.street ?? 'N/A'}</div>
+                          <div><span className="font-medium">Barangay:</span> {viewedApp.permanent_address?.barangay ?? 'N/A'}</div>
+                          <div><span className="font-medium">City:</span> {viewedApp.permanent_address?.city ?? 'N/A'}</div>
+                          <div><span className="font-medium">Province:</span> {viewedApp.permanent_address?.province ?? 'N/A'}</div>
+                          <div><span className="font-medium">Zip Code:</span> {viewedApp.permanent_address?.zipCode ?? 'N/A'}</div>
+                          <div><span className="font-medium">Years of Stay:</span> {viewedApp.permanent_address?.yearsOfStay ?? 'N/A'}</div>
+                          <div><span className="font-medium">Spouse First Name:</span> {viewedApp.spouse_details?.firstName ?? 'N/A'}</div>
+                          <div><span className="font-medium">Spouse Middle Name:</span> {viewedApp.spouse_details?.middleName ?? 'N/A'}</div>
+                          <div><span className="font-medium">Spouse Last Name:</span> {viewedApp.spouse_details?.lastName ?? 'N/A'}</div>
+                          <div><span className="font-medium">Spouse Suffix:</span> {viewedApp.spouse_details?.suffix ?? 'N/A'}</div>
+                          <div><span className="font-medium">Spouse Mobile Number:</span> {viewedApp.spouse_details?.mobileNumber ?? 'N/A'}</div>
+                          <div><span className="font-medium">Personal Reference First Name:</span> {viewedApp.personal_reference?.firstName ?? 'N/A'}</div>
+                          <div><span className="font-medium">Personal Reference Middle Name:</span> {viewedApp.personal_reference?.middleName ?? 'N/A'}</div>
+                          <div><span className="font-medium">Personal Reference Last Name:</span> {viewedApp.personal_reference?.lastName ?? 'N/A'}</div>
+                          <div><span className="font-medium">Personal Reference Suffix:</span> {viewedApp.personal_reference?.suffix ?? 'N/A'}</div>
+                          <div><span className="font-medium">Personal Reference Mobile Number:</span> {viewedApp.personal_reference?.mobileNumber ?? 'N/A'}</div>
+                          <div><span className="font-medium">Personal Reference Relationship:</span> {viewedApp.personal_reference?.relationship ?? 'N/A'}</div>
+                        </div>
+                      </div>
                     )}
-                  </div>
-                </div>
-              </div>
+                    {currentModalStep === 3 && (
+                      <div className="space-y-4">
+                        <h4 className="text-lg font-semibold mb-2 text-blue-700">Work/Business Details</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div><span className="font-medium">Business/Employer's Name:</span> {viewedApp.work_details?.businessEmployerName ?? 'N/A'}</div>
+                          <div><span className="font-medium">Profession/Occupation:</span> {viewedApp.work_details?.professionOccupation ?? 'N/A'}</div>
+                          <div><span className="font-medium">Nature of Business:</span> {viewedApp.work_details?.natureOfBusiness ?? 'N/A'}</div>
+                          <div><span className="font-medium">Department:</span> {viewedApp.work_details?.department ?? 'N/A'}</div>
+                          <div><span className="font-medium">Landline/Mobile:</span> {viewedApp.work_details?.landlineMobile ?? 'N/A'}</div>
+                          <div><span className="font-medium">Years in Business:</span> {viewedApp.work_details?.yearsInBusiness ?? 'N/A'}</div>
+                          <div><span className="font-medium">Monthly Income:</span> {viewedApp.work_details?.monthlyIncome ?? 'N/A'}</div>
+                          <div><span className="font-medium">Annual Income:</span> {viewedApp.work_details?.annualIncome ?? 'N/A'}</div>
+                          <div className="col-span-2">
+                            <span className="font-medium">Address:</span>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1">
+                              {(() => {
+                                const addr = viewedApp.work_details?.address;
+                                if (addr && typeof addr === 'object' && !Array.isArray(addr)) {
+                                  return (
+                                    <React.Fragment>
+                                      {Object.entries(addr).map(([key, value]) => (
+                                        <div key={key}>{key}: {value ?? 'N/A'}</div>
+                                      ))}
+                                    </React.Fragment>
+                                  );
+                                } else if (typeof addr === 'string') {
+                                  return <div>{addr}</div>;
+                                }
+                                return null;
+                              })()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {currentModalStep === 4 && (
+                      <div className="space-y-4">
+                        <h4 className="text-lg font-semibold mb-2 text-blue-700">Credit Card & Bank Preferences</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div><span className="font-medium">Bank/Institution:</span> {viewedApp.credit_card_details?.bankInstitution ?? 'N/A'}</div>
+                          <div><span className="font-medium">Card Number:</span> {viewedApp.credit_card_details?.cardNumber ?? 'N/A'}</div>
+                          <div><span className="font-medium">Credit Limit:</span> {viewedApp.credit_card_details?.creditLimit ?? 'N/A'}</div>
+                          <div><span className="font-medium">Member Since:</span> {viewedApp.credit_card_details?.memberSince ?? 'N/A'}</div>
+                          <div><span className="font-medium">Exp. Date:</span> {viewedApp.credit_card_details?.expirationDate ?? 'N/A'}</div>
+                          <div><span className="font-medium">Deliver Card To:</span> {viewedApp.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</div>
+                          <div><span className="font-medium">Best Time to Contact:</span> {viewedApp.credit_card_details?.bestTimeToContact ?? 'N/A'}</div>
+                          <div className="col-span-2">
+                            <span className="font-medium">Bank Preferences:</span>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {viewedApp.bank_preferences && Object.entries(viewedApp.bank_preferences).filter(([_, v]) => v).map(([k]) => (
+                                <span key={k} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                                  {k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {currentModalStep === 5 && (
+                      <div className="space-y-4">
+                        <h4 className="text-lg font-semibold mb-2 text-blue-700">File Links & Review</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <span className="font-medium">ID Photo:</span>
+                            {viewedApp.id_photo_url ? (
+                              <img src={viewedApp.id_photo_url} alt="ID Photo" className="w-56 h-40 object-contain border mt-2" />
+                            ) : (
+                              <span className="text-xs ml-2">No ID Uploaded</span>
+                            )}
+                          </div>
+                          <div>
+                            <span className="font-medium">E-Signature:</span>
+                            {viewedApp.e_signature_url ? (
+                              <img src={viewedApp.e_signature_url} alt="E-Signature" className="w-56 h-24 object-contain border mt-2" />
+                            ) : (
+                              <span className="text-xs ml-2">No Signature Uploaded</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex justify-between mt-8 pt-6 border-t gap-4">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentModalStep(s => Math.max(1, s - 1))}
+                        disabled={currentModalStep === 1}
+                        className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (currentModalStep < 5) setCurrentModalStep(s => Math.min(5, s + 1));
+                          else { setViewedApp(null); setCurrentModalStep(1); }
+                        }}
+                        className={`flex items-center px-4 py-2 rounded-lg ${currentModalStep < 5 ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-green-600 text-white hover:bg-green-700'} text-sm`}
+                      >
+                        {currentModalStep < 5 ? 'Next' : 'Close'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
             )}
-            <div className="flex justify-between mt-8 pt-6 border-t gap-4">
-              <button
-                type="button"
-                onClick={() => setCurrentModalStep(s => Math.max(1, s - 1))}
-                disabled={currentModalStep === 1}
-                className="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (currentModalStep < 5) setCurrentModalStep(s => Math.min(5, s + 1));
-                  else { setViewedApp(null); setCurrentModalStep(1); }
-                }}
-                className={`flex items-center px-4 py-2 rounded-lg ${currentModalStep < 5 ? 'bg-blue-700 text-white hover:bg-blue-800' : 'bg-green-600 text-white hover:bg-green-700'} text-sm`}
-              >
-                {currentModalStep < 5 ? 'Next' : 'Close'}
-              </button>
-            </div>
+            {/* Navigation for steps if needed (optional) */}
           </div>
         </div>
       )}
@@ -1633,7 +2103,7 @@ const AdminDashboard: React.FC = () => {
                     <th className="p-2 border">Status</th>
                     <th className="p-2 border">Submitted By</th>
                     <th className="p-2 border">Bank Codes</th>
-                    <th className="p-2 border">Actions</th>
+                    {/* Removed Actions column */}
                   </tr>
                 </thead>
                 <tbody>
@@ -1664,44 +2134,7 @@ const AdminDashboard: React.FC = () => {
                             <span className="text-gray-400">-</span>
                           )}
                         </td>
-                        <td className="p-2 border flex space-x-2">
-                          <div className="relative group">
-                            <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={async () => {
-                              await supabase.from('application_form').update({ status: 'submitted' }).eq('id', app.id);
-                              setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'submitted' } : a));
-                            }}>
-                              <Send className="w-5 h-5" />
-                            </button>
-                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Submit</span>
-                          </div>
-                          <div className="relative group">
-                            <button className="text-purple-600 hover:text-purple-800 transition-colors" onClick={async () => {
-                              await supabase.from('application_form').update({ status: 'turn-in' }).eq('id', app.id);
-                              setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'turn-in' } : a));
-                            }}>
-                              <ArrowDownCircle className="w-5 h-5" />
-                            </button>
-                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Turn-in</span>
-                          </div>
-                          <div className="relative group">
-                            <button className="text-green-600 hover:text-green-800 transition-colors" onClick={async () => {
-                              await supabase.from('application_form').update({ status: 'approved' }).eq('id', app.id);
-                              setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a));
-                            }}>
-                              <ThumbsUp className="w-5 h-5" />
-                            </button>
-                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Approve</span>
-                          </div>
-                          <div className="relative group">
-                            <button className="text-red-600 hover:text-red-800 transition-colors" onClick={async () => {
-                              await supabase.from('application_form').update({ status: 'rejected' }).eq('id', app.id);
-                              setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a));
-                            }}>
-                              <ThumbsDown className="w-5 h-5" />
-                            </button>
-                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Reject</span>
-                          </div>
-                        </td>
+                        {/* Removed Actions column */}
                       </tr>
                     );
                   })}
@@ -1711,6 +2144,279 @@ const AdminDashboard: React.FC = () => {
             <div className="flex justify-end gap-2">
               <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300" onClick={handleClosePreview}>Cancel</button>
               <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700" onClick={handleExportPDF}>Download PDF</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {exportPreviewApp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-full w-auto relative overflow-y-auto max-h-[98vh]">
+            <button
+              onClick={() => setExportPreviewApp(null)}
+              className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl"
+            >&times;</button>
+            <h2 className="text-lg font-bold mb-4">Application Export Preview</h2>
+            <div id="single-app-pdf-preview" className="bg-white text-black p-4" style={{ fontFamily: 'Arial, sans-serif', minWidth: 'unset', maxWidth: '100vw', overflowX: 'auto' }}>
+              {/* HEADER */}
+              <div className="text-center font-bold text-xl mb-2">APPLICATION FORM</div>
+              {/* PERSONAL DETAILS & WORK/BUSINESS DETAILS */}
+              <div className="grid grid-cols-2 gap-0 border-b border-black">
+                {/* PERSONAL DETAILS */}
+                <div className="border-r border-black">
+                  <div className="bg-black text-white font-bold text-xs px-2 py-1">PERSONAL DETAILS</div>
+                  <table className="w-full text-xs border-collapse">
+                    <tbody>
+                      <tr className="border-b border-black">
+                        <td className="font-bold">LAST NAME</td>
+                        <td>{exportPreviewApp.personal_details?.lastName}</td>
+                        <td className="font-bold">FIRST NAME</td>
+                        <td>{exportPreviewApp.personal_details?.firstName}</td>
+                        <td className="font-bold">MIDDLE NAME</td>
+                        <td>{exportPreviewApp.personal_details?.middleName}</td>
+                        <td className="font-bold">SUFFIX</td>
+                        <td>{exportPreviewApp.personal_details?.suffix}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="font-bold">DATE OF BIRTH</td>
+                        <td>{exportPreviewApp.personal_details?.dateOfBirth}</td>
+                        <td className="font-bold">PLACE OF BIRTH</td>
+                        <td>{exportPreviewApp.personal_details?.placeOfBirth}</td>
+                        <td className="font-bold">GENDER</td>
+                        <td>{exportPreviewApp.personal_details?.gender}</td>
+                        <td className="font-bold">CIVIL STATUS</td>
+                        <td>{exportPreviewApp.personal_details?.civilStatus}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="font-bold">NATIONALITY</td>
+                        <td>{exportPreviewApp.personal_details?.nationality}</td>
+                        <td className="font-bold">EMAIL ADDRESS</td>
+                        <td colSpan={3}>{exportPreviewApp.personal_details?.emailAddress}</td>
+                        <td className="font-bold">MOBILE NUMBER</td>
+                        <td>{exportPreviewApp.personal_details?.mobileNumber}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="font-bold">HOME NUMBER</td>
+                        <td>{exportPreviewApp.personal_details?.homeNumber}</td>
+                        <td className="font-bold">SSS/GSIS/UMID</td>
+                        <td>{exportPreviewApp.personal_details?.sssGsisUmid}</td>
+                        <td className="font-bold">TIN</td>
+                        <td>{exportPreviewApp.personal_details?.tin}</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {/* MOTHER'S MAIDEN NAME */}
+                  <div className="bg-black text-white font-bold text-xs px-2 py-1 mt-2">MOTHER'S MAIDEN NAME</div>
+                  <table className="w-full text-xs border-collapse">
+                    <tbody>
+                      <tr className="border-b border-black">
+                        <td className="font-bold">LAST NAME</td>
+                        <td>{exportPreviewApp.mother_details?.lastName}</td>
+                        <td className="font-bold">FIRST NAME</td>
+                        <td>{exportPreviewApp.mother_details?.firstName}</td>
+                        <td className="font-bold">MIDDLE NAME</td>
+                        <td>{exportPreviewApp.mother_details?.middleName}</td>
+                        <td className="font-bold">SUFFIX</td>
+                        <td>{exportPreviewApp.mother_details?.suffix}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {/* PRESENT HOME ADDRESS */}
+                  <div className="bg-black text-white font-bold text-xs px-2 py-1 mt-2">PRESENT HOME ADDRESS</div>
+                  <table className="w-full text-xs border-collapse">
+                    <tbody>
+                      <tr className="border-b border-black">
+                        <td colSpan={2} className="font-bold">STREET/PUROK/SUBD.</td>
+                        <td colSpan={2} className="font-bold">BARANGAY</td>
+                        <td colSpan={2} className="font-bold">CITY</td>
+                        <td className="font-bold">ZIP CODE</td>
+                        <td className="font-bold">YEARS OF STAY</td>
+                      </tr>
+                      <tr>
+                        <td colSpan={2}>{exportPreviewApp.permanent_address?.street}</td>
+                        <td colSpan={2}>{exportPreviewApp.permanent_address?.barangay}</td>
+                        <td colSpan={2}>{exportPreviewApp.permanent_address?.city}</td>
+                        <td>{exportPreviewApp.permanent_address?.zipCode}</td>
+                        <td>{exportPreviewApp.permanent_address?.yearsOfStay}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                {/* WORK/BUSINESS DETAILS */}
+                <div>
+                  <div className="bg-black text-white font-bold text-xs px-2 py-1">WORK/BUSINESS DETAILS</div>
+                  <table className="w-full text-xs border-collapse">
+                    <tbody>
+                      <tr className="border-b border-black">
+                        <td className="font-bold">BUSINESS/EMPLOYER'S NAME</td>
+                        <td>{exportPreviewApp.work_details?.businessEmployerName}</td>
+                        <td className="font-bold">PROFESSION/OCCUPATION</td>
+                        <td>{exportPreviewApp.work_details?.professionOccupation}</td>
+                        <td className="font-bold">NATURE OF BUSINESS</td>
+                        <td>{exportPreviewApp.work_details?.natureOfBusiness}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="font-bold">DEPARTMENT</td>
+                        <td>{exportPreviewApp.work_details?.department}</td>
+                        <td className="font-bold">LANDLINE/MOBILE</td>
+                        <td>{exportPreviewApp.work_details?.landlineMobile}</td>
+                        <td className="font-bold">YEARS IN BUSINESS</td>
+                        <td>{exportPreviewApp.work_details?.yearsInBusiness}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="font-bold">MONTHLY INCOME</td>
+                        <td>{exportPreviewApp.work_details?.monthlyIncome}</td>
+                        <td className="font-bold">ANNUAL INCOME</td>
+                        <td>{exportPreviewApp.work_details?.annualIncome}</td>
+                        <td className="font-bold">BUSINESS/OFFICE ADDRESS</td>
+                        <td>{exportPreviewApp.work_details?.address?.street}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="font-bold">UNIT/FLOOR</td>
+                        <td>{exportPreviewApp.work_details?.address?.unitFloor}</td>
+                        <td className="font-bold">BUILDING/TOWER</td>
+                        <td>{exportPreviewApp.work_details?.address?.buildingTower}</td>
+                        <td className="font-bold">LOT NO.</td>
+                        <td>{exportPreviewApp.work_details?.address?.lotNo}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="font-bold">BARANGAY</td>
+                        <td>{exportPreviewApp.work_details?.address?.barangay}</td>
+                        <td className="font-bold">CITY</td>
+                        <td>{exportPreviewApp.work_details?.address?.city}</td>
+                        <td className="font-bold">ZIP CODE</td>
+                        <td>{exportPreviewApp.work_details?.address?.zipCode}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  {/* CREDIT CARD DETAILS */}
+                  <div className="bg-black text-white font-bold text-xs px-2 py-1 mt-2">CREDIT CARD DETAILS</div>
+                  <table className="w-full text-xs border-collapse">
+                    <tbody>
+                      <tr className="border-b border-black">
+                        <td className="font-bold">BANK/INSTITUTION</td>
+                        <td>{exportPreviewApp.credit_card_details?.bankInstitution}</td>
+                        <td className="font-bold">CARD NUMBER</td>
+                        <td>{exportPreviewApp.credit_card_details?.cardNumber}</td>
+                        <td className="font-bold">CREDIT LIMIT</td>
+                        <td>{exportPreviewApp.credit_card_details?.creditLimit}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="font-bold">MEMBER SINCE</td>
+                        <td>{exportPreviewApp.credit_card_details?.memberSince}</td>
+                        <td className="font-bold">EXP. DATE</td>
+                        <td>{exportPreviewApp.credit_card_details?.expirationDate}</td>
+                        <td className="font-bold">DELIVER CARD TO</td>
+                        <td>{exportPreviewApp.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</td>
+                      </tr>
+                      <tr>
+                        <td className="font-bold">BEST TIME TO CONTACT</td>
+                        <td colSpan={5}>{exportPreviewApp.credit_card_details?.bestTimeToContact}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {/* SPOUSE DETAILS & PERSONAL REFERENCE */}
+              <div className="grid grid-cols-2 gap-0 border-b border-black">
+                {/* SPOUSE DETAILS */}
+                <div className="border-r border-black">
+                  <div className="bg-black text-white font-bold text-xs px-2 py-1">SPOUSE DETAILS</div>
+                  <table className="w-full text-xs border-collapse">
+                    <tbody>
+                      <tr>
+                        <td className="font-bold">LAST NAME</td>
+                        <td>{exportPreviewApp.spouse_details?.lastName}</td>
+                        <td className="font-bold">FIRST NAME</td>
+                        <td>{exportPreviewApp.spouse_details?.firstName}</td>
+                        <td className="font-bold">MIDDLE NAME</td>
+                        <td>{exportPreviewApp.spouse_details?.middleName}</td>
+                        <td className="font-bold">SUFFIX</td>
+                        <td>{exportPreviewApp.spouse_details?.suffix}</td>
+                      </tr>
+                      <tr>
+                        <td className="font-bold">MOBILE NUMBER</td>
+                        <td colSpan={7}>{exportPreviewApp.spouse_details?.mobileNumber}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                {/* PERSONAL REFERENCE */}
+                <div>
+                  <div className="bg-black text-white font-bold text-xs px-2 py-1">PERSONAL REFERENCE</div>
+                  <table className="w-full text-xs border-collapse">
+                    <tbody>
+                      <tr>
+                        <td className="font-bold">LAST NAME</td>
+                        <td>{exportPreviewApp.personal_reference?.lastName}</td>
+                        <td className="font-bold">FIRST NAME</td>
+                        <td>{exportPreviewApp.personal_reference?.firstName}</td>
+                        <td className="font-bold">MIDDLE NAME</td>
+                        <td>{exportPreviewApp.personal_reference?.middleName}</td>
+                        <td className="font-bold">SUFFIX</td>
+                        <td>{exportPreviewApp.personal_reference?.suffix}</td>
+                      </tr>
+                      <tr>
+                        <td className="font-bold">MOBILE NUMBER</td>
+                        <td>{exportPreviewApp.personal_reference?.mobileNumber}</td>
+                        <td className="font-bold">RELATIONSHIP</td>
+                        <td colSpan={5}>{exportPreviewApp.personal_reference?.relationship}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {/* BANK PREFERENCES */}
+              <div className="border-b border-black">
+                <div className="bg-black text-white font-bold text-xs px-2 py-1">BANK PREFERENCES</div>
+                <table className="w-full text-xs border-collapse">
+                  <tbody>
+                    <tr>
+                      {BANKS.map(b => (
+                        <td key={b.value} className="px-2 py-1 border-r border-black last:border-r-0">
+                          <span className="inline-block w-3 text-center mr-1">{exportPreviewApp.bank_preferences && exportPreviewApp.bank_preferences[b.value] ? '✓' : ''}</span>
+                          {b.label}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              {/* LOCATION, DATE, AGENT, REMARKS, PHOTOS */}
+              <div className="flex flex-row gap-0 mt-2 w-full">
+                {/* Left: Location/Date/Agent, then Remarks below */}
+                <div className="flex flex-col flex-1 min-w-0 pr-4">
+                  <div className="text-xs">
+                    <div><span className="font-bold">LOCATION:</span> {exportPreviewApp.location}</div>
+                    <div><span className="font-bold">DATE:</span> {exportPreviewApp.submitted_at ? new Date(exportPreviewApp.submitted_at).toLocaleDateString() : ''}</div>
+                    <div><span className="font-bold">AGENT:</span> {exportPreviewApp.agent}</div>
+                  </div>
+                  <div className="text-xs mt-4">
+                    <span className="font-bold">REMARKS:</span> {exportPreviewApp.remarks}
+                  </div>
+                </div>
+                {/* Right: Images, no border at bottom */}
+                {(exportPreviewApp.id_photo_url || exportPreviewApp.e_signature_url) && (
+                  <div className="flex flex-row gap-8 items-end min-w-fit">
+                    {exportPreviewApp.id_photo_url && (
+                      <div className="flex flex-col items-center">
+                        <span className="font-bold text-xs mb-1">VALID ID</span>
+                        <img src={exportPreviewApp.id_photo_url} alt="Valid ID" className="w-64 h-40 object-contain bg-white" />
+                      </div>
+                    )}
+                    {exportPreviewApp.e_signature_url && (
+                      <div className="flex flex-col items-center">
+                        <span className="font-bold text-xs mb-1">E-SIGNATURE</span>
+                        <img src={exportPreviewApp.e_signature_url} alt="E-Signature" className="w-64 h-28 object-contain bg-white" />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300" onClick={() => setExportPreviewApp(null)}>Cancel</button>
+              <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700" onClick={handleExportSinglePDF} disabled={exportingPDF}>{exportingPDF ? 'Exporting...' : 'Download PDF'}</button>
             </div>
           </div>
         </div>
