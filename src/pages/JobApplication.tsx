@@ -1,4 +1,8 @@
+// TODO: Replace 'YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', and 'YOUR_USER_ID' with your actual EmailJS credentials.
 import React from 'react';
+import emailjs from 'emailjs-com';
+import { useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 
 const jobPositions = [
   { title: 'Sales Agent', description: 'Responsible for acquiring new clients and managing relationships.' },
@@ -11,19 +15,35 @@ const jobPositions = [
 const JobApplication: React.FC = () => {
   const [form, setForm] = React.useState({ name: '', email: '', message: '' });
   const [submitted, setSubmitted] = React.useState(false);
+  const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
-    // Placeholder: send resume logic here
+    try {
+      await emailjs.send(
+        'YOUR_SERVICE_ID', // replace with your EmailJS service ID
+        'YOUR_TEMPLATE_ID', // replace with your EmailJS template ID
+        {
+          from_name: form.name,
+          from_email: form.email,
+          message: form.message,
+          to_email: 'silvercard.202504@gmail.com',
+        },
+        'YOUR_USER_ID' // replace with your EmailJS user/public key
+      );
+      setSubmitted(true);
+    } catch (error) {
+      alert('Failed to send message. Please try again later.');
+    }
   };
 
   return (
     <div className="max-w-3xl mx-auto py-16 px-4">
+      <BackButton />
       <h1 className="text-3xl font-bold mb-6">Job Openings</h1>
       <p className="text-gray-700 mb-8">Join our team! Explore our current job openings and send us your resume to be part of SilverCard.</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
@@ -50,7 +70,7 @@ const JobApplication: React.FC = () => {
             <label className="block text-gray-700 mb-2">Message / Cover Letter</label>
             <textarea name="message" value={form.message} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" rows={5} required />
           </div>
-          <button type="submit" className="bg-blue-700 text-white px-6 py-2 rounded-lg hover:bg-blue-800 transition-colors">Send Resume</button>
+          <button type="submit" className="bg-blue-700 text-white px-6 py-2 rounded-lg hover:bg-blue-800 transition-colors">Send</button>
           {submitted && <p className="text-green-600 mt-4">Thank you for your interest! We'll get back to you soon.</p>}
         </form>
       </div>

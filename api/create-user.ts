@@ -21,7 +21,10 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    const { name, email, password, role } = body;
+    // Debug log: print the request body
+    console.log('DEBUG: Received body:', JSON.stringify(body));
+
+    const { name, email, password, role, bank_codes } = body;
 
     if (!name || !email || !password || !role) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -38,10 +41,17 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: userError?.message || 'Failed to create user in Auth' });
     }
 
+    // Debug log: print the insert payload
+    console.log('DEBUG: Inserting into users:', JSON.stringify({ id: userData.user.id, name, email, role, bank_codes }));
+
     // 2. Insert into users table
-    const { error: dbError } = await supabase
+    const { error: dbError, data: dbData } = await supabase
       .from('users')
-      .insert([{ id: userData.user.id, name, email, role }]);
+      .insert([{ id: userData.user.id, name, email, role, bank_codes }])
+      .select();
+
+    // Debug log: print the result of the insert
+    console.log('DEBUG: Insert result:', JSON.stringify({ dbError, dbData }));
 
     if (dbError) {
       // Optionally: delete the Auth user if DB insert fails

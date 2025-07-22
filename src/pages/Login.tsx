@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { LogIn, Mail, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
+import BackButton from '../components/BackButton';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -39,6 +40,7 @@ const Login: React.FC = () => {
 
   return (
     <div className="min-h-0 bg-gradient-to-br from-white-900 to-blue-700 flex items-center justify-center px-2 sm:px-4 py-8">
+      <BackButton />
       <div className="max-w-md w-full bg-white rounded-xl shadow-2xl p-4 sm:p-6">
         <div className="text-center mb-8">
           <LogIn className="h-12 w-12 text-blue-700 mx-auto mb-4" />
@@ -107,7 +109,7 @@ const Login: React.FC = () => {
           message="This is for admin only" 
           show={showToast} 
           onClose={() => setShowToast(false)}
-          type="fail"
+          type="error"
         />
       </div>
   );

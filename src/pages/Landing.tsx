@@ -31,26 +31,37 @@ const Landing: React.FC = () => {
     { name: 'AUB', logo: AUBLogo },
   ];
 
+  // Replace the old promos array with real promo data from the promo page
   const promos = [
     {
-      title: 'Free Headset',
-      desc: 'Get a high-quality headset when you apply and get approved!',
-      img: 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=400&q=80',
+      title: 'Spend Anywhere & Get FREE Red Ribbon Baked Goodies',
+      desc: 'Spend with your RCBC JCB Credit Card and get free Red Ribbon treats for qualified purchases.',
+      img: '/src/assets/promos/rcbc/red-ribbon-rcbc.jpg',
     },
     {
-      title: 'Premium Earphones',
-      desc: 'Enjoy free premium earphones for every successful application.',
-      img: 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?auto=format&fit=crop&w=400&q=80',
+      title: 'Switch Up, Level Up Promo',
+      desc: 'Enjoy up to PHP 30,000 eGCs when you apply for two (2) BPI Credit Cards.',
+      img: '/src/assets/promos/bpi/bpi-30000.jpg',
     },
     {
-      title: 'Smart Watch',
-      desc: 'Apply now and get a chance to win a smart watch!',
-      img: 'https://images.unsplash.com/photo-1516574187841-cb9cc2ca948b?auto=format&fit=crop&w=400&q=80',
+      title: 'No Annual Fee Forever',
+      desc: 'Get AUB Easy Mastercard or Classic Mastercard and enjoy no annual fees for life.',
+      img: '/src/assets/promos/aub/aub-no-annual.jpg',
     },
     {
-      title: 'Powerbank',
-      desc: 'Stay powered up on the go with a free powerbank!',
-      img: 'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?auto=format&fit=crop&w=400&q=80',
+      title: 'Php5,000 Welcome Cash Credit',
+      desc: 'Get Php5,000 bonus cash credit upon reaching your first Php10,000 retail spend within two (2) months from card activation date.',
+      img: '/src/assets/promos/eastwest/eastwest-5000.jpg',
+    },
+    {
+      title: 'Big Travel Bonus',
+      desc: 'Get exclusive travel deals and discounts with your Metrobank credit card.',
+      img: '/src/assets/promos/metrobank/bigtravel-bonus.webp',
+    },
+    {
+      title: 'Gold Mastercard Benefits',
+      desc: 'Enjoy exclusive perks and privileges with your Security Bank Gold Mastercard.',
+      img: '/src/assets/promos/securitybank/gold.jpg',
     },
   ];
   const [promoIndex, setPromoIndex] = React.useState(0);
