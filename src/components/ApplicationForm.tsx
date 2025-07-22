@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Save, ArrowLeft, ArrowRight } from 'lucide-react';
 import { supabase } from '../supabaseClient'; // Import your Supabase client
@@ -12,7 +12,6 @@ import {
   PersonalReference,
   WorkDetails,
   CreditCardDetails,
-  BankPreferences,
 } from '../types';
 
 const BANK_PREFERENCE_KEYS = [
@@ -21,6 +20,19 @@ const BANK_PREFERENCE_KEYS = [
 const BANK_PREFERENCE_LABELS = {
   rcbc: 'RCBC', metrobank: 'Metrobank', eastWestBank: 'EastWestBank', securityBank: 'Security Bank',
   bpi: 'BPI', pnb: 'PNB', robinsonBank: 'Robinson Bank', maybank: 'Maybank', aub: 'AUB',
+};
+
+export type BankPreferences = {
+  rcbc: boolean;
+  metrobank: boolean;
+  eastWestBank: boolean;
+  securityBank: boolean;
+  bpi: boolean;
+  pnb: boolean;
+  robinsonBank: boolean;
+  maybank: boolean;
+  aub: boolean;
+  [key: string]: boolean; // allow string indexing
 };
 
 type FormDataType = {
@@ -32,28 +44,45 @@ type FormDataType = {
   workDetails: WorkDetails;
   creditCardDetails: CreditCardDetails;
   bankPreferences: BankPreferences;
-  status: string;
+  // status: string; // removed
   [key: string]: any; // index signature for dynamic access
 };
+
+const LOCAL_STORAGE_KEY = 'applicationFormData';
 
 const ApplicationForm = ({ isAgentForm = false }) => {
   const navigate = useNavigate();
   const { user } = isAgentForm ? useAuth() : { user: null };
   const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState<FormDataType>({
-    personalDetails: { lastName: '', firstName: '', middleName: '', suffix: '', dateOfBirth: '', placeOfBirth: '', gender: '', civilStatus: '', nationality: '', mobileNumber: '', homeNumber: '', emailAddress: '', sssGsisUmid: '', tin: '' },
-    motherDetails: { lastName: '', firstName: '', middleName: '', suffix: '' },
-    permanentAddress: { street: '', barangay: '', city: '', zipCode: '', yearsOfStay: '' },
-    spouseDetails: { lastName: '', firstName: '', middleName: '', suffix: '', mobileNumber: '' },
-    personalReference: { lastName: '', firstName: '', middleName: '', suffix: '', mobileNumber: '', relationship: '' },
-    workDetails: { businessEmployerName: '', professionOccupation: '', natureOfBusiness: '', department: '', landlineMobile: '', yearsInBusiness: '', monthlyIncome: '', annualIncome: '', address: { street: '', barangay: '', city: '', zipCode: '', unitFloor: '', buildingTower: '', lotNo: '' } },
-    creditCardDetails: { bankInstitution: '', cardNumber: '', creditLimit: '', memberSince: '', expirationDate: '', deliverCardTo: 'home', bestTimeToContact: '' },
-    bankPreferences: { rcbc: false, metrobank: false, eastWestBank: false, securityBank: false, bpi: false, pnb: false, robinsonBank: false, maybank: false, aub: false },
-    status: 'pending',
+  // Load from localStorage if present
+  const [formData, setFormData] = useState<FormDataType>(() => {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // fallback to default if corrupted
+      }
+    }
+    return {
+      personalDetails: { lastName: '', firstName: '', middleName: '', suffix: '', dateOfBirth: '', placeOfBirth: '', gender: '', civilStatus: '', nationality: '', mobileNumber: '', homeNumber: '', emailAddress: '', sssGsisUmid: '', tin: '' },
+      motherDetails: { lastName: '', firstName: '', middleName: '', suffix: '' },
+      permanentAddress: { street: '', barangay: '', city: '', zipCode: '', yearsOfStay: '' },
+      spouseDetails: { lastName: '', firstName: '', middleName: '', suffix: '', mobileNumber: '' },
+      personalReference: { lastName: '', firstName: '', middleName: '', suffix: '', mobileNumber: '', relationship: '' },
+      workDetails: { businessEmployerName: '', professionOccupation: '', natureOfBusiness: '', department: '', landlineMobile: '', yearsInBusiness: '', monthlyIncome: '', annualIncome: '', address: { street: '', barangay: '', city: '', zipCode: '', unitFloor: '', buildingTower: '', lotNo: '' } },
+      creditCardDetails: { bankInstitution: '', cardNumber: '', creditLimit: '', memberSince: '', expirationDate: '', deliverCardTo: 'home', bestTimeToContact: '' },
+      bankPreferences: { rcbc: false, metrobank: false, eastWestBank: false, securityBank: false, bpi: false, pnb: false, robinsonBank: false, maybank: false, aub: false },
+    };
   });
-  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | undefined }>({ show: false, message: '', type: undefined });
   const [idPhoto, setIdPhoto] = useState<File | null>(null);
   const [eSignature, setESignature] = useState<File | null>(null);
+
+  // Persist formData to localStorage on change
+  useEffect(() => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(formData));
+  }, [formData]);
 
   const handleInputChange = (section: string, field: string, value: string | boolean) => {
     setFormData(prev => ({
@@ -159,10 +188,8 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       agent: isAgentForm && user ? user.name : 'direct',
       relative3_name: formData.personalReference.lastName ? `${formData.personalReference.lastName}, ${formData.personalReference.firstName} ${formData.personalReference.middleName} ${formData.personalReference.suffix} (${formData.personalReference.relationship}) ${formData.personalReference.mobileNumber}`.trim() : null,
       remarks: '', // Not collected in form, set as empty or add if available
-      bank_applied: Object.keys(formData.bankPreferences).filter(k => formData.bankPreferences[k]).join(', '),
-      status: 'pending', // Always set status for dashboard filtering
-      // id_photo_url and e_signature_url are not in your schema, so not included
-      // status is not in your schema, so not included
+      bank_applied: Object.keys(formData.bankPreferences).filter(k => formData.bankPreferences[k as keyof BankPreferences]).join(', '),
+      // status: 'pending', // removed
     };
     console.log('Inserting data into kyc_details table:', JSON.stringify(insertData, null, 2));
 
@@ -181,6 +208,8 @@ const ApplicationForm = ({ isAgentForm = false }) => {
 
     console.log('Application inserted successfully:', data);
     setToast({ show: true, message: 'Application submitted successfully', type: 'success' as const });
+    // Clear localStorage on successful submit
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
     setTimeout(() => {
       if (isAgentForm) {
         navigate('/agent/applications');

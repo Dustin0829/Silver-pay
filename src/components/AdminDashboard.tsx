@@ -434,18 +434,33 @@ const AdminDashboard: React.FC = () => {
                   }}><Edit className="w-4 h-4" /></button>
                   <button className="text-red-600 hover:text-red-800" onClick={async () => {
                     if (pendingDeleteIdx === i) {
-                      // Delete user from Supabase
-                      const { error } = await supabase.from('users').delete().eq('email', u.email);
-                      if (error) {
-                        setToast({ show: true, message: 'Failed to delete user: ' + error.message, type: 'error' as const });
-                        return;
+                      // Delete user via backend API
+                      try {
+                        const response = await fetch('/api/delete-user', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email: u.email }),
+                        });
+                        const result = await response.json();
+                        if (!response.ok) {
+                          setToast({ show: true, message: 'Failed to delete user: ' + (result.error || response.statusText), type: 'error' });
+                          return;
+                        }
+                        setUsers(prev => prev.filter((_, idx) => idx !== i));
+                        setPendingDeleteIdx(null);
+                        setToast({ show: true, message: 'User deleted successfully!', type: 'success' });
+                      } catch (err) {
+                        let errorMsg = 'Unknown error';
+                        if (err instanceof Error) {
+                          errorMsg = err.message;
+                        } else if (typeof err === 'string') {
+                          errorMsg = err;
+                        }
+                        setToast({ show: true, message: 'Failed to delete user: ' + errorMsg, type: 'error' });
                       }
-                      setUsers(prev => prev.filter((_, idx) => idx !== i));
-                      setPendingDeleteIdx(null);
-                      setToast({ show: false, message: '', type: undefined });
                     } else {
                       setPendingDeleteIdx(i);
-                      setToast({ show: true, message: 'Click again to confirm delete.', type: 'error' as const });
+                      setToast({ show: true, message: 'Click again to confirm delete.', type: 'error' });
                       setTimeout(() => setPendingDeleteIdx(null), 3000);
                     }
                   }}><Trash2 className="w-4 h-4" /></button>

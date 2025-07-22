@@ -137,8 +137,6 @@ const AgentDashboard: React.FC = () => {
     const search = nameFilter.trim().toLowerCase();
     let matchesSearch = true;
     if (search) {
-      // Applicant name
-      const applicantName = `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.toLowerCase();
       // Agent name from both possible fields
       const agentName1 = (app.submitted_by ?? '').toLowerCase();
       const agentName2 = (app.agent ?? '').toLowerCase();
@@ -156,33 +154,10 @@ const AgentDashboard: React.FC = () => {
         bankCodes = agent.bank_codes.map((entry: any) => (entry.code || '').toLowerCase()).join(' ');
       }
       matchesSearch =
-        applicantName.includes(search) ||
         agentName1.includes(search) ||
         agentName2.includes(search) ||
         agentName.includes(search) ||
         bankCodes.includes(search);
-      // Debug log for each application
-      if (matchesSearch) {
-        console.log('[DEBUG] MATCH:', {
-          search,
-          applicantName,
-          agentName1,
-          agentName2,
-          agentName,
-          bankCodes,
-          app
-        });
-      } else {
-        console.log('[DEBUG] NO MATCH:', {
-          search,
-          applicantName,
-          agentName1,
-          agentName2,
-          agentName,
-          bankCodes,
-          app
-        });
-      }
     }
     // Status filter
     let matchesStatus = true;
@@ -205,7 +180,7 @@ const AgentDashboard: React.FC = () => {
         <div className="flex flex-col sm:flex-row gap-4 w-full mb-4 items-start sm:items-end">
           <input
             className="border rounded-lg px-3 py-2 w-full sm:w-1/2 mb-2 sm:mb-0"
-            placeholder="Search by applicant name..."
+            placeholder="Search by agent name or bank code..."
             value={nameFilter}
             onChange={e => setNameFilter(e.target.value)}
             onKeyDown={e => {
@@ -227,6 +202,7 @@ const AgentDashboard: React.FC = () => {
           </select>
         </div>
       </div>
+      {/* Desktop Table */}
       <table className="w-full text-xs sm:text-sm md:text-base table-fixed hidden sm:table">
         <thead>
           <tr className="text-left text-xs text-gray-500 uppercase">
@@ -236,7 +212,7 @@ const AgentDashboard: React.FC = () => {
             <th className="py-2">Submitted By</th>
             <th className="py-2">Actions</th>
           </tr>
-        </thead>  
+        </thead>
         <tbody>
           {visibleApplications.map((app, i) => (
             <tr key={i} className="border-t">
@@ -257,6 +233,26 @@ const AgentDashboard: React.FC = () => {
           ))}
         </tbody>
       </table>
+      {/* Mobile Card Layout */}
+      <div className="block sm:hidden">
+        {visibleApplications.map((app, i) => (
+          <div key={i} className="bg-white rounded-xl shadow p-4 mb-4 border border-gray-100">
+            <div className="font-semibold text-lg mb-1">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</div>
+            <div className="text-xs text-gray-500 mb-1">Date: {app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy HH:mm') : ''}</div>
+            <div className="mb-1 text-sm"><span className="font-medium">Status:</span> <span className={`px-2 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : app.status === 'rejected' ? 'bg-red-100 text-red-800' : app.status === 'submitted' ? 'bg-blue-100 text-blue-800' : app.status === 'turn-in' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'}`}>{app.status}</span></div>
+            <div className="mb-1 text-sm"><span className="font-medium">Submitted By:</span> {app.submitted_by || app.agent || 'direct'}</div>
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => { setViewedApp(app); setCurrentModalStep(1); }}
+                className="text-blue-600 hover:text-blue-900 p-1"
+                title="View Application"
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
       {filteredApplications.length > visibleCount && (
         <div className="flex justify-center mt-4">
           <button onClick={() => setVisibleCount(c => c + 20)} className="p-2 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-700" title="See More">
@@ -451,8 +447,8 @@ const AgentDashboard: React.FC = () => {
   return (
     <>
       <div className="flex min-h-screen">
-        {/* Sidebar */}
-        <aside className="fixed top-0 left-0 h-screen w-64 bg-[#101624] text-white flex flex-col py-6 px-2 sm:px-6 shadow-xl z-50">
+        {/* Sidebar for desktop */}
+        <aside className="fixed top-0 left-0 h-screen w-64 bg-[#101624] text-white flex-col py-6 px-2 sm:px-6 shadow-xl z-50 hidden sm:flex">
           {/* Logo and Title Section */}
           <div className="flex flex-col items-center mb-10 px-2">
             <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
@@ -479,12 +475,47 @@ const AgentDashboard: React.FC = () => {
               </button>
             ))}
           </nav>
-          {/* Logout at the bottom */}
           <button onClick={logout} className="flex items-center mt-auto px-4 py-3 rounded-lg text-red-400 hover:text-red-600 border-2 border-transparent hover:bg-white/10 justify-center">
             <LogOut className="w-5 h-5 mr-2" /> Sign Out
           </button>
         </aside>
-        <div className="ml-64 flex-1 flex flex-col min-h-0" style={{height: '100vh'}}>
+        {/* Sidebar overlay for mobile */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-50 flex">
+            <div className="fixed inset-0 bg-black bg-opacity-40" onClick={() => setSidebarOpen(false)}></div>
+            <aside className="relative h-full w-64 bg-[#101624] text-white flex flex-col py-6 px-2 sm:px-6 shadow-xl z-50">
+              <button className="absolute top-4 right-4 text-gray-400 hover:text-red-600 text-2xl" onClick={() => setSidebarOpen(false)}>&times;</button>
+              <div className="flex flex-col items-center mb-10 px-2 mt-8">
+                <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
+                  <img src={Logo} alt="Logo" className="h-16 w-16 object-contain" />
+                </div>
+                <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>SILVER CARD</span>
+                <span className="text-xs uppercase text-gray-400 tracking-widest text-center mb-1">SOLUTIONS</span>
+                <span className="text-sm text-gray-300 text-center">Agent Portal</span>
+              </div>
+              <nav className="flex flex-col gap-3 flex-1 items-center">
+                {navItems.map(item => (
+                  <button
+                    key={item.key}
+                    className={`flex items-center justify-center w-56 px-4 py-3 rounded-xl font-bold text-lg transition-all mb-1
+                      ${activeSection === item.key
+                        ? 'bg-blue-900 text-white shadow font-bold'
+                        : 'bg-transparent text-gray-200 hover:bg-blue-800 hover:text-white'}
+                    `}
+                    onClick={() => { setActiveSection(item.key); setSidebarOpen(false); }}
+                  >
+                    <span className="mr-3">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </nav>
+              <button onClick={logout} className="flex items-center mt-auto px-4 py-3 rounded-lg text-red-400 hover:text-red-600 border-2 border-transparent hover:bg-white/10 justify-center">
+                <LogOut className="w-5 h-5 mr-2" /> Sign Out
+              </button>
+            </aside>
+          </div>
+        )}
+        <div className="flex-1 flex flex-col min-h-0 ml-0 sm:ml-64" style={{height: '100vh'}}>
           {/* Header */}
           <header className="flex flex-row items-center justify-between bg-white px-4 sm:px-8 py-4 border-b border-gray-100 relative">
             {/* Hamburger for mobile */}
@@ -511,7 +542,7 @@ const AgentDashboard: React.FC = () => {
             </div>
           </header>
           {/* Content */}
-          <main className="flex-1 overflow-y-auto px-8 py-8">
+          <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-8">
             {activeSection === 'dashboard' && renderDashboard()}
             {activeSection === 'history' && renderHistory()}
           </main>
