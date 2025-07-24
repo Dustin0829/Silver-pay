@@ -11,7 +11,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, role }) => {
   const { isAuthenticated, user, loading } = useAuth();
 
   if (loading) {
-    // Optionally, render a spinner or null while checking auth
     return null;
   }
   if (!isAuthenticated) {

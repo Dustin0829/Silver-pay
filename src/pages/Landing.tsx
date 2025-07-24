@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { Shield, Clock, Users, Star, CreditCard, CheckCircle, ArrowRight, TrendingUp, Award, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
-// Add Job type
 interface Job {
   title: string;
   description: string;
@@ -22,7 +21,6 @@ const Landing: React.FC = () => {
     { name: 'AUB', logo: '/banks/AUB.jpg' },
   ];
 
-  // Replace the old promos array with real promo data from the promo page
   const promos = [
     {
       title: 'Spend Anywhere & Get FREE Red Ribbon Baked Goodies',
@@ -67,7 +65,6 @@ const Landing: React.FC = () => {
   const handlePrev = () => setPromoIndex((prev) => (prev === 0 ? promos.length - 1 : prev - 1));
   const handleNext = () => setPromoIndex((prev) => (prev + 1) % promos.length);
 
-  // Add job positions for preview
   const jobPositions: Job[] = [
     { title: 'Sales Agent', description: 'Responsible for acquiring new clients and managing relationships.' },
     { title: 'Customer Support Specialist', description: 'Assist customers with inquiries and resolve issues.' },
@@ -76,7 +73,6 @@ const Landing: React.FC = () => {
     { title: 'Compliance Officer', description: 'Ensure all operations comply with regulations and company policies.' },
   ];
 
-  // Modal state for job preview
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
   return (

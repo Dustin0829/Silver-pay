@@ -1,4 +1,3 @@
-// TODO: Replace 'YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', and 'YOUR_USER_ID' with your actual EmailJS credentials.
 import React from 'react';
 import emailjs from 'emailjs-com';
 import { useNavigate } from 'react-router-dom';

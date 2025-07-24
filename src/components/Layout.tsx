@@ -42,7 +42,6 @@ const Layout: React.FC = () => {
         onShowTerms={() => setShowTermsModal(true)}
         onShowPrivacy={() => setShowPrivacyModal(true)}
       />}
-      {/* Terms of Service Modal */}
       {showTermsModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
           <div className="bg-white rounded-lg shadow-lg p-8 max-w-4xl w-90vh max-h-[90vh] overflow-y-auto relative">
@@ -114,7 +113,6 @@ const Layout: React.FC = () => {
           </div>
         </div>
       )}
-      {/* Privacy Policy Modal */}
       {showPrivacyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
           <div className="bg-white rounded-lg shadow-lg p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto relative">

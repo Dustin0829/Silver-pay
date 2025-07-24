@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Save, ArrowLeft, ArrowRight } from 'lucide-react';
-import { supabase } from '../supabaseClient'; // Import your Supabase client
+import { supabase } from '../supabaseClient';
 import Toast from './Toast';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -32,7 +32,7 @@ export type BankPreferences = {
   robinsonBank: boolean;
   maybank: boolean;
   aub: boolean;
-  [key: string]: boolean; // allow string indexing
+  [key: string]: boolean;
 };
 
 type FormDataType = {
@@ -44,8 +44,7 @@ type FormDataType = {
   workDetails: WorkDetails;
   creditCardDetails: CreditCardDetails;
   bankPreferences: BankPreferences;
-  // status: string; // removed
-  [key: string]: any; // index signature for dynamic access
+  [key: string]: any;
 };
 
 const LOCAL_STORAGE_KEY = 'applicationFormData';
@@ -54,14 +53,12 @@ const ApplicationForm = ({ isAgentForm = false }) => {
   const navigate = useNavigate();
   const { user } = isAgentForm ? useAuth() : { user: null };
   const [currentStep, setCurrentStep] = useState(1);
-  // Load from localStorage if present
   const [formData, setFormData] = useState<FormDataType>(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
       try {
         return JSON.parse(saved);
       } catch {
-        // fallback to default if corrupted
       }
     }
     return {
@@ -80,7 +77,6 @@ const ApplicationForm = ({ isAgentForm = false }) => {
   const [eSignature, setESignature] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Persist formData to localStorage on change
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(formData));
   }, [formData]);
@@ -117,7 +113,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       }
       console.error(`${file.name} Upload Error (Attempt ${attempt}):`, error);
       if (attempt === 3) return null;
-      await new Promise(resolve => setTimeout(resolve, 2000 * attempt)); // Exponential backoff
+      await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
     }
     return null;
   };
@@ -133,7 +129,6 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       return;
     }
 
-    // Upload files with retry
     let idPhotoUrl = null;
     let eSignatureUrl = null;
     if (idPhoto) {
@@ -153,7 +148,6 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       }
     }
 
-    // Prepare data for insert with null handling, FLATTENED for kyc_details
     const insertData = {
       last_name: formData.personalDetails.lastName,
       first_name: formData.personalDetails.firstName,
@@ -189,18 +183,16 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       expiry_date: formData.creditCardDetails.expirationDate,
       deliver_card_to: formData.creditCardDetails.deliverCardTo,
       best_time_to_contact: formData.creditCardDetails.bestTimeToContact,
-      location: '', // Not collected in form, set as empty or add if available
+      location: '',
       agent: isAgentForm && user ? user.name : 'direct',
       relative3_name: formData.personalReference.lastName ? `${formData.personalReference.lastName}, ${formData.personalReference.firstName} ${formData.personalReference.middleName} ${formData.personalReference.suffix} (${formData.personalReference.relationship}) ${formData.personalReference.mobileNumber}`.trim() : null,
-      remarks: '', // Not collected in form, set as empty or add if available
+      remarks: '',
       bank_applied: Object.keys(formData.bankPreferences).filter(k => formData.bankPreferences[k as keyof BankPreferences]).join(', '),
-      // status: 'pending', // removed
       id_photo_url: idPhotoUrl,
       e_signature_url: eSignatureUrl,
     };
     console.log('Inserting data into kyc_details table:', JSON.stringify(insertData, null, 2));
   
-    // Insert data into Supabase
     const { error, data } = await supabase.from('kyc_details').insert(insertData);
     if (error) {
       console.error('Application Insert Error:', {
@@ -216,7 +208,6 @@ const ApplicationForm = ({ isAgentForm = false }) => {
 
     console.log('Application inserted successfully:', data);
     setToast({ show: true, message: 'Application submitted successfully', type: 'success' as const });
-    // Clear localStorage on successful submit
     localStorage.removeItem(LOCAL_STORAGE_KEY);
     setTimeout(() => {
       setLoading(false);

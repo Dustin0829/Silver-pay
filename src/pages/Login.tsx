@@ -15,7 +15,6 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Show toast when component mounts
     setShowToast(true);
   }, []);
 

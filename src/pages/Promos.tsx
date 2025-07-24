@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Menu, X } from 'lucide-react';
 
-// Official promo data for each bank (5 promos per bank, using direct image URLs)
 const banks = [
   {
     name: 'RCBC',
