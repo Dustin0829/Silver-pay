@@ -690,7 +690,7 @@ const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="py-3 px-2 align-middle whitespace-nowrap text-sm text-gray-600 max-w-[180px] truncate">{app.personal_details?.emailAddress || app.email || ''}</td>
                     <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
-                    <td className="py-3 px-4 text-sm"><span className={`px-3 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></td>
+                    <td className="py-3 px-4 text-sm"><span>{app.status}</span></td>
                     <td className="py-3 px-2 align-middle whitespace-nowrap max-w-[80px] truncate">{!app.submitted_by || app.submitted_by === 'direct' ? 'direct' : app.submitted_by}</td>
                     <td className="py-3 px-2 align-middle whitespace-nowrap max-w-[140px] truncate">
                       {agentBankCodes ? (
@@ -764,10 +764,7 @@ const AdminDashboard: React.FC = () => {
                   <div className="mb-2 font-semibold text-lg">{`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Email:</span> {app.personal_details?.emailAddress || app.email || ''}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Submitted:</span> {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</div>
-                  <div className="mb-1 text-sm"><span className="font-medium">Status:</span> <span className={`px-3 py-1 rounded-full text-xs font-semibold
-                    ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                      app.status === 'approved' ? 'bg-green-100 text-green-800' :
-                      app.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>{app.status ?? ''}</span></div>
+                  <div className="mb-1 text-sm"><span className="font-medium">Status:</span> <span>{app.status ?? ''}</span></div>
                   <div className="mb-1 text-sm"><span className="font-medium">By:</span> {!app.submitted_by || app.submitted_by === 'direct' ? 'direct' : app.submitted_by}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Bank Codes:</span> {agentBankCodes ? (
                     <ul className="space-y-1">
@@ -877,7 +874,7 @@ const AdminDashboard: React.FC = () => {
               <tr key={i} className="border-t">
                 <td className="py-3">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
                 <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
-                <td className="py-3 px-4 text-sm"><span className={`px-3 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></td>
+                <td className="py-3 px-4 text-sm"><span>{app.status}</span></td>
                 <td className="py-3">{app.submitted_by || 'direct'}</td>
                 <td className="py-3">
                   {agentBankCodes ? (
@@ -932,7 +929,7 @@ const AdminDashboard: React.FC = () => {
             <div key={i} className="border-b py-4">
               <div className="font-semibold">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</div>
               <div className="text-xs text-gray-500 mb-1">Date: {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</div>
-              <div className="text-sm mb-1">Status: <span className={`px-2 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{app.status}</span></div>
+              <div className="text-sm mb-1">Status: <span>{app.status}</span></div>
               <div className="text-sm mb-1">Submitted By: {app.submitted_by || 'direct'}</div>
               <div className="text-sm mb-1">Bank Codes: {agentBankCodes ? (
                 <ul className="space-y-1">
@@ -1534,12 +1531,18 @@ const AdminDashboard: React.FC = () => {
     doc.setLineWidth(0.5);
     doc.line(20, 25, 190, 25);
     doc.setFontSize(12);
-    const tableColumn = ['Applicant', 'Date & Time', 'Status', 'Submitted By', 'Bank Codes'];
+    // Change: Agent's Name is now the first column
+    const tableColumn = ['Agent', 'Applicant', 'Date & Time', 'Status', 'Bank Codes'];
     const tableRows = filteredApplications.map(app => [
+      // Agent's Name (from users list or fallback)
+      (() => {
+        if (!app.submitted_by || app.submitted_by === 'direct') return 'direct';
+        const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
+        return agent?.name || app.submitted_by;
+      })(),
       `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`,
       app.submitted_at ? new Date(app.submitted_at).toLocaleString() : '',
       app.status,
-      app.submitted_by || 'direct',
       (() => {
         if (!app.submitted_by || app.submitted_by === 'direct') return '-';
         const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
@@ -2113,29 +2116,30 @@ const AdminDashboard: React.FC = () => {
               <table className="w-full text-xs border">
                 <thead>
                   <tr className="bg-gray-100">
+                    <th className="p-2 border">Agent</th>
                     <th className="p-2 border">Applicant</th>
                     <th className="p-2 border">Date & Time</th>
                     <th className="p-2 border">Status</th>
-                    <th className="p-2 border">Submitted By</th>
                     <th className="p-2 border">Bank Codes</th>
-                    {/* Removed Actions column */}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredApplications.map((app, i) => {
                     let agentBankCodes = null;
+                    let agentName = 'direct';
                     if (app.submitted_by && app.submitted_by !== 'direct') {
                       const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
                       if (agent && Array.isArray(agent.bank_codes) && agent.bank_codes.length > 0) {
                         agentBankCodes = agent.bank_codes;
                       }
+                      agentName = agent?.name || app.submitted_by;
                     }
                     return (
                       <tr key={i}>
+                        <td className="p-2 border">{agentName}</td>
                         <td className="p-2 border">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
                         <td className="p-2 border">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
                         <td className="p-2 border">{app.status}</td>
-                        <td className="p-2 border">{app.submitted_by || 'direct'}</td>
                         <td className="p-2 border">
                           {agentBankCodes ? (
                             <ul className="space-y-1">
@@ -2149,7 +2153,6 @@ const AdminDashboard: React.FC = () => {
                             <span className="text-gray-400">-</span>
                           )}
                         </td>
-                        {/* Removed Actions column */}
                       </tr>
                     );
                   })}
