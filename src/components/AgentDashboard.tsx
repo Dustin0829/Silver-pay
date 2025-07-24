@@ -19,6 +19,7 @@ const AgentDashboard: React.FC = () => {
   const [nameFilter, setNameFilter] = useState('');
   const [visibleCount, setVisibleCount] = useState(20);
   const [users, setUsers] = useState<any[]>([]); // Add users state
+  const [totalApplicationsCount, setTotalApplicationsCount] = useState(0);
 
   // Debug log
   console.log('[DEBUG] applications:', applications);
@@ -31,7 +32,13 @@ const AgentDashboard: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
     const fetchAllData = async () => {
-      const { data: kycData, error: kycError } = await supabase.from('kyc_details').select('*');
+      // Fetch applications (first 1000 for display)
+      const { data: kycData, error: kycError } = await supabase.from('kyc_details').select('*').limit(1000);
+      // Fetch total count efficiently
+      const { count, error: countError } = await supabase
+        .from('kyc_details')
+        .select('*', { count: 'exact', head: true });
+      if (!countError && isMounted) setTotalApplicationsCount(count || 0);
       const { data: userData, error: userError } = await supabase.from('users').select('*');
       const normalizedKyc = (kycData || []).map((k: any) => ({
         id: `kyc-${k.id}`,
@@ -110,7 +117,7 @@ const AgentDashboard: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
         <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
           <div className="flex items-center mb-2"><FileText className="w-6 h-6 text-blue-500 mr-2" /> <span className="font-semibold">Total Applications</span></div>
-          <div className="text-2xl font-bold">{applications.length}</div>
+          <div className="text-2xl font-bold">{totalApplicationsCount}</div>
         </div>
         <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
           <div className="flex items-center mb-2"><FileText className="w-6 h-6 text-yellow-500 mr-2" /> <span className="font-semibold">Pending</span></div>
