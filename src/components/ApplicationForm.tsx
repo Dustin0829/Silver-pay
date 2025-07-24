@@ -190,9 +190,11 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       remarks: '', // Not collected in form, set as empty or add if available
       bank_applied: Object.keys(formData.bankPreferences).filter(k => formData.bankPreferences[k as keyof BankPreferences]).join(', '),
       // status: 'pending', // removed
+      id_photo_url: idPhotoUrl,
+      e_signature_url: eSignatureUrl,
     };
     console.log('Inserting data into kyc_details table:', JSON.stringify(insertData, null, 2));
-
+  
     // Insert data into Supabase
     const { error, data } = await supabase.from('kyc_details').insert(insertData);
     if (error) {

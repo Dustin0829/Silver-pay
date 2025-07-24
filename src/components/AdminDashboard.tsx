@@ -207,6 +207,7 @@ const AdminDashboard: React.FC = () => {
   const [applicationsPage, setApplicationsPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
   const PAGE_SIZE = 15;
+  const [totalApplicationsCount, setTotalApplicationsCount] = useState(0);
 
   // Sidebar navigation
   const navItems = [
@@ -216,62 +217,128 @@ const AdminDashboard: React.FC = () => {
     { key: 'history', label: 'Application History', icon: <History className="w-5 h-5 mr-2" /> },
   ];
 
-  // Fetch users and applications from Supabase
+  // Fetch users and applications from Supabase with real-time updates
   useEffect(() => {
     let isMounted = true;
+    
     const fetchAllData = async () => {
-      const { data: kycData, error: kycError } = await supabase.from('kyc_details').select('*');
-      // Map all fields needed for display, including submitted_at
-      const normalizedKyc = (kycData || []).map((k: any) => ({
-        id: `kyc-${k.id}`,
-        personal_details: {
-          firstName: k.first_name,
-          lastName: k.last_name,
-          middleName: k.middle_name,
-          suffix: k.suffix,
-          dateOfBirth: k.date_of_birth,
-          placeOfBirth: k.place_of_birth,
-          gender: k.gender,
-          civilStatus: k.civil_status,
-          nationality: k.nationality,
-          mobileNumber: k.mobile_number,
-          homeNumber: k.home_number,
-          emailAddress: k.email_address,
-          sssGsisUmid: k.sss_gsis_umid,
-          tin: k.tin,
-        },
-        status: k.status || null,
-        submitted_by: k.agent || '',
-        agent: k.agent || '',
-        submitted_at: k.created_at || k.submitted_at || null, // Use created_at if submitted_at is missing
-        // Add any other fields you want to display
-      }));
-      if (isMounted) setApplications(normalizedKyc);
+      try {
+        console.log('Fetching data from kyc_details table...');
+        
+        // Fetch KYC data from Supabase
+        const { data: kycData, error: kycError } = await supabase
+          .from('kyc_details')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(1000); // fetch up to 10,000 rows
+        
+        if (kycError) {
+          console.error('Error fetching KYC data:', kycError);
+          setToast({ show: true, message: 'Failed to fetch applications: ' + kycError.message, type: 'error' });
+          return;
+        }
+        
+        // Fetch the total count efficiently
+        const { count, error: countError } = await supabase
+          .from('kyc_details')
+          .select('*', { count: 'exact', head: true });
+        if (!countError && isMounted) setTotalApplicationsCount(count || 0);
+        
+        console.log('KYC data fetched successfully:', kycData?.length || 0, 'records');
+        
+        // Map all fields needed for display, including submitted_at
+        const normalizedKyc = (kycData || []).map((k: any) => ({
+          id: `kyc-${k.id}`,
+          personal_details: {
+            firstName: k.first_name,
+            lastName: k.last_name,
+            middleName: k.middle_name,
+            suffix: k.suffix,
+            dateOfBirth: k.date_of_birth,
+            placeOfBirth: k.place_of_birth,
+            gender: k.gender,
+            civilStatus: k.civil_status,
+            nationality: k.nationality,
+            mobileNumber: k.mobile_number,
+            homeNumber: k.home_number,
+            emailAddress: k.email_address,
+            sssGsisUmid: k.sss_gsis_umid,
+            tin: k.tin,
+          },
+          mother_details: k.mother_details || {},
+          permanent_address: k.permanent_address || {},
+          spouse_details: k.spouse_details || {},
+          personal_reference: k.personal_reference || {},
+          work_details: k.work_details || {},
+          credit_card_details: k.credit_card_details || {},
+          bank_preferences: k.bank_preferences || {},
+          id_photo_url: k.id_photo_url || '',
+          e_signature_url: k.e_signature_url || '',
+          status: k.status || '',
+          submitted_by: k.agent || '',
+          agent: k.agent || '',
+          submitted_at: k.created_at || k.submitted_at || null,
+        }));
+        
+        if (isMounted) {
+          setApplications(normalizedKyc);
+          console.log('Applications state updated with', normalizedKyc.length, 'records');
+        }
 
-      // Fetch all users from Supabase
-      const { data: userData, error: userError } = await supabase.from('users').select('*');
-      if (userError) {
-        console.error('Failed to fetch users:', userError.message);
-      } else if (isMounted) {
-        setUsers(userData || []);
+        // Fetch all users from Supabase
+        const { data: userData, error: userError } = await supabase.from('users').select('*');
+        if (userError) {
+          console.error('Failed to fetch users:', userError.message);
+          setToast({ show: true, message: 'Failed to fetch users: ' + userError.message, type: 'error' });
+        } else if (isMounted) {
+          setUsers(userData || []);
+          console.log('Users state updated with', userData?.length || 0, 'records');
+        }
+      } catch (error) {
+        console.error('Unexpected error in fetchAllData:', error);
+        setToast({ show: true, message: 'Unexpected error while fetching data', type: 'error' });
       }
     };
+    
+    // Initial data fetch
     fetchAllData();
+    
+    // Set up real-time subscription
     const channel = supabase
       .channel('realtime:kyc_details')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'kyc_details' },
-        (payload) => { fetchAllData(); }
+        (payload) => {
+          console.log('Real-time update received:', payload); // Debug real-time events
+          fetchAllData(); // Refetch all data when changes occur
+        }
       )
-      .subscribe();
-    return () => { isMounted = false; supabase.removeChannel(channel); };
+      .subscribe((status) => {
+        console.log('Real-time subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully subscribed to kyc_details real-time updates');
+        }
+      });
+    
+    // Cleanup function
+    return () => {
+      console.log('Cleaning up real-time subscription');
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  // Update dashboard stats
-  const totalApplications = applications.length;
-  const pendingReviews = applications.filter(a => a.status === 'pending').length;
-  const approved = applications.filter(a => a.status === 'approved').length;
+  // Only include applications with a non-empty status for status-based counts and displays
+  const applicationsWithStatus = applications.filter(a => a.status && a.status.trim() !== '');
+
+  // Update dashboard stats using only applications with status
+  const totalApplications = totalApplicationsCount;
+  const pendingReviews = applicationsWithStatus.filter(a => (a.status || '').toLowerCase() === 'pending').length;
+  const approved = applicationsWithStatus.filter(a => (a.status || '').toLowerCase() === 'approved').length;
+  const rejected = applicationsWithStatus.filter(a => (a.status || '').toLowerCase() === 'rejected').length;
+  const submitted = applicationsWithStatus.filter(a => (a.status || '').toLowerCase() === 'submitted').length;
+  const turnIn = applicationsWithStatus.filter(a => (a.status || '').toLowerCase() === 'turn-in').length;
   const totalUsers = users.length;
 
   // Stepper for modal
@@ -333,7 +400,7 @@ const AdminDashboard: React.FC = () => {
 
   // Section renderers
   const renderDashboard = () => (
-            <div>
+    <div>
       <h2 className="text-2xl font-bold mb-2">Admin Dashboard</h2>
       <p className="text-gray-600 mb-6">Welcome back! Here's what's happening today.</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -690,7 +757,9 @@ const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="py-3 px-2 align-middle whitespace-nowrap text-sm text-gray-600 max-w-[180px] truncate">{app.personal_details?.emailAddress || app.email || ''}</td>
                     <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
-                    <td className="py-3 px-4 text-sm"><span>{app.status}</span></td>
+                    <td className="py-3 px-4 text-sm">
+                      <span>{app.status && app.status.trim() !== '' ? app.status : '-'}</span>
+                    </td>
                     <td className="py-3 px-2 align-middle whitespace-nowrap max-w-[80px] truncate">{!app.submitted_by || app.submitted_by === 'direct' ? 'direct' : app.submitted_by}</td>
                     <td className="py-3 px-2 align-middle whitespace-nowrap max-w-[140px] truncate">
                       {agentBankCodes ? (
@@ -764,7 +833,7 @@ const AdminDashboard: React.FC = () => {
                   <div className="mb-2 font-semibold text-lg">{`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Email:</span> {app.personal_details?.emailAddress || app.email || ''}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Submitted:</span> {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</div>
-                  <div className="mb-1 text-sm"><span className="font-medium">Status:</span> <span>{app.status ?? ''}</span></div>
+                  <div className="mb-1 text-sm"><span className="font-medium">Status:</span> <span>{app.status && app.status.trim() !== '' ? app.status : '-'}</span></div>
                   <div className="mb-1 text-sm"><span className="font-medium">By:</span> {!app.submitted_by || app.submitted_by === 'direct' ? 'direct' : app.submitted_by}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Bank Codes:</span> {agentBankCodes ? (
                     <ul className="space-y-1">
@@ -804,19 +873,19 @@ const AdminDashboard: React.FC = () => {
       {/* Application summary boxes */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-4 mb-8">
         <div className="bg-white rounded-xl p-6 flex flex-col items-center shadow">
-          <div className="text-2xl font-bold">{applications.length}</div>
+          <div className="text-2xl font-bold">{totalApplications}</div>
           <div className="text-gray-500 text-sm mt-1">Total Applications</div>
         </div>
         <div className="bg-white rounded-xl p-6 flex flex-col items-center shadow">
-          <div className="text-2xl font-bold">{applications.filter(a => a.status === 'approved').length}</div>
+          <div className="text-2xl font-bold">{approved}</div>
           <div className="text-gray-500 text-sm mt-1">Approved</div>
         </div>
         <div className="bg-white rounded-xl p-6 flex flex-col items-center shadow">
-          <div className="text-2xl font-bold">{applications.filter(a => a.status === 'pending').length}</div>
+          <div className="text-2xl font-bold">{pendingReviews}</div>
           <div className="text-gray-500 text-sm mt-1">Pending</div>
         </div>
         <div className="bg-white rounded-xl p-6 flex flex-col items-center shadow">
-          <div className="text-2xl font-bold">{applications.filter(a => a.status === 'rejected').length}</div>
+          <div className="text-2xl font-bold">{rejected}</div>
           <div className="text-gray-500 text-sm mt-1">Rejected</div>
         </div>
       </div>
@@ -874,7 +943,9 @@ const AdminDashboard: React.FC = () => {
               <tr key={i} className="border-t">
                 <td className="py-3">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
                 <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
-                <td className="py-3 px-4 text-sm"><span>{app.status}</span></td>
+                <td className="py-3 px-4 text-sm">
+                  <span>{app.status && app.status.trim() !== '' ? app.status : '-'}</span>
+                </td>
                 <td className="py-3">{app.submitted_by || 'direct'}</td>
                 <td className="py-3">
                   {agentBankCodes ? (
@@ -929,7 +1000,7 @@ const AdminDashboard: React.FC = () => {
             <div key={i} className="border-b py-4">
               <div className="font-semibold">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</div>
               <div className="text-xs text-gray-500 mb-1">Date: {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</div>
-              <div className="text-sm mb-1">Status: <span>{app.status}</span></div>
+              <div className="text-sm mb-1">Status: <span>{app.status && app.status.trim() !== '' ? app.status : '-'}</span></div>
               <div className="text-sm mb-1">Submitted By: {app.submitted_by || 'direct'}</div>
               <div className="text-sm mb-1">Bank Codes: {agentBankCodes ? (
                 <ul className="space-y-1">
@@ -1729,15 +1800,22 @@ const AdminDashboard: React.FC = () => {
     setExportingPDF(true);
     const previewElement = document.getElementById('single-app-pdf-preview');
     if (!previewElement) return;
+    // Use the actual rendered size of the modal preview
+    const pdfWidth = previewElement.offsetWidth;
+    const pdfHeight = previewElement.offsetHeight;
     const canvas = await html2canvas(previewElement, {
       scale: 2,
+      width: pdfWidth,
+      height: pdfHeight,
       backgroundColor: '#fff',
       useCORS: true
     });
     const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const pdf = new jsPDF({
+      orientation: pdfWidth > pdfHeight ? 'landscape' : 'portrait',
+      unit: 'pt',
+      format: [pdfWidth, pdfHeight]
+    });
     pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
     pdf.save(`Application_${exportPreviewApp.personal_details?.lastName || 'app'}.pdf`);
     setExportingPDF(false);
@@ -2018,7 +2096,7 @@ const AdminDashboard: React.FC = () => {
                                   return (
                                     <React.Fragment>
                                       {Object.entries(addr).map(([key, value]) => (
-                                        <div key={key}>{key}: {value ?? 'N/A'}</div>
+                                        <div key={key}>{key}: {String(value ?? 'N/A')}</div>
                                       ))}
                                     </React.Fragment>
                                   );
@@ -2174,7 +2252,7 @@ const AdminDashboard: React.FC = () => {
               className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl"
             >&times;</button>
             <h2 className="text-lg font-bold mb-4">Application Export Preview</h2>
-            <div id="single-app-pdf-preview" className="bg-white text-black p-4" style={{ fontFamily: 'Arial, sans-serif', minWidth: 'unset', maxWidth: '100vw', overflowX: 'auto' }}>
+            <div id="single-app-pdf-preview" className="bg-white text-black p-4 text-[11px]" style={{ fontFamily: 'Arial, sans-serif', minWidth: 'unset', maxWidth: '100vw', overflowX: 'auto' }}>
               {/* HEADER */}
               <div className="text-center font-bold text-xl mb-2">APPLICATION FORM</div>
               {/* PERSONAL DETAILS & WORK/BUSINESS DETAILS */}
@@ -2182,80 +2260,80 @@ const AdminDashboard: React.FC = () => {
                 {/* PERSONAL DETAILS */}
                 <div className="border-r border-black">
                   <div className="bg-black text-white font-bold text-xs px-2 py-1">PERSONAL DETAILS</div>
-                  <table className="w-full text-xs border-collapse">
+                  <table className="w-full text-[11px] border-collapse">
                     <tbody>
                       <tr className="border-b border-black">
-                        <td className="font-bold">LAST NAME</td>
-                        <td>{exportPreviewApp.personal_details?.lastName}</td>
-                        <td className="font-bold">FIRST NAME</td>
-                        <td>{exportPreviewApp.personal_details?.firstName}</td>
-                        <td className="font-bold">MIDDLE NAME</td>
-                        <td>{exportPreviewApp.personal_details?.middleName}</td>
-                        <td className="font-bold">SUFFIX</td>
-                        <td>{exportPreviewApp.personal_details?.suffix}</td>
+                        <td className="font-bold px-3 py-2">LAST NAME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.lastName}</td>
+                        <td className="font-bold px-3 py-2">FIRST NAME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.firstName}</td>
+                        <td className="font-bold px-3 py-2">MIDDLE NAME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.middleName}</td>
+                        <td className="font-bold px-3 py-2">SUFFIX</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.suffix}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold">DATE OF BIRTH</td>
-                        <td>{exportPreviewApp.personal_details?.dateOfBirth}</td>
-                        <td className="font-bold">PLACE OF BIRTH</td>
-                        <td>{exportPreviewApp.personal_details?.placeOfBirth}</td>
-                        <td className="font-bold">GENDER</td>
-                        <td>{exportPreviewApp.personal_details?.gender}</td>
-                        <td className="font-bold">CIVIL STATUS</td>
-                        <td>{exportPreviewApp.personal_details?.civilStatus}</td>
+                        <td className="font-bold px-3 py-2">DATE OF BIRTH</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.dateOfBirth}</td>
+                        <td className="font-bold px-3 py-2">PLACE OF BIRTH</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.placeOfBirth}</td>
+                        <td className="font-bold px-3 py-2">GENDER</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.gender}</td>
+                        <td className="font-bold px-3 py-2">CIVIL STATUS</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.civilStatus}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold">NATIONALITY</td>
-                        <td>{exportPreviewApp.personal_details?.nationality}</td>
-                        <td className="font-bold">EMAIL ADDRESS</td>
-                        <td colSpan={3}>{exportPreviewApp.personal_details?.emailAddress}</td>
-                        <td className="font-bold">MOBILE NUMBER</td>
-                        <td>{exportPreviewApp.personal_details?.mobileNumber}</td>
+                        <td className="font-bold px-3 py-2">NATIONALITY</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.nationality}</td>
+                        <td className="font-bold px-3 py-2">EMAIL ADDRESS</td>
+                        <td className="px-3 py-2" colSpan={3}>{exportPreviewApp.personal_details?.emailAddress}</td>
+                        <td className="font-bold px-3 py-2">MOBILE NUMBER</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.mobileNumber}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold">HOME NUMBER</td>
-                        <td>{exportPreviewApp.personal_details?.homeNumber}</td>
-                        <td className="font-bold">SSS/GSIS/UMID</td>
-                        <td>{exportPreviewApp.personal_details?.sssGsisUmid}</td>
-                        <td className="font-bold">TIN</td>
-                        <td>{exportPreviewApp.personal_details?.tin}</td>
+                        <td className="font-bold px-3 py-2">HOME NUMBER</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.homeNumber}</td>
+                        <td className="font-bold px-3 py-2">SSS/GSIS/UMID</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.sssGsisUmid}</td>
+                        <td className="font-bold px-3 py-2">TIN</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.tin}</td>
                         <td colSpan={2}></td>
                       </tr>
                     </tbody>
                   </table>
                   {/* MOTHER'S MAIDEN NAME */}
                   <div className="bg-black text-white font-bold text-xs px-2 py-1 mt-2">MOTHER'S MAIDEN NAME</div>
-                  <table className="w-full text-xs border-collapse">
+                  <table className="w-full text-[11px] border-collapse">
                     <tbody>
                       <tr className="border-b border-black">
-                        <td className="font-bold">LAST NAME</td>
-                        <td>{exportPreviewApp.mother_details?.lastName}</td>
-                        <td className="font-bold">FIRST NAME</td>
-                        <td>{exportPreviewApp.mother_details?.firstName}</td>
-                        <td className="font-bold">MIDDLE NAME</td>
-                        <td>{exportPreviewApp.mother_details?.middleName}</td>
-                        <td className="font-bold">SUFFIX</td>
-                        <td>{exportPreviewApp.mother_details?.suffix}</td>
+                        <td className="font-bold px-3 py-2">LAST NAME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.mother_details?.lastName}</td>
+                        <td className="font-bold px-3 py-2">FIRST NAME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.mother_details?.firstName}</td>
+                        <td className="font-bold px-3 py-2">MIDDLE NAME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.mother_details?.middleName}</td>
+                        <td className="font-bold px-3 py-2">SUFFIX</td>
+                        <td className="px-3 py-2">{exportPreviewApp.mother_details?.suffix}</td>
                       </tr>
                     </tbody>
                   </table>
                   {/* PRESENT HOME ADDRESS */}
                   <div className="bg-black text-white font-bold text-xs px-2 py-1 mt-2">PRESENT HOME ADDRESS</div>
-                  <table className="w-full text-xs border-collapse">
+                  <table className="w-full text-[11px] border-collapse">
                     <tbody>
                       <tr className="border-b border-black">
-                        <td colSpan={2} className="font-bold">STREET/PUROK/SUBD.</td>
-                        <td colSpan={2} className="font-bold">BARANGAY</td>
-                        <td colSpan={2} className="font-bold">CITY</td>
-                        <td className="font-bold">ZIP CODE</td>
-                        <td className="font-bold">YEARS OF STAY</td>
+                        <td colSpan={2} className="font-bold px-3 py-2">STREET/PUROK/SUBD.</td>
+                        <td colSpan={2} className="font-bold px-3 py-2">BARANGAY</td>
+                        <td colSpan={2} className="font-bold px-3 py-2">CITY</td>
+                        <td className="font-bold px-3 py-2">ZIP CODE</td>
+                        <td className="font-bold px-3 py-2">YEARS OF STAY</td>
                       </tr>
                       <tr>
-                        <td colSpan={2}>{exportPreviewApp.permanent_address?.street}</td>
-                        <td colSpan={2}>{exportPreviewApp.permanent_address?.barangay}</td>
-                        <td colSpan={2}>{exportPreviewApp.permanent_address?.city}</td>
-                        <td>{exportPreviewApp.permanent_address?.zipCode}</td>
-                        <td>{exportPreviewApp.permanent_address?.yearsOfStay}</td>
+                        <td colSpan={2} className="px-3 py-2">{exportPreviewApp.permanent_address?.street}</td>
+                        <td colSpan={2} className="px-3 py-2">{exportPreviewApp.permanent_address?.barangay}</td>
+                        <td colSpan={2} className="px-3 py-2">{exportPreviewApp.permanent_address?.city}</td>
+                        <td className="px-3 py-2">{exportPreviewApp.permanent_address?.zipCode}</td>
+                        <td className="px-3 py-2">{exportPreviewApp.permanent_address?.yearsOfStay}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -2263,73 +2341,74 @@ const AdminDashboard: React.FC = () => {
                 {/* WORK/BUSINESS DETAILS */}
                 <div>
                   <div className="bg-black text-white font-bold text-xs px-2 py-1">WORK/BUSINESS DETAILS</div>
-                  <table className="w-full text-xs border-collapse">
+                  <table className="w-full text-[11px] border-collapse">
                     <tbody>
                       <tr className="border-b border-black">
-                        <td className="font-bold">BUSINESS/EMPLOYER'S NAME</td>
-                        <td>{exportPreviewApp.work_details?.businessEmployerName}</td>
-                        <td className="font-bold">PROFESSION/OCCUPATION</td>
-                        <td>{exportPreviewApp.work_details?.professionOccupation}</td>
-                        <td className="font-bold">NATURE OF BUSINESS</td>
-                        <td>{exportPreviewApp.work_details?.natureOfBusiness}</td>
+                        <td className="font-bold py-2">BUSINESS/
+                          EMPLOYER'S NAME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.work_details?.businessEmployerName}</td>
+                        <td className="font-bold px-3 py-2">PROFESSION/OCCUPATION</td>
+                        <td className="px-3 py-2">{exportPreviewApp.work_details?.professionOccupation}</td>
+                        <td className="font-bold py-2">NATURE OF BUSINESS</td>
+                        <td className="">{exportPreviewApp.work_details?.natureOfBusiness}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold">DEPARTMENT</td>
-                        <td>{exportPreviewApp.work_details?.department}</td>
-                        <td className="font-bold">LANDLINE/MOBILE</td>
-                        <td>{exportPreviewApp.work_details?.landlineMobile}</td>
-                        <td className="font-bold">YEARS IN BUSINESS</td>
-                        <td>{exportPreviewApp.work_details?.yearsInBusiness}</td>
+                        <td className="font-bold px-3 py-2">DEPARTMENT</td>
+                        <td className="px-3 py-2">{exportPreviewApp.work_details?.department}</td>
+                        <td className="font-bold px-3 py-2">LANDLINE/MOBILE</td>
+                        <td className="px-3 py-2">{exportPreviewApp.work_details?.landlineMobile}</td>
+                        <td className="font-bold px-3 py-2">YEARS IN BUSINESS</td>
+                        <td className=" py-2">{exportPreviewApp.work_details?.yearsInBusiness}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold">MONTHLY INCOME</td>
-                        <td>{exportPreviewApp.work_details?.monthlyIncome}</td>
-                        <td className="font-bold">ANNUAL INCOME</td>
-                        <td>{exportPreviewApp.work_details?.annualIncome}</td>
-                        <td className="font-bold">BUSINESS/OFFICE ADDRESS</td>
-                        <td>{exportPreviewApp.work_details?.address?.street}</td>
+                        <td className="font-bold px-3 py-2">MONTHLY INCOME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.work_details?.monthlyIncome}</td>
+                        <td className="font-bold px-3 py-2">ANNUAL INCOME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.work_details?.annualIncome}</td>
+                        <td className="font-bold px-3 py-2">BUSINESS/OFFICE ADDRESS</td>
+                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.street}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold">UNIT/FLOOR</td>
-                        <td>{exportPreviewApp.work_details?.address?.unitFloor}</td>
-                        <td className="font-bold">BUILDING/TOWER</td>
-                        <td>{exportPreviewApp.work_details?.address?.buildingTower}</td>
-                        <td className="font-bold">LOT NO.</td>
-                        <td>{exportPreviewApp.work_details?.address?.lotNo}</td>
+                        <td className="font-bold px-3 py-2">UNIT/FLOOR</td>
+                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.unitFloor}</td>
+                        <td className="font-bold px-3 py-2">BUILDING/TOWER</td>
+                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.buildingTower}</td>
+                        <td className="font-bold px-3 py-2">LOT NO.</td>
+                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.lotNo}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold">BARANGAY</td>
-                        <td>{exportPreviewApp.work_details?.address?.barangay}</td>
-                        <td className="font-bold">CITY</td>
-                        <td>{exportPreviewApp.work_details?.address?.city}</td>
-                        <td className="font-bold">ZIP CODE</td>
-                        <td>{exportPreviewApp.work_details?.address?.zipCode}</td>
+                        <td className="font-bold px-3 py-2">BARANGAY</td>
+                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.barangay}</td>
+                        <td className="font-bold px-3 py-2">CITY</td>
+                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.city}</td>
+                        <td className="font-bold px-3 py-2">ZIP CODE</td>
+                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.zipCode}</td>
                       </tr>
                     </tbody>
                   </table>
                   {/* CREDIT CARD DETAILS */}
                   <div className="bg-black text-white font-bold text-xs px-2 py-1 mt-2">CREDIT CARD DETAILS</div>
-                  <table className="w-full text-xs border-collapse">
+                  <table className="w-full text-[11px] border-collapse">
                     <tbody>
                       <tr className="border-b border-black">
-                        <td className="font-bold">BANK/INSTITUTION</td>
-                        <td>{exportPreviewApp.credit_card_details?.bankInstitution}</td>
-                        <td className="font-bold">CARD NUMBER</td>
-                        <td>{exportPreviewApp.credit_card_details?.cardNumber}</td>
-                        <td className="font-bold">CREDIT LIMIT</td>
-                        <td>{exportPreviewApp.credit_card_details?.creditLimit}</td>
+                        <td className="font-bold px-3 py-2">BANK/INSTITUTION</td>
+                        <td className="px-3 py-2">{exportPreviewApp.credit_card_details?.bankInstitution}</td>
+                        <td className="font-bold px-3 py-2">CARD NUMBER</td>
+                        <td className="px-3 py-2">{exportPreviewApp.credit_card_details?.cardNumber}</td>
+                        <td className="font-bold px-3 py-2">CREDIT LIMIT</td>
+                        <td className="px-3 py-2">{exportPreviewApp.credit_card_details?.creditLimit}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold">MEMBER SINCE</td>
-                        <td>{exportPreviewApp.credit_card_details?.memberSince}</td>
-                        <td className="font-bold">EXP. DATE</td>
-                        <td>{exportPreviewApp.credit_card_details?.expirationDate}</td>
-                        <td className="font-bold">DELIVER CARD TO</td>
-                        <td>{exportPreviewApp.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</td>
+                        <td className="font-bold px-3 py-2">MEMBER SINCE</td>
+                        <td className="px-3 py-2">{exportPreviewApp.credit_card_details?.memberSince}</td>
+                        <td className="font-bold px-3 py-2">EXP. DATE</td>
+                        <td className="px-3 py-2">{exportPreviewApp.credit_card_details?.expirationDate}</td>
+                        <td className="font-bold px-3 py-2">DELIVER CARD TO</td>
+                        <td className="px-3 py-2">{exportPreviewApp.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</td>
                       </tr>
                       <tr>
-                        <td className="font-bold">BEST TIME TO CONTACT</td>
-                        <td colSpan={5}>{exportPreviewApp.credit_card_details?.bestTimeToContact}</td>
+                        <td className="font-bold px-3 py-2">BEST TIME TO CONTACT</td>
+                        <td className="px-3 py-2" colSpan={5}>{exportPreviewApp.credit_card_details?.bestTimeToContact}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -2340,21 +2419,21 @@ const AdminDashboard: React.FC = () => {
                 {/* SPOUSE DETAILS */}
                 <div className="border-r border-black">
                   <div className="bg-black text-white font-bold text-xs px-2 py-1">SPOUSE DETAILS</div>
-                  <table className="w-full text-xs border-collapse">
+                  <table className="w-full text-[11px] border-collapse">
                     <tbody>
                       <tr>
-                        <td className="font-bold">LAST NAME</td>
-                        <td>{exportPreviewApp.spouse_details?.lastName}</td>
-                        <td className="font-bold">FIRST NAME</td>
-                        <td>{exportPreviewApp.spouse_details?.firstName}</td>
-                        <td className="font-bold">MIDDLE NAME</td>
-                        <td>{exportPreviewApp.spouse_details?.middleName}</td>
-                        <td className="font-bold">SUFFIX</td>
-                        <td>{exportPreviewApp.spouse_details?.suffix}</td>
+                        <td className="font-bold px-3 py-2">LAST NAME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.spouse_details?.lastName}</td>
+                        <td className="font-bold px-3 py-2">FIRST NAME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.spouse_details?.firstName}</td>
+                        <td className="font-bold px-3 py-2">MIDDLE NAME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.spouse_details?.middleName}</td>
+                        <td className="font-bold px-3 py-2">SUFFIX</td>
+                        <td className="px-3 py-2">{exportPreviewApp.spouse_details?.suffix}</td>
                       </tr>
                       <tr>
-                        <td className="font-bold">MOBILE NUMBER</td>
-                        <td colSpan={7}>{exportPreviewApp.spouse_details?.mobileNumber}</td>
+                        <td className="font-bold px-3 py-2">MOBILE NUMBER</td>
+                        <td className="px-3 py-2" colSpan={7}>{exportPreviewApp.spouse_details?.mobileNumber}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -2362,23 +2441,23 @@ const AdminDashboard: React.FC = () => {
                 {/* PERSONAL REFERENCE */}
                 <div>
                   <div className="bg-black text-white font-bold text-xs px-2 py-1">PERSONAL REFERENCE</div>
-                  <table className="w-full text-xs border-collapse">
+                  <table className="w-full text-[11px] border-collapse">
                     <tbody>
                       <tr>
-                        <td className="font-bold">LAST NAME</td>
-                        <td>{exportPreviewApp.personal_reference?.lastName}</td>
-                        <td className="font-bold">FIRST NAME</td>
-                        <td>{exportPreviewApp.personal_reference?.firstName}</td>
-                        <td className="font-bold">MIDDLE NAME</td>
-                        <td>{exportPreviewApp.personal_reference?.middleName}</td>
-                        <td className="font-bold">SUFFIX</td>
-                        <td>{exportPreviewApp.personal_reference?.suffix}</td>
+                        <td className="font-bold px-3 py-2">LAST NAME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_reference?.lastName}</td>
+                        <td className="font-bold px-3 py-2">FIRST NAME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_reference?.firstName}</td>
+                        <td className="font-bold px-3 py-2">MIDDLE NAME</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_reference?.middleName}</td>
+                        <td className="font-bold px-3 py-2">SUFFIX</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_reference?.suffix}</td>
                       </tr>
                       <tr>
-                        <td className="font-bold">MOBILE NUMBER</td>
-                        <td>{exportPreviewApp.personal_reference?.mobileNumber}</td>
-                        <td className="font-bold">RELATIONSHIP</td>
-                        <td colSpan={5}>{exportPreviewApp.personal_reference?.relationship}</td>
+                        <td className="font-bold px-3 py-2">MOBILE NUMBER</td>
+                        <td className="px-3 py-2">{exportPreviewApp.personal_reference?.mobileNumber}</td>
+                        <td className="font-bold px-3 py-2">RELATIONSHIP</td>
+                        <td className="px-3 py-2" colSpan={5}>{exportPreviewApp.personal_reference?.relationship}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -2387,11 +2466,11 @@ const AdminDashboard: React.FC = () => {
               {/* BANK PREFERENCES */}
               <div className="border-b border-black">
                 <div className="bg-black text-white font-bold text-xs px-2 py-1">BANK PREFERENCES</div>
-                <table className="w-full text-xs border-collapse">
+                <table className="w-full text-[11px] border-collapse">
                   <tbody>
                     <tr>
                       {BANKS.map(b => (
-                        <td key={b.value} className="px-2 py-1 border-r border-black last:border-r-0">
+                        <td key={b.value} className="px-3 py-2 border-r border-black last:border-r-0">
                           <span className="inline-block w-3 text-center mr-1">{exportPreviewApp.bank_preferences && exportPreviewApp.bank_preferences[b.value] ? '✓' : ''}</span>
                           {b.label}
                         </td>
@@ -2413,23 +2492,25 @@ const AdminDashboard: React.FC = () => {
                     <span className="font-bold">REMARKS:</span> {exportPreviewApp.remarks}
                   </div>
                 </div>
-                {/* Right: Images, no border at bottom */}
-                {(exportPreviewApp.id_photo_url || exportPreviewApp.e_signature_url) && (
-                  <div className="flex flex-row gap-8 items-end min-w-fit">
-                    {exportPreviewApp.id_photo_url && (
-                      <div className="flex flex-col items-center">
-                        <span className="font-bold text-xs mb-1">VALID ID</span>
-                        <img src={exportPreviewApp.id_photo_url} alt="Valid ID" className="w-64 h-40 object-contain bg-white" />
-                      </div>
-                    )}
-                    {exportPreviewApp.e_signature_url && (
-                      <div className="flex flex-col items-center">
-                        <span className="font-bold text-xs mb-1">E-SIGNATURE</span>
-                        <img src={exportPreviewApp.e_signature_url} alt="E-Signature" className="w-64 h-28 object-contain bg-white" />
-                      </div>
+                {/* Right: Always show both image blocks, with placeholder if missing */}
+                <div className="flex flex-row gap-8 items-end min-w-fit">
+                  <div className="flex flex-col items-center">
+                    <span className="font-bold text-xs mb-1">VALID ID</span>
+                    {exportPreviewApp.id_photo_url ? (
+                      <img src={exportPreviewApp.id_photo_url} alt="Valid ID" className="w-64 h-40 object-contain bg-white border" />
+                    ) : (
+                      <div className="w-64 h-40 flex items-center justify-center bg-gray-200 text-gray-500 border text-xs">No ID Uploaded</div>
                     )}
                   </div>
-                )}
+                  <div className="flex flex-col items-center">
+                    <span className="font-bold text-xs mb-1">E-SIGNATURE</span>
+                    {exportPreviewApp.e_signature_url ? (
+                      <img src={exportPreviewApp.e_signature_url} alt="E-Signature" className="w-64 h-28 object-contain bg-white border" />
+                    ) : (
+                      <div className="w-64 h-28 flex items-center justify-center bg-gray-200 text-gray-500 border text-xs">No Signature Uploaded</div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
