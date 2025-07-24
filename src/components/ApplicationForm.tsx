@@ -78,6 +78,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | undefined }>({ show: false, message: '', type: undefined });
   const [idPhoto, setIdPhoto] = useState<File | null>(null);
   const [eSignature, setESignature] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
 
   // Persist formData to localStorage on change
   useEffect(() => {
@@ -124,9 +125,11 @@ const ApplicationForm = ({ isAgentForm = false }) => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (currentStep !== 5) return;
+    setLoading(true);
     const missing = validateStep();
     if (missing.length > 0) {
       setToast({ show: true, message: 'Fill all the requirements', type: 'error' as const });
+      setLoading(false);
       return;
     }
 
@@ -137,6 +140,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       idPhotoUrl = await uploadWithRetry(idPhoto, 'id_photos');
       if (!idPhotoUrl) {
         setToast({ show: true, message: 'Failed to upload ID photo after retries', type: 'error' as const });
+        setLoading(false);
         return;
       }
     }
@@ -144,6 +148,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       eSignatureUrl = await uploadWithRetry(eSignature, 'e_signatures');
       if (!eSignatureUrl) {
         setToast({ show: true, message: 'Failed to upload e-signature after retries', type: 'error' as const });
+        setLoading(false);
         return;
       }
     }
@@ -205,6 +210,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
         hint: error.hint,
       });
       setToast({ show: true, message: `Error submitting application: ${error.message}`, type: 'error' as const });
+      setLoading(false);
       return;
     }
 
@@ -213,6 +219,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
     // Clear localStorage on successful submit
     localStorage.removeItem(LOCAL_STORAGE_KEY);
     setTimeout(() => {
+      setLoading(false);
       if (isAgentForm) {
         navigate('/agent/applications');
       } else {
@@ -433,8 +440,29 @@ const ApplicationForm = ({ isAgentForm = false }) => {
             {renderCurrentStep()}
             <div className="flex flex-col sm:flex-row justify-between mt-8 pt-6 border-t gap-4 sm:gap-0">
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-                {currentStep > 1 ? <button type="button" onClick={() => setCurrentStep(Math.max(1, currentStep - 1))} className="flex items-center px-4 sm:px-6 py-2 sm:py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"><ArrowLeft className="h-4 w-4 mr-2" />Previous</button> : null}
-                {currentStep < 5 ? <button type="button" onClick={handleNext} className="flex items-center px-4 sm:px-6 py-2 sm:py-3 bg-blue-700 text-white rounded-lg hover:bg-blue-800 text-sm sm:text-base">Next<ArrowRight className="h-4 w-4 ml-2" /></button> : <button type="submit" className="flex items-center px-4 sm:px-6 py-2 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm sm:text-base"><Save className="h-4 w-4 mr-2" />Submit Application</button>}
+                {currentStep > 1 ? (
+                  <button type="button" onClick={() => setCurrentStep(Math.max(1, currentStep - 1))} className="flex items-center px-4 sm:px-6 py-2 sm:py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base">
+                    <ArrowLeft className="h-4 w-4 mr-2" />Previous
+                  </button>
+                ) : null}
+                {currentStep < 5 ? (
+                  <button type="button" onClick={handleNext} className="flex items-center px-4 sm:px-6 py-2 sm:py-3 bg-blue-700 text-white rounded-lg hover:bg-blue-800 text-sm sm:text-base">
+                    Next<ArrowRight className="h-4 w-4 ml-2" />
+                  </button>
+                ) : (
+                  <button type="submit" className="flex items-center px-4 sm:px-6 py-2 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed" disabled={loading}>
+                    {loading ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />Submit Application
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </form>
