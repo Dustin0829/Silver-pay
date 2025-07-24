@@ -4,7 +4,7 @@ import { useApplications } from '../context/ApplicationContext';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
 import Toast from './Toast';
-import Logo from '../assets/Company/Logo.png';
+// import Logo from '../assets/Company/Logo.png';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
@@ -1830,7 +1830,7 @@ const AdminDashboard: React.FC = () => {
           {/* Logo and Title Section */}
           <div className="flex flex-col items-center mb-10 px-2">
             <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
-              <img src={Logo} alt="Logo" className="h-16 w-16 object-contain" />
+              <img src="/company/Logo.png" alt="Logo" className="h-16 w-16 object-contain" />
             </div>
             <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>SILVER CARD</span>
             <span className="text-xs uppercase text-gray-400 tracking-widest text-center mb-1">SOLUTIONS</span>

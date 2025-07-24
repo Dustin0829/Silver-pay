@@ -1,15 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Shield, Clock, Users, Star, CreditCard, CheckCircle, ArrowRight, TrendingUp, Award, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
-import RCBCLogo from '../assets/banks/RCBC.jpg';
-import MetrobankLogo from '../assets/banks/metrobank.jpeg';
-import EastWestLogo from '../assets/banks/eastwest.webp';
-import SecurityBankLogo from '../assets/banks/securitybank.jpg';
-import BPILogo from '../assets/banks/bpi.jpg';
-import PNBLogo from '../assets/banks/pnb.png';
-import RobinsonLogo from '../assets/banks/robinson.jpg';
-import MaybankLogo from '../assets/banks/maybank.png';
-import AUBLogo from '../assets/banks/AUB.jpg';
 import { useState } from 'react';
 
 // Add Job type
@@ -20,15 +11,15 @@ interface Job {
 
 const Landing: React.FC = () => {
   const partnerBanks = [
-    { name: 'RCBC', logo: RCBCLogo },
-    { name: 'Metrobank', logo: MetrobankLogo },
-    { name: 'EastWest Bank', logo: EastWestLogo },
-    { name: 'Security Bank', logo: SecurityBankLogo },
-    { name: 'BPI', logo: BPILogo },
-    { name: 'PNB', logo: PNBLogo },
-    { name: 'Robinson Bank', logo: RobinsonLogo },
-    { name: 'Maybank', logo: MaybankLogo },
-    { name: 'AUB', logo: AUBLogo },
+    { name: 'RCBC', logo: '/banks/RCBC.jpg' },
+    { name: 'Metrobank', logo: '/banks/metrobank.jpeg' },
+    { name: 'EastWest Bank', logo: '/banks/eastwest.webp' },
+    { name: 'Security Bank', logo: '/banks/securitybank.jpg' },
+    { name: 'BPI', logo: '/banks/bpi.jpg' },
+    { name: 'PNB', logo: '/banks/pnb.png' },
+    { name: 'Robinson Bank', logo: '/banks/robinson.jpg' },
+    { name: 'Maybank', logo: '/banks/maybank.png' },
+    { name: 'AUB', logo: '/banks/AUB.jpg' },
   ];
 
   // Replace the old promos array with real promo data from the promo page

@@ -2,7 +2,6 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { CreditCard, User, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import Logo from '../assets/Company/Logo.png';
 
 const Header: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
@@ -21,7 +20,7 @@ const Header: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-24">
           <Link to="/" className="flex items-center space-x-2">
-            <img src={Logo} alt="SilverCard Company Logo" className="h-36 w-auto" />
+            <img src="/company/Logo.png" alt="SilverCard Company Logo" className="h-36 w-auto" />
           </Link>
 
           <nav className="flex items-center space-x-6">

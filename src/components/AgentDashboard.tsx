@@ -4,7 +4,7 @@ import { FileText, Plus, Eye, Download, List, History, User, LogOut, Menu, X } f
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
-import Logo from '../assets/Company/Logo.png';
+// import Logo from '../assets/Company/Logo.png';
 
 const AgentDashboard: React.FC = () => {
   console.log('Input rendered!');
@@ -459,7 +459,7 @@ const AgentDashboard: React.FC = () => {
           {/* Logo and Title Section */}
           <div className="flex flex-col items-center mb-10 px-2">
             <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
-              <img src={Logo} alt="Logo" className="h-16 w-16 object-contain" />
+              <img src="/company/Logo.png" alt="Logo" className="h-16 w-16 object-contain" />
             </div>
             <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>SILVER CARD</span>
             <span className="text-xs uppercase text-gray-400 tracking-widest text-center mb-1">SOLUTIONS</span>
@@ -494,7 +494,7 @@ const AgentDashboard: React.FC = () => {
               <button className="absolute top-4 right-4 text-gray-400 hover:text-red-600 text-2xl" onClick={() => setSidebarOpen(false)}>&times;</button>
               <div className="flex flex-col items-center mb-10 px-2 mt-8">
                 <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
-                  <img src={Logo} alt="Logo" className="h-16 w-16 object-contain" />
+                  <img src="/company/Logo.png" alt="Logo" className="h-16 w-16 object-contain" />
                 </div>
                 <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>SILVER CARD</span>
                 <span className="text-xs uppercase text-gray-400 tracking-widest text-center mb-1">SOLUTIONS</span>
