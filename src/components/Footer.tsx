@@ -33,9 +33,9 @@ const Footer: React.FC<FooterProps> = ({ onShowTerms, onShowPrivacy }) => {
             <div className="flex flex-col gap-2 text-sm min-w-[150px] items-start text-left">
               <Link to="/promos" className="hover:text-blue-400 transition-colors px-2 py-1">Promos</Link>
               {onShowTerms ? (
-                <button type="button" className="hover:text-blue-400 transition-colors px-2 py-1 bg-transparent border-none outline-none" onClick={onShowTerms}>Terms of Service</button>
+                <button type="button" className="hover:text-blue-400 transition-colors px-2 py-1 bg-transparent border-none outline-none" onClick={onShowTerms}>Terms and Conditions</button>
               ) : (
-                <Link to="/terms-of-service" className="hover:text-blue-400 transition-colors px-2 py-1">Terms of Service</Link>
+                <Link to="/terms-of-service" className="hover:text-blue-400 transition-colors px-2 py-1">Terms and Conditions</Link>
               )}
               {onShowPrivacy ? (
                 <button type="button" className="hover:text-blue-400 transition-colors px-2 py-1 bg-transparent border-none outline-none" onClick={onShowPrivacy}>Privacy Policy</button>
