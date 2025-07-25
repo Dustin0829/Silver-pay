@@ -1826,7 +1826,8 @@ const AdminDashboard: React.FC = () => {
   return (
     <>
       <div className="flex min-h-screen">
-        <aside className="fixed top-0 left-0 h-screen w-64 bg-[#101624] text-white flex flex-col py-6 px-2 sm:px-6 shadow-xl z-50">
+        {/* Sidebar for desktop */}
+        <aside className="hidden sm:flex fixed top-0 left-0 h-screen w-64 bg-[#101624] text-white flex-col py-6 px-2 sm:px-6 shadow-xl z-50">
           {/* Logo and Title Section */}
           <div className="flex flex-col items-center mb-10 px-2">
             <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
@@ -1850,7 +1851,6 @@ const AdminDashboard: React.FC = () => {
               >
                 <span className="mr-3">{item.icon}</span>
                 <span>{item.label}</span>
-                {/* Notification badges removed */}
               </button>
             ))}
           </nav>
@@ -1859,7 +1859,43 @@ const AdminDashboard: React.FC = () => {
             <LogOut className="w-5 h-5 mr-2" /> Sign Out
           </button>
         </aside>
-        <div className="ml-64 flex-1 flex flex-col min-h-0" style={{height: '100vh'}}>
+        {/* Sidebar overlay for mobile */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-50 flex">
+            <div className="fixed inset-0 bg-black bg-opacity-40" onClick={() => setSidebarOpen(false)}></div>
+            <aside className="relative h-full w-64 bg-[#101624] text-white flex flex-col py-6 px-2 sm:px-6 shadow-xl z-50">
+              <button className="absolute top-4 right-4 text-gray-400 hover:text-red-600 text-2xl" onClick={() => setSidebarOpen(false)}>&times;</button>
+              <div className="flex flex-col items-center mb-10 px-2 mt-8">
+                <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
+                  <img src="/company/Logo.png" alt="Logo" className="h-16 w-16 object-contain" />
+                </div>
+                <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>SILVER CARD</span>
+                <span className="text-xs uppercase text-gray-400 tracking-widest text-center mb-1">SOLUTIONS</span>
+                <span className="text-sm text-gray-300 text-center">Admin Portal</span>
+              </div>
+              <nav className="flex flex-col gap-3 flex-1 items-center">
+                {navItems.map(item => (
+                  <button
+                    key={item.key}
+                    className={`flex items-center justify-center w-56 px-4 py-3 rounded-xl font-bold text-lg transition-all mb-1
+                      ${activeSection === item.key
+                        ? 'bg-blue-900 text-white shadow font-bold'
+                        : 'bg-transparent text-gray-200 hover:bg-blue-800 hover:text-white'}
+                    `}
+                    onClick={() => { setActiveSection(item.key); setSidebarOpen(false); }}
+                  >
+                    <span className="mr-3">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </nav>
+              <button onClick={logout} className="flex items-center mt-auto px-4 py-3 rounded-lg text-red-400 hover:text-red-600 border-2 border-transparent hover:bg-white/10 justify-center">
+                <LogOut className="w-5 h-5 mr-2" /> Sign Out
+              </button>
+            </aside>
+          </div>
+        )}
+        <div className="ml-0 sm:ml-64 flex-1 flex flex-col min-h-0" style={{height: '100vh'}}>
             {/* Header */}
             <header className="flex flex-row items-center justify-between bg-white px-4 sm:px-8 py-4 border-b border-gray-100 relative">
               {/* Hamburger for mobile */}

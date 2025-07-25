@@ -455,7 +455,7 @@ const AgentDashboard: React.FC = () => {
     <>
       <div className="flex min-h-screen">
         {/* Sidebar for desktop */}
-        <aside className="fixed top-0 left-0 h-screen w-64 bg-[#101624] text-white flex-col py-6 px-2 sm:px-6 shadow-xl z-50 hidden sm:flex">
+        <aside className="hidden sm:flex fixed top-0 left-0 h-screen w-64 bg-[#101624] text-white flex-col py-6 px-2 sm:px-6 shadow-xl z-50">
           {/* Logo and Title Section */}
           <div className="flex flex-col items-center mb-10 px-2">
             <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
@@ -522,7 +522,7 @@ const AgentDashboard: React.FC = () => {
             </aside>
           </div>
         )}
-        <div className="flex-1 flex flex-col min-h-0 ml-0 sm:ml-64" style={{height: '100vh'}}>
+        <div className="ml-0 sm:ml-64 flex-1 flex flex-col min-h-0" style={{height: '100vh'}}>
           {/* Header */}
           <header className="flex flex-row items-center justify-between bg-white px-4 sm:px-8 py-4 border-b border-gray-100 relative">
             {/* Hamburger for mobile */}
