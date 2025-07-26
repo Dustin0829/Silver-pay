@@ -10,6 +10,7 @@ import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
+import { useLoading } from '../context/LoadingContext';
 
 // Add this to the top, after imports
 const BANKS = [
@@ -209,6 +210,7 @@ const AdminDashboard: React.FC = () => {
   const [historyPage, setHistoryPage] = useState(1);
   const PAGE_SIZE = 15;
   const [totalApplicationsCount, setTotalApplicationsCount] = useState(0);
+  const { setLoading } = useLoading();
 
   // Sidebar navigation
   const navItems = [
@@ -223,6 +225,7 @@ const AdminDashboard: React.FC = () => {
     let isMounted = true;
     
     const fetchAllData = async () => {
+      setLoading(true);
       try {
         console.log('Fetching data from kyc_details table...');
         
@@ -298,6 +301,8 @@ const AdminDashboard: React.FC = () => {
       } catch (error) {
         console.error('Unexpected error in fetchAllData:', error);
         setToast({ show: true, message: 'Unexpected error while fetching data', type: 'error' });
+      } finally {
+        setLoading(false);
       }
     };
     
@@ -328,7 +333,7 @@ const AdminDashboard: React.FC = () => {
       isMounted = false;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [setLoading]);
 
   // Only include applications with a non-empty status for status-based counts and displays
   const applicationsWithStatus = applications.filter(a => a.status && a.status.trim() !== '');
@@ -2355,95 +2360,95 @@ const AdminDashboard: React.FC = () => {
         </div>
       )}
       {exportPreviewApp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="bg-white rounded-lg shadow-lg p-6 max-w-full w-auto relative overflow-y-auto max-h-[98vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-2 sm:p-4">
+          <div className="bg-white rounded-lg shadow-lg p-3 sm:p-6 w-full max-w-full h-full max-h-full relative overflow-y-auto">
             <button
               onClick={() => setExportPreviewApp(null)}
-              className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl"
+              className="absolute top-2 right-2 sm:top-3 sm:right-3 text-gray-400 hover:text-red-600 text-xl sm:text-2xl z-10"
             >&times;</button>
-            <h2 className="text-lg font-bold mb-4">Application Export Preview</h2>
-            <div id="single-app-pdf-preview" className="bg-white text-black p-4 text-[11px]" style={{ fontFamily: 'Arial, sans-serif', minWidth: 'unset', maxWidth: '100vw', overflowX: 'auto' }}>
+            <h2 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 pr-8">Application Export Preview</h2>
+            <div id="single-app-pdf-preview" className="bg-white text-black p-2 sm:p-4 text-[10px] sm:text-[11px]" style={{ fontFamily: 'Arial, sans-serif', minWidth: 'unset', maxWidth: '100%', overflowX: 'auto' }}>
               {/* HEADER */}
-              <div className="text-center font-bold text-xl mb-2">APPLICATION FORM</div>
+              <div className="text-center font-bold text-lg sm:text-xl mb-2">APPLICATION FORM</div>
               {/* PERSONAL DETAILS & WORK/BUSINESS DETAILS */}
-              <div className="grid grid-cols-2 gap-0 border-b border-black">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 border-b border-black">
                 {/* PERSONAL DETAILS */}
-                <div className="border-r border-black">
+                <div className="border-b lg:border-b-0 lg:border-r border-black">
                   <div className="bg-black text-white font-bold text-xs px-2 py-1">PERSONAL DETAILS</div>
-                  <table className="w-full text-[11px] border-collapse">
+                  <table className="w-full text-[9px] sm:text-[11px] border-collapse">
                     <tbody>
                       <tr className="border-b border-black">
-                        <td className="font-bold px-3 py-2">LAST NAME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.lastName}</td>
-                        <td className="font-bold px-3 py-2">FIRST NAME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.firstName}</td>
-                        <td className="font-bold px-3 py-2">MIDDLE NAME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.middleName}</td>
-                        <td className="font-bold px-3 py-2">SUFFIX</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.suffix}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">LAST NAME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_details?.lastName}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">FIRST NAME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_details?.firstName}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MIDDLE NAME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_details?.middleName}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">SUFFIX</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_details?.suffix}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold px-3 py-2">DATE OF BIRTH</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.dateOfBirth}</td>
-                        <td className="font-bold px-3 py-2">PLACE OF BIRTH</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.placeOfBirth}</td>
-                        <td className="font-bold px-3 py-2">GENDER</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.gender}</td>
-                        <td className="font-bold px-3 py-2">CIVIL STATUS</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.civilStatus}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">DATE OF BIRTH</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_details?.dateOfBirth}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">PLACE OF BIRTH</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_details?.placeOfBirth}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">GENDER</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_details?.gender}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">CIVIL STATUS</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_details?.civilStatus}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold px-3 py-2">NATIONALITY</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.nationality}</td>
-                        <td className="font-bold px-3 py-2">EMAIL ADDRESS</td>
-                        <td className="px-3 py-2" colSpan={3}>{exportPreviewApp.personal_details?.emailAddress}</td>
-                        <td className="font-bold px-3 py-2">MOBILE NUMBER</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.mobileNumber}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">NATIONALITY</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_details?.nationality}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">EMAIL ADDRESS</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.personal_details?.emailAddress}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MOBILE NUMBER</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_details?.mobileNumber}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold px-3 py-2">HOME NUMBER</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.homeNumber}</td>
-                        <td className="font-bold px-3 py-2">SSS/GSIS/UMID</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.sssGsisUmid}</td>
-                        <td className="font-bold px-3 py-2">TIN</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_details?.tin}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">HOME NUMBER</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_details?.homeNumber}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">SSS/GSIS/UMID</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_details?.sssGsisUmid}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">TIN</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_details?.tin}</td>
                         <td colSpan={2}></td>
                       </tr>
                     </tbody>
                   </table>
                   {/* MOTHER'S MAIDEN NAME */}
                   <div className="bg-black text-white font-bold text-xs px-2 py-1 mt-2">MOTHER'S MAIDEN NAME</div>
-                  <table className="w-full text-[11px] border-collapse">
+                  <table className="w-full text-[9px] sm:text-[11px] border-collapse">
                     <tbody>
                       <tr className="border-b border-black">
-                        <td className="font-bold px-3 py-2">LAST NAME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.mother_details?.lastName}</td>
-                        <td className="font-bold px-3 py-2">FIRST NAME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.mother_details?.firstName}</td>
-                        <td className="font-bold px-3 py-2">MIDDLE NAME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.mother_details?.middleName}</td>
-                        <td className="font-bold px-3 py-2">SUFFIX</td>
-                        <td className="px-3 py-2">{exportPreviewApp.mother_details?.suffix}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">LAST NAME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.mother_details?.lastName}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">FIRST NAME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.mother_details?.firstName}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MIDDLE NAME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.mother_details?.middleName}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">SUFFIX</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.mother_details?.suffix}</td>
                       </tr>
                     </tbody>
                   </table>
                   {/* PRESENT HOME ADDRESS */}
                   <div className="bg-black text-white font-bold text-xs px-2 py-1 mt-2">PRESENT HOME ADDRESS</div>
-                  <table className="w-full text-[11px] border-collapse">
+                  <table className="w-full text-[9px] sm:text-[11px] border-collapse">
                     <tbody>
                       <tr className="border-b border-black">
-                        <td colSpan={2} className="font-bold px-3 py-2">STREET/PUROK/SUBD.</td>
-                        <td colSpan={2} className="font-bold px-3 py-2">BARANGAY</td>
-                        <td colSpan={2} className="font-bold px-3 py-2">CITY</td>
-                        <td className="font-bold px-3 py-2">ZIP CODE</td>
-                        <td className="font-bold px-3 py-2">YEARS OF STAY</td>
+                        <td colSpan={2} className="font-bold px-2 sm:px-3 py-1 sm:py-2">STREET/PUROK/SUBD.</td>
+                        <td colSpan={2} className="font-bold px-2 sm:px-3 py-1 sm:py-2">BARANGAY</td>
+                        <td colSpan={2} className="font-bold px-2 sm:px-3 py-1 sm:py-2">CITY</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">ZIP CODE</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">YEARS OF STAY</td>
                       </tr>
                       <tr>
-                        <td colSpan={2} className="px-3 py-2">{exportPreviewApp.permanent_address?.street}</td>
-                        <td colSpan={2} className="px-3 py-2">{exportPreviewApp.permanent_address?.barangay}</td>
-                        <td colSpan={2} className="px-3 py-2">{exportPreviewApp.permanent_address?.city}</td>
-                        <td className="px-3 py-2">{exportPreviewApp.permanent_address?.zipCode}</td>
-                        <td className="px-3 py-2">{exportPreviewApp.permanent_address?.yearsOfStay}</td>
+                        <td colSpan={2} className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.permanent_address?.street}</td>
+                        <td colSpan={2} className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.permanent_address?.barangay}</td>
+                        <td colSpan={2} className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.permanent_address?.city}</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.permanent_address?.zipCode}</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.permanent_address?.yearsOfStay}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -2451,123 +2456,85 @@ const AdminDashboard: React.FC = () => {
                 {/* WORK/BUSINESS DETAILS */}
                 <div>
                   <div className="bg-black text-white font-bold text-xs px-2 py-1">WORK/BUSINESS DETAILS</div>
-                  <table className="w-full text-[11px] border-collapse">
+                  <table className="w-full text-[9px] sm:text-[11px] border-collapse">
                     <tbody>
                       <tr className="border-b border-black">
-                        <td className="font-bold py-2">BUSINESS/
-                          EMPLOYER'S NAME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.work_details?.businessEmployerName}</td>
-                        <td className="font-bold px-3 py-2">PROFESSION/OCCUPATION</td>
-                        <td className="px-3 py-2">{exportPreviewApp.work_details?.professionOccupation}</td>
-                        <td className="font-bold py-2">NATURE OF BUSINESS</td>
-                        <td className="">{exportPreviewApp.work_details?.natureOfBusiness}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">EMPLOYER'S NAME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={7}>{exportPreviewApp.work_details?.employerName}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold px-3 py-2">DEPARTMENT</td>
-                        <td className="px-3 py-2">{exportPreviewApp.work_details?.department}</td>
-                        <td className="font-bold px-3 py-2">LANDLINE/MOBILE</td>
-                        <td className="px-3 py-2">{exportPreviewApp.work_details?.landlineMobile}</td>
-                        <td className="font-bold px-3 py-2">YEARS IN BUSINESS</td>
-                        <td className=" py-2">{exportPreviewApp.work_details?.yearsInBusiness}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">POSITION</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.work_details?.position}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MONTHLY INCOME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.work_details?.monthlyIncome}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold px-3 py-2">MONTHLY INCOME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.work_details?.monthlyIncome}</td>
-                        <td className="font-bold px-3 py-2">ANNUAL INCOME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.work_details?.annualIncome}</td>
-                        <td className="font-bold px-3 py-2">BUSINESS/OFFICE ADDRESS</td>
-                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.street}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">WORK ADDRESS</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={7}>{exportPreviewApp.work_details?.workAddress}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold px-3 py-2">UNIT/FLOOR</td>
-                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.unitFloor}</td>
-                        <td className="font-bold px-3 py-2">BUILDING/TOWER</td>
-                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.buildingTower}</td>
-                        <td className="font-bold px-3 py-2">LOT NO.</td>
-                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.lotNo}</td>
-                      </tr>
-                      <tr className="border-b border-black">
-                        <td className="font-bold px-3 py-2">BARANGAY</td>
-                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.barangay}</td>
-                        <td className="font-bold px-3 py-2">CITY</td>
-                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.city}</td>
-                        <td className="font-bold px-3 py-2">ZIP CODE</td>
-                        <td className="px-3 py-2">{exportPreviewApp.work_details?.address?.zipCode}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">CONTACT NUMBER</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.work_details?.contactNumber}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">YEARS EMPLOYED</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.work_details?.yearsEmployed}</td>
                       </tr>
                     </tbody>
                   </table>
                   {/* CREDIT CARD DETAILS */}
                   <div className="bg-black text-white font-bold text-xs px-2 py-1 mt-2">CREDIT CARD DETAILS</div>
-                  <table className="w-full text-[11px] border-collapse">
+                  <table className="w-full text-[9px] sm:text-[11px] border-collapse">
                     <tbody>
                       <tr className="border-b border-black">
-                        <td className="font-bold px-3 py-2">BANK/INSTITUTION</td>
-                        <td className="px-3 py-2">{exportPreviewApp.credit_card_details?.bankInstitution}</td>
-                        <td className="font-bold px-3 py-2">CARD NUMBER</td>
-                        <td className="px-3 py-2">{exportPreviewApp.credit_card_details?.cardNumber}</td>
-                        <td className="font-bold px-3 py-2">CREDIT LIMIT</td>
-                        <td className="px-3 py-2">{exportPreviewApp.credit_card_details?.creditLimit}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">BANK/INSTITUTION</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.credit_card_details?.bankInstitution}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MEMBER SINCE</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.credit_card_details?.memberSince}</td>
                       </tr>
                       <tr className="border-b border-black">
-                        <td className="font-bold px-3 py-2">MEMBER SINCE</td>
-                        <td className="px-3 py-2">{exportPreviewApp.credit_card_details?.memberSince}</td>
-                        <td className="font-bold px-3 py-2">EXP. DATE</td>
-                        <td className="px-3 py-2">{exportPreviewApp.credit_card_details?.expirationDate}</td>
-                        <td className="font-bold px-3 py-2">DELIVER CARD TO</td>
-                        <td className="px-3 py-2">{exportPreviewApp.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</td>
-                      </tr>
-                      <tr>
-                        <td className="font-bold px-3 py-2">BEST TIME TO CONTACT</td>
-                        <td className="px-3 py-2" colSpan={5}>{exportPreviewApp.credit_card_details?.bestTimeToContact}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">BEST TIME TO CONTACT</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={7}>{exportPreviewApp.credit_card_details?.bestTimeToContact}</td>
                       </tr>
                     </tbody>
                   </table>
-                </div>
-              </div>
-              {/* SPOUSE DETAILS & PERSONAL REFERENCE */}
-              <div className="grid grid-cols-2 gap-0 border-b border-black">
-                {/* SPOUSE DETAILS */}
-                <div className="border-r border-black">
-                  <div className="bg-black text-white font-bold text-xs px-2 py-1">SPOUSE DETAILS</div>
-                  <table className="w-full text-[11px] border-collapse">
+                  {/* SPOUSE DETAILS */}
+                  <div className="bg-black text-white font-bold text-xs px-2 py-1 mt-2">SPOUSE DETAILS</div>
+                  <table className="w-full text-[9px] sm:text-[11px] border-collapse">
                     <tbody>
-                      <tr>
-                        <td className="font-bold px-3 py-2">LAST NAME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.spouse_details?.lastName}</td>
-                        <td className="font-bold px-3 py-2">FIRST NAME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.spouse_details?.firstName}</td>
-                        <td className="font-bold px-3 py-2">MIDDLE NAME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.spouse_details?.middleName}</td>
-                        <td className="font-bold px-3 py-2">SUFFIX</td>
-                        <td className="px-3 py-2">{exportPreviewApp.spouse_details?.suffix}</td>
+                      <tr className="border-b border-black">
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">LAST NAME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.spouse_details?.lastName}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">FIRST NAME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.spouse_details?.firstName}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MIDDLE NAME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.spouse_details?.middleName}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">SUFFIX</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.spouse_details?.suffix}</td>
                       </tr>
                       <tr>
-                        <td className="font-bold px-3 py-2">MOBILE NUMBER</td>
-                        <td className="px-3 py-2" colSpan={7}>{exportPreviewApp.spouse_details?.mobileNumber}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MOBILE NUMBER</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={7}>{exportPreviewApp.spouse_details?.mobileNumber}</td>
                       </tr>
                     </tbody>
                   </table>
-                </div>
-                {/* PERSONAL REFERENCE */}
-                <div>
-                  <div className="bg-black text-white font-bold text-xs px-2 py-1">PERSONAL REFERENCE</div>
-                  <table className="w-full text-[11px] border-collapse">
+                  {/* PERSONAL REFERENCE */}
+                  <div className="bg-black text-white font-bold text-xs px-2 py-1 mt-2">PERSONAL REFERENCE</div>
+                  <table className="w-full text-[9px] sm:text-[11px] border-collapse">
                     <tbody>
                       <tr>
-                        <td className="font-bold px-3 py-2">LAST NAME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_reference?.lastName}</td>
-                        <td className="font-bold px-3 py-2">FIRST NAME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_reference?.firstName}</td>
-                        <td className="font-bold px-3 py-2">MIDDLE NAME</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_reference?.middleName}</td>
-                        <td className="font-bold px-3 py-2">SUFFIX</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_reference?.suffix}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">LAST NAME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_reference?.lastName}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">FIRST NAME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_reference?.firstName}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MIDDLE NAME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_reference?.middleName}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">SUFFIX</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_reference?.suffix}</td>
                       </tr>
                       <tr>
-                        <td className="font-bold px-3 py-2">MOBILE NUMBER</td>
-                        <td className="px-3 py-2">{exportPreviewApp.personal_reference?.mobileNumber}</td>
-                        <td className="font-bold px-3 py-2">RELATIONSHIP</td>
-                        <td className="px-3 py-2" colSpan={5}>{exportPreviewApp.personal_reference?.relationship}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MOBILE NUMBER</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_reference?.mobileNumber}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">RELATIONSHIP</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={5}>{exportPreviewApp.personal_reference?.relationship}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -2576,11 +2543,11 @@ const AdminDashboard: React.FC = () => {
               {/* BANK PREFERENCES */}
               <div className="border-b border-black">
                 <div className="bg-black text-white font-bold text-xs px-2 py-1">BANK PREFERENCES</div>
-                <table className="w-full text-[11px] border-collapse">
+                <table className="w-full text-[9px] sm:text-[11px] border-collapse">
                   <tbody>
                     <tr>
                       {BANKS.map(b => (
-                        <td key={b.value} className="px-3 py-2 border-r border-black last:border-r-0">
+                        <td key={b.value} className="px-2 sm:px-3 py-1 sm:py-2 border-r border-black last:border-r-0">
                           <span className="inline-block w-3 text-center mr-1">{exportPreviewApp.bank_preferences && exportPreviewApp.bank_preferences[b.value] ? '✓' : ''}</span>
                           {b.label}
                         </td>
@@ -2590,9 +2557,9 @@ const AdminDashboard: React.FC = () => {
                 </table>
               </div>
               {/* LOCATION, DATE, AGENT, REMARKS, PHOTOS */}
-              <div className="flex flex-row gap-0 mt-2 w-full">
+              <div className="flex flex-col lg:flex-row gap-4 mt-2 w-full">
                 {/* Left: Location/Date/Agent, then Remarks below */}
-                <div className="flex flex-col flex-1 min-w-0 pr-4">
+                <div className="flex flex-col flex-1 min-w-0">
                   <div className="text-xs">
                     <div><span className="font-bold">LOCATION:</span> {exportPreviewApp.location}</div>
                     <div><span className="font-bold">DATE:</span> {exportPreviewApp.submitted_at ? new Date(exportPreviewApp.submitted_at).toLocaleDateString() : ''}</div>
@@ -2603,29 +2570,29 @@ const AdminDashboard: React.FC = () => {
                   </div>
                 </div>
                 {/* Right: Always show both image blocks, with placeholder if missing */}
-                <div className="flex flex-row gap-8 items-end min-w-fit">
+                <div className="flex flex-col sm:flex-row gap-4 lg:gap-8 items-center lg:items-end min-w-fit">
                   <div className="flex flex-col items-center">
                     <span className="font-bold text-xs mb-1">VALID ID</span>
                     {exportPreviewApp.id_photo_url ? (
-                      <img src={exportPreviewApp.id_photo_url} alt="Valid ID" className="w-64 h-40 object-contain bg-white border" />
+                      <img src={exportPreviewApp.id_photo_url} alt="Valid ID" className="w-48 sm:w-64 h-32 sm:h-40 object-contain bg-white border" />
                     ) : (
-                      <div className="w-64 h-40 flex items-center justify-center bg-gray-200 text-gray-500 border text-xs">No ID Uploaded</div>
+                      <div className="w-48 sm:w-64 h-32 sm:h-40 flex items-center justify-center bg-gray-200 text-gray-500 border text-xs">No ID Uploaded</div>
                     )}
                   </div>
                   <div className="flex flex-col items-center">
                     <span className="font-bold text-xs mb-1">E-SIGNATURE</span>
                     {exportPreviewApp.e_signature_url ? (
-                      <img src={exportPreviewApp.e_signature_url} alt="E-Signature" className="w-64 h-28 object-contain bg-white border" />
+                      <img src={exportPreviewApp.e_signature_url} alt="E-Signature" className="w-48 sm:w-64 h-20 sm:h-28 object-contain bg-white border" />
                     ) : (
-                      <div className="w-64 h-28 flex items-center justify-center bg-gray-200 text-gray-500 border text-xs">No Signature Uploaded</div>
+                      <div className="w-48 sm:w-64 h-20 sm:h-28 flex items-center justify-center bg-gray-200 text-gray-500 border text-xs">No Signature Uploaded</div>
                     )}
                   </div>
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300" onClick={() => setExportPreviewApp(null)}>Cancel</button>
-              <button className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700" onClick={handleExportSinglePDF} disabled={exportingPDF}>{exportingPDF ? 'Exporting...' : 'Download PDF'}</button>
+            <div className="flex flex-col sm:flex-row justify-end gap-2 mt-4">
+              <button className="px-3 sm:px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-sm" onClick={() => setExportPreviewApp(null)}>Cancel</button>
+              <button className="px-3 sm:px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm" onClick={handleExportSinglePDF} disabled={exportingPDF}>{exportingPDF ? 'Exporting...' : 'Download PDF'}</button>
             </div>
           </div>
         </div>

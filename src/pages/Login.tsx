@@ -4,15 +4,16 @@ import { LogIn, Mail, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Toast from '../components/Toast';
 import BackButton from '../components/BackButton';
+import { useLoading } from '../context/LoadingContext';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [showToast, setShowToast] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { setLoading } = useLoading();
+  const [showToast, setShowToast] = useState(false);
 
   useEffect(() => {
     setShowToast(true);
@@ -92,10 +93,9 @@ const Login: React.FC = () => {
 
           <button
             type="submit"
-            disabled={loading}
             className="w-full bg-blue-700 text-white py-2 sm:py-3 px-4 rounded-lg hover:bg-blue-800 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            Sign In
           </button>
         </form>
         <div className="mt-6 text-center">

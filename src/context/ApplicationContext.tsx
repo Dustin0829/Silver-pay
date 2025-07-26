@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../supabaseClient';
 import { Application } from '../types';
+import { useLoading } from './LoadingContext';
 
 interface ApplicationContextType {
   applications: Application[];
@@ -13,11 +14,14 @@ const ApplicationContext = createContext<ApplicationContextType | undefined>(und
 
 export const ApplicationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [applications, setApplications] = useState<Application[]>([]);
+  const { setLoading } = useLoading();
 
   useEffect(() => {
+    setLoading(true);
     const fetchApplications = async () => {
       const { data, error } = await supabase.from('kyc_details').select('*');
       if (!error && data) setApplications(data as Application[]);
+      setLoading(false);
     };
     fetchApplications();
   }, []);

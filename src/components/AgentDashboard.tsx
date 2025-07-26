@@ -4,6 +4,7 @@ import { FileText, Plus, Eye, Download, List, History, User, LogOut, Menu, X } f
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../context/AuthContext';
 import { format } from 'date-fns';
+import { useLoading } from '../context/LoadingContext';
 // import Logo from '../assets/Company/Logo.png';
 
 const AgentDashboard: React.FC = () => {
@@ -20,6 +21,7 @@ const AgentDashboard: React.FC = () => {
   const [visibleCount, setVisibleCount] = useState(20);
   const [users, setUsers] = useState<any[]>([]); // Add users state
   const [totalApplicationsCount, setTotalApplicationsCount] = useState(0);
+  const { setLoading } = useLoading();
 
   // Debug log
   console.log('[DEBUG] applications:', applications);
@@ -32,6 +34,7 @@ const AgentDashboard: React.FC = () => {
   useEffect(() => {
     let isMounted = true;
     const fetchAllData = async () => {
+      setLoading(true);
       // Fetch applications (first 1000 for display)
       const { data: kycData, error: kycError } = await supabase.from('kyc_details').select('*').limit(1000);
       // Fetch total count efficiently
@@ -76,6 +79,7 @@ const AgentDashboard: React.FC = () => {
         setApplications(normalizedKyc);
         setUsers(userData || []);
       }
+      setLoading(false);
     };
     fetchAllData();
     const channel = supabase

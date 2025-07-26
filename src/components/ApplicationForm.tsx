@@ -4,6 +4,7 @@ import { Save, ArrowLeft, ArrowRight } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import Toast from './Toast';
 import { useAuth } from '../context/AuthContext';
+import { useLoading } from '../context/LoadingContext';
 import {
   PersonalDetails,
   MotherDetails,
@@ -75,7 +76,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | undefined }>({ show: false, message: '', type: undefined });
   const [idPhoto, setIdPhoto] = useState<File | null>(null);
   const [eSignature, setESignature] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { setLoading } = useLoading();
 
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(formData));
@@ -261,20 +262,13 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       if (!pa.zipCode) missing.push('Zip Code');
       if (!pa.yearsOfStay) missing.push('Years of Stay');
       const sp = formData.spouseDetails;
-      if (sp.lastName || sp.firstName || sp.middleName || sp.mobileNumber) {
+      if (sp.lastName || sp.firstName || sp.middleName) {
         if (!sp.lastName) missing.push('Spouse Last Name');
         if (!sp.firstName) missing.push('Spouse First Name');
         if (!sp.middleName) missing.push('Spouse Middle Name');
-        if (!sp.mobileNumber) missing.push('Spouse Mobile Number');
+        // Spouse mobile number is not required
       }
-      const pr = formData.personalReference;
-      if (pr.lastName || pr.firstName || pr.middleName || pr.mobileNumber || pr.relationship) {
-        if (!pr.lastName) missing.push('Reference Last Name');
-        if (!pr.firstName) missing.push('Reference First Name');
-        if (!pr.middleName) missing.push('Reference Middle Name');
-        if (!pr.mobileNumber) missing.push('Reference Mobile Number');
-        if (!pr.relationship) missing.push('Reference Relationship');
-      }
+      // Personal reference fields are not required
     } else if (currentStep === 3) {
       const wd = formData.workDetails;
       if (!wd.businessEmployerName) missing.push('Business/Employer Name');
@@ -447,17 +441,8 @@ const ApplicationForm = ({ isAgentForm = false }) => {
                     Next<ArrowRight className="h-4 w-4 ml-2" />
                   </button>
                 ) : (
-                  <button type="submit" className="flex items-center px-4 sm:px-6 py-2 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed" disabled={loading}>
-                    {loading ? (
-                      <>
-                        <svg className="animate-spin h-4 w-4 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />Submit Application
-                      </>
-                    )}
+                  <button type="submit" className="flex items-center px-4 sm:px-6 py-2 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed">
+                    <Save className="h-4 w-4 mr-2" />Submit Application
                   </button>
                 )}
               </div>

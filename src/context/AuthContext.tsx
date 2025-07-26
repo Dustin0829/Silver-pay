@@ -1,22 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
 import { supabase } from '../supabaseClient';
+import { useLoading } from './LoadingContext';
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
-  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { setLoading } = useLoading();
 
   useEffect(() => {
+    setLoading(true);
     const getSessionAndProfile = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session && session.user) {
@@ -67,12 +68,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
+    setLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     if (error || !data.session) {
       console.error('Auth error:', error?.message);
+      setLoading(false);
       return false;
     }
     const { data: profile, error: profileError } = await supabase
@@ -82,6 +85,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       .single();
     if (profileError || !profile) {
       console.error('Profile error:', profileError?.message);
+      setLoading(false);
     return false;
     }
     setUser({
@@ -91,12 +95,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       role: profile.role,
       createdAt: new Date(profile.created_at || data.user.created_at),
     });
+    setLoading(false);
     return true;
   };
 
   const logout = async () => {
+    setLoading(true);
     await supabase.auth.signOut();
     setUser(null);
+    setLoading(false);
   };
 
   const value = {
@@ -104,7 +111,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     login,
     logout,
     isAuthenticated: !!user,
-    loading,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
