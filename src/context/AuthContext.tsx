@@ -17,7 +17,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { setLoading } = useLoading();
 
   useEffect(() => {
-    setLoading(true);
     const getSessionAndProfile = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session && session.user) {
@@ -36,7 +35,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
         }
       }
-      setLoading(false);
     };
     getSessionAndProfile();
 
