@@ -43,38 +43,152 @@ const AgentDashboard: React.FC = () => {
         .select('*', { count: 'exact', head: true });
       if (!countError && isMounted) setTotalApplicationsCount(count || 0);
       const { data: userData, error: userError } = await supabase.from('users').select('*');
-      const normalizedKyc = (kycData || []).map((k: any) => ({
-        id: `kyc-${k.id}`,
-        personal_details: {
-          firstName: k.first_name,
-          lastName: k.last_name,
-          middleName: k.middle_name,
-          suffix: k.suffix,
-          dateOfBirth: k.date_of_birth,
-          placeOfBirth: k.place_of_birth,
-          gender: k.gender,
-          civilStatus: k.civil_status || '',
-          nationality: k.nationality || '',
-          mobileNumber: k.mobile_number || '',
-          homeNumber: k.home_number || '',
-          emailAddress: k.email_address || '',
-          sssGsisUmid: k.sss_gsis_umid || '',
-          tin: k.tin || '',
-        },
-        mother_details: k.mother_details || {},
-        permanent_address: k.permanent_address || {},
-        spouse_details: k.spouse_details || {},
-        personal_reference: k.personal_reference || {},
-        work_details: k.work_details || {},
-        credit_card_details: k.credit_card_details || {},
-        bank_preferences: k.bank_preferences || {},
-        id_photo_url: k.id_photo_url || '',
-        e_signature_url: k.e_signature_url || '',
-        status: k.status || null,
-        submitted_by: k.agent || '',
-        agent: k.agent || '',
-        submitted_at: k.submitted_at || null,
-      }));
+      
+      // Helper function to parse relative name
+      const parseRelativeName = (relativeName: string) => {
+        if (!relativeName) return { firstName: '', middleName: '', lastName: '', suffix: '' };
+        const parts = relativeName.split(',').map(p => p.trim());
+        if (parts.length >= 2) {
+          const nameParts = parts[1].split(' ').filter(p => p);
+          return {
+            lastName: parts[0] || '',
+            firstName: nameParts[0] || '',
+            middleName: nameParts.slice(1, -1).join(' ') || '',
+            suffix: nameParts[nameParts.length - 1] || '',
+          };
+        }
+        return { firstName: '', middleName: '', lastName: '', suffix: '' };
+      };
+
+      // Helper function to parse address
+      const parseAddress = (address: string) => {
+        if (!address) return { street: '', barangay: '', city: '', zipCode: '', province: '' };
+        const parts = address.split(',').map(p => p.trim());
+        return {
+          street: parts[0] || '',
+          barangay: parts[1] || '',
+          city: parts[2] || '',
+          zipCode: parts[3] || '',
+          province: parts[4] || '',
+        };
+      };
+
+      // Helper function to parse business address
+      const parseBusinessAddress = (address: string) => {
+        if (!address) return { street: '', barangay: '', city: '', zipCode: '', unitFloor: '', buildingTower: '', lotNo: '' };
+        const parts = address.split(',').map(p => p.trim());
+        return {
+          street: parts[0] || '',
+          barangay: parts[1] || '',
+          city: parts[2] || '',
+          zipCode: parts[3] || '',
+          unitFloor: parts[4] || '',
+          buildingTower: parts[5] || '',
+          lotNo: parts[6] || '',
+        };
+      };
+
+      // Helper function to parse personal reference
+      const parsePersonalReference = (reference: string) => {
+        if (!reference) return { firstName: '', middleName: '', lastName: '', suffix: '', mobileNumber: '', relationship: '' };
+        const match = reference.match(/^(.+?),\s*(.+?)\s+\((.+?)\)\s+(.+)$/);
+        if (match) {
+          const nameParts = match[2].split(' ').filter(p => p);
+          return {
+            lastName: match[1] || '',
+            firstName: nameParts[0] || '',
+            middleName: nameParts.slice(1, -1).join(' ') || '',
+            suffix: nameParts[nameParts.length - 1] || '',
+            relationship: match[3] || '',
+            mobileNumber: match[4] || '',
+          };
+        }
+        return { firstName: '', middleName: '', lastName: '', suffix: '', mobileNumber: '', relationship: '' };
+      };
+
+      // Helper function to parse bank preferences
+      const parseBankPreferences = (bankApplied: string) => {
+        if (!bankApplied) return {};
+        const banks = bankApplied.split(',').map(b => b.trim().toLowerCase());
+        return {
+          rcbc: banks.includes('rcbc'),
+          metrobank: banks.includes('metrobank'),
+          eastWestBank: banks.includes('eastwestbank'),
+          securityBank: banks.includes('securitybank'),
+          bpi: banks.includes('bpi'),
+          pnb: banks.includes('pnb'),
+          robinsonBank: banks.includes('robinsonbank'),
+          maybank: banks.includes('maybank'),
+          aub: banks.includes('aub'),
+        };
+      };
+
+      const normalizedKyc = (kycData || []).map((k: any) => {
+        const permanentAddress = parseAddress(k.address);
+        const businessAddress = parseBusinessAddress(k.business_address);
+        const motherDetails = parseRelativeName(k.relative_name);
+        const spouseDetails = parseRelativeName(k.relative2_name);
+        const personalReference = parsePersonalReference(k.relative3_name);
+        const bankPreferences = parseBankPreferences(k.bank_applied);
+
+        return {
+          id: `kyc-${k.id}`,
+          personal_details: {
+            firstName: k.first_name || '',
+            lastName: k.last_name || '',
+            middleName: k.middle_name || '',
+            suffix: k.suffix || '',
+            dateOfBirth: k.date_of_birth || '',
+            placeOfBirth: k.place_of_birth || '',
+            gender: k.gender || '',
+            civilStatus: k.civil_status || '',
+            nationality: k.nationality || '',
+            mobileNumber: k.mobile_number || '',
+            homeNumber: k.home_number || '',
+            emailAddress: k.email_address || '',
+            sssGsisUmid: k.sss_gsis_umid || '',
+            tin: k.tin || '',
+          },
+          mother_details: motherDetails,
+          permanent_address: {
+            ...permanentAddress,
+            yearsOfStay: k.years_of_stay || '',
+          },
+          spouse_details: {
+            ...spouseDetails,
+            mobileNumber: k.spouse_mobile_number || '',
+          },
+          personal_reference: personalReference,
+          work_details: {
+            businessEmployerName: k.business || '',
+            professionOccupation: k.profession || '',
+            natureOfBusiness: k.nature_of_business || '',
+            department: k.department || '',
+            landlineMobile: k.contact_number || '',
+            yearsInBusiness: k.years_in_business || '',
+            monthlyIncome: k.monthly_income || '',
+            annualIncome: k.annual_income || '',
+            address: businessAddress,
+          },
+          credit_card_details: {
+            bankInstitution: k.bank_institution || '',
+            cardNumber: k.card_number || '',
+            creditLimit: k.credit_limit || '',
+            memberSince: k.member_since || '',
+            expirationDate: k.expiry_date || '',
+            deliverCardTo: k.deliver_card_to || '',
+            bestTimeToContact: k.best_time_to_contact || '',
+          },
+          bank_preferences: bankPreferences,
+          id_photo_url: k.id_photo_url || '',
+          e_signature_url: k.e_signature_url || '',
+          status: k.status || null,
+          submitted_by: k.agent || '',
+          agent: k.agent || '',
+          submitted_at: k.submitted_at || null,
+        };
+      });
+      
       if (isMounted) {
         setApplications(normalizedKyc);
         setUsers(userData || []);
@@ -111,6 +225,7 @@ const AgentDashboard: React.FC = () => {
     { title: 'Address & Family', number: 2 },
     { title: 'Work Details', number: 3 },
     { title: 'Credit & Preferences', number: 4 },
+    { title: 'Documents', number: 5 },
   ];
 
   // Section renderers
@@ -327,20 +442,20 @@ const AgentDashboard: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span className="font-medium">Last Name:</span> {app.personalDetails?.lastName}</div>
-                <div><span className="font-medium">First Name:</span> {app.personalDetails?.firstName}</div>
-                <div><span className="font-medium">Middle Name:</span> {app.personalDetails?.middleName}</div>
-                <div><span className="font-medium">Suffix:</span> {app.personalDetails?.suffix}</div>
-                <div><span className="font-medium">Date of Birth:</span> {app.personalDetails?.dateOfBirth}</div>
-                <div><span className="font-medium">Place of Birth:</span> {app.personalDetails?.placeOfBirth}</div>
-                <div><span className="font-medium">Gender:</span> {app.personalDetails?.gender}</div>
-                <div><span className="font-medium">Civil Status:</span> {app.personalDetails?.civilStatus}</div>
-                <div><span className="font-medium">Nationality:</span> {app.personalDetails?.nationality}</div>
-                <div><span className="font-medium">Mobile Number:</span> {app.personalDetails?.mobileNumber}</div>
-                <div><span className="font-medium">Home Number:</span> {app.personalDetails?.homeNumber}</div>
-                <div><span className="font-medium">Email Address:</span> {app.personalDetails?.emailAddress}</div>
-                <div><span className="font-medium">SSS/GSIS/UMID:</span> {app.personalDetails?.sssGsisUmid}</div>
-                <div><span className="font-medium">TIN:</span> {app.personalDetails?.tin}</div>
+                <div><span className="font-medium">Last Name:</span> {app.personal_details?.lastName}</div>
+                <div><span className="font-medium">First Name:</span> {app.personal_details?.firstName}</div>
+                <div><span className="font-medium">Middle Name:</span> {app.personal_details?.middleName}</div>
+                <div><span className="font-medium">Suffix:</span> {app.personal_details?.suffix}</div>
+                <div><span className="font-medium">Date of Birth:</span> {app.personal_details?.dateOfBirth}</div>
+                <div><span className="font-medium">Place of Birth:</span> {app.personal_details?.placeOfBirth}</div>
+                <div><span className="font-medium">Gender:</span> {app.personal_details?.gender}</div>
+                <div><span className="font-medium">Civil Status:</span> {app.personal_details?.civilStatus}</div>
+                <div><span className="font-medium">Nationality:</span> {app.personal_details?.nationality}</div>
+                <div><span className="font-medium">Mobile Number:</span> {app.personal_details?.mobileNumber}</div>
+                <div><span className="font-medium">Home Number:</span> {app.personal_details?.homeNumber}</div>
+                <div><span className="font-medium">Email Address:</span> {app.personal_details?.emailAddress}</div>
+                <div><span className="font-medium">SSS/GSIS/UMID:</span> {app.personal_details?.sssGsisUmid}</div>
+                <div><span className="font-medium">TIN:</span> {app.personal_details?.tin}</div>
               </div>
             </div>
           </div>
@@ -352,44 +467,45 @@ const AgentDashboard: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Mother's Maiden Name</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span className="font-medium">Last Name:</span> {app.motherDetails?.lastName}</div>
-                <div><span className="font-medium">First Name:</span> {app.motherDetails?.firstName}</div>
-                <div><span className="font-medium">Middle Name:</span> {app.motherDetails?.middleName}</div>
-                <div><span className="font-medium">Suffix:</span> {app.motherDetails?.suffix}</div>
+                <div><span className="font-medium">Last Name:</span> {app.mother_details?.lastName}</div>
+                <div><span className="font-medium">First Name:</span> {app.mother_details?.firstName}</div>
+                <div><span className="font-medium">Middle Name:</span> {app.mother_details?.middleName}</div>
+                <div><span className="font-medium">Suffix:</span> {app.mother_details?.suffix}</div>
               </div>
             </div>
             {/* Permanent Address */}
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Permanent Address</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span className="font-medium">Street:</span> {app.permanentAddress?.street}</div>
-                <div><span className="font-medium">Barangay:</span> {app.permanentAddress?.barangay}</div>
-                <div><span className="font-medium">City:</span> {app.permanentAddress?.city}</div>
-                <div><span className="font-medium">Zip Code:</span> {app.permanentAddress?.zipCode}</div>
-                <div><span className="font-medium">Years of Stay:</span> {app.permanentAddress?.yearsOfStay}</div>
+                <div><span className="font-medium">Street:</span> {app.permanent_address?.street}</div>
+                <div><span className="font-medium">Barangay:</span> {app.permanent_address?.barangay}</div>
+                <div><span className="font-medium">City:</span> {app.permanent_address?.city}</div>
+                <div><span className="font-medium">Province:</span> {app.permanent_address?.province}</div>
+                <div><span className="font-medium">Zip Code:</span> {app.permanent_address?.zipCode}</div>
+                <div><span className="font-medium">Years of Stay:</span> {app.permanent_address?.yearsOfStay}</div>
               </div>
             </div>
             {/* Spouse Details */}
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Spouse Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span className="font-medium">Last Name:</span> {app.spouseDetails?.lastName}</div>
-                <div><span className="font-medium">First Name:</span> {app.spouseDetails?.firstName}</div>
-                <div><span className="font-medium">Middle Name:</span> {app.spouseDetails?.middleName}</div>
-                <div><span className="font-medium">Suffix:</span> {app.spouseDetails?.suffix}</div>
-                <div><span className="font-medium">Mobile Number:</span> {app.spouseDetails?.mobileNumber}</div>
+                <div><span className="font-medium">Last Name:</span> {app.spouse_details?.lastName}</div>
+                <div><span className="font-medium">First Name:</span> {app.spouse_details?.firstName}</div>
+                <div><span className="font-medium">Middle Name:</span> {app.spouse_details?.middleName}</div>
+                <div><span className="font-medium">Suffix:</span> {app.spouse_details?.suffix}</div>
+                <div><span className="font-medium">Mobile Number:</span> {app.spouse_details?.mobileNumber}</div>
               </div>
             </div>
             {/* Personal Reference */}
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Reference</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span className="font-medium">Last Name:</span> {app.personalReference?.lastName}</div>
-                <div><span className="font-medium">First Name:</span> {app.personalReference?.firstName}</div>
-                <div><span className="font-medium">Middle Name:</span> {app.personalReference?.middleName}</div>
-                <div><span className="font-medium">Suffix:</span> {app.personalReference?.suffix}</div>
-                <div><span className="font-medium">Mobile Number:</span> {app.personalReference?.mobileNumber}</div>
-                <div><span className="font-medium">Relationship:</span> {app.personalReference?.relationship}</div>
+                <div><span className="font-medium">Last Name:</span> {app.personal_reference?.lastName}</div>
+                <div><span className="font-medium">First Name:</span> {app.personal_reference?.firstName}</div>
+                <div><span className="font-medium">Middle Name:</span> {app.personal_reference?.middleName}</div>
+                <div><span className="font-medium">Suffix:</span> {app.personal_reference?.suffix}</div>
+                <div><span className="font-medium">Mobile Number:</span> {app.personal_reference?.mobileNumber}</div>
+                <div><span className="font-medium">Relationship:</span> {app.personal_reference?.relationship}</div>
               </div>
             </div>
           </div>
@@ -401,25 +517,25 @@ const AgentDashboard: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Work/Business Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span className="font-medium">Business/Employer's Name:</span> {app.workDetails?.businessEmployerName}</div>
-                <div><span className="font-medium">Profession/Occupation:</span> {app.workDetails?.professionOccupation}</div>
-                <div><span className="font-medium">Nature of Business:</span> {app.workDetails?.natureOfBusiness}</div>
-                <div><span className="font-medium">Department:</span> {app.workDetails?.department}</div>
-                <div><span className="font-medium">Landline/Mobile:</span> {app.workDetails?.landlineMobile}</div>
-                <div><span className="font-medium">Years in Business:</span> {app.workDetails?.yearsInBusiness}</div>
-                <div><span className="font-medium">Monthly Income:</span> {app.workDetails?.monthlyIncome}</div>
-                <div><span className="font-medium">Annual Income:</span> {app.workDetails?.annualIncome}</div>
+                <div><span className="font-medium">Business/Employer's Name:</span> {app.work_details?.businessEmployerName}</div>
+                <div><span className="font-medium">Profession/Occupation:</span> {app.work_details?.professionOccupation}</div>
+                <div><span className="font-medium">Nature of Business:</span> {app.work_details?.natureOfBusiness}</div>
+                <div><span className="font-medium">Department:</span> {app.work_details?.department}</div>
+                <div><span className="font-medium">Landline/Mobile:</span> {app.work_details?.landlineMobile}</div>
+                <div><span className="font-medium">Years in Business:</span> {app.work_details?.yearsInBusiness}</div>
+                <div><span className="font-medium">Monthly Income:</span> {app.work_details?.monthlyIncome}</div>
+                <div><span className="font-medium">Annual Income:</span> {app.work_details?.annualIncome}</div>
               </div>
               <div className="mt-4">
                 <h5 className="font-semibold mb-2">Business/Office Address</h5>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><span className="font-medium">Street:</span> {app.workDetails?.address?.street}</div>
-                  <div><span className="font-medium">Barangay:</span> {app.workDetails?.address?.barangay}</div>
-                  <div><span className="font-medium">City:</span> {app.workDetails?.address?.city}</div>
-                  <div><span className="font-medium">Zip Code:</span> {app.workDetails?.address?.zipCode}</div>
-                  <div><span className="font-medium">Unit/Floor:</span> {app.workDetails?.address?.unitFloor}</div>
-                  <div><span className="font-medium">Building/Tower:</span> {app.workDetails?.address?.buildingTower}</div>
-                  <div><span className="font-medium">Lot No.:</span> {app.workDetails?.address?.lotNo}</div>
+                  <div><span className="font-medium">Street:</span> {app.work_details?.address?.street}</div>
+                  <div><span className="font-medium">Barangay:</span> {app.work_details?.address?.barangay}</div>
+                  <div><span className="font-medium">City:</span> {app.work_details?.address?.city}</div>
+                  <div><span className="font-medium">Zip Code:</span> {app.work_details?.address?.zipCode}</div>
+                  <div><span className="font-medium">Unit/Floor:</span> {app.work_details?.address?.unitFloor}</div>
+                  <div><span className="font-medium">Building/Tower:</span> {app.work_details?.address?.buildingTower}</div>
+                  <div><span className="font-medium">Lot No.:</span> {app.work_details?.address?.lotNo}</div>
                 </div>
               </div>
             </div>
@@ -432,27 +548,151 @@ const AgentDashboard: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Credit Card Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span className="font-medium">Bank/Institution:</span> {app.creditCardDetails?.bankInstitution}</div>
-                <div><span className="font-medium">Card Number:</span> {app.creditCardDetails?.cardNumber}</div>
-                <div><span className="font-medium">Credit Limit:</span> {app.creditCardDetails?.creditLimit}</div>
-                <div><span className="font-medium">Member Since:</span> {app.creditCardDetails?.memberSince}</div>
-                <div><span className="font-medium">Exp. Date:</span> {app.creditCardDetails?.expirationDate}</div>
-                <div><span className="font-medium">Deliver Card To:</span> {app.creditCardDetails?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</div>
-                <div><span className="font-medium">Best Time to Contact:</span> {app.creditCardDetails?.bestTimeToContact}</div>
+                <div><span className="font-medium">Bank/Institution:</span> {app.credit_card_details?.bankInstitution}</div>
+                <div><span className="font-medium">Card Number:</span> {app.credit_card_details?.cardNumber}</div>
+                <div><span className="font-medium">Credit Limit:</span> {app.credit_card_details?.creditLimit}</div>
+                <div><span className="font-medium">Member Since:</span> {app.credit_card_details?.memberSince}</div>
+                <div><span className="font-medium">Exp. Date:</span> {app.credit_card_details?.expirationDate}</div>
+                <div><span className="font-medium">Deliver Card To:</span> {app.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</div>
+                <div><span className="font-medium">Best Time to Contact:</span> {app.credit_card_details?.bestTimeToContact}</div>
               </div>
             </div>
             {/* Bank Preferences */}
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Bank Preferences</h4>
               <div className="flex flex-wrap gap-2">
-                {app.bankPreferences && Object.entries(app.bankPreferences).filter(([_, v]) => v).map(([k]) => (
+                {app.bank_preferences && Object.entries(app.bank_preferences).filter(([_, v]) => v).map(([k]) => (
                   <span key={k} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
                     {k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
                   </span>
                 ))}
               </div>
             </div>
-            {/* Status badge is always visible at top right in modal */}
+          </div>
+        );
+      case 5:
+        return (
+          <div className="space-y-8">
+            {/* Uploaded Documents */}
+            <div>
+              <h4 className="text-lg font-semibold mb-2 text-blue-700">Uploaded Documents</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h5 className="font-medium text-gray-700 mb-3">ID Photo</h5>
+                  {app.id_photo_url ? (
+                    <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                      <img 
+                        src={app.id_photo_url} 
+                        alt="ID Photo" 
+                        className="w-full h-64 object-contain rounded-lg shadow-sm"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          target.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                      <div className="hidden text-center text-gray-500 mt-4">
+                        <p>Image failed to load</p>
+                        <a 
+                          href={app.id_photo_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-blue-600 underline hover:text-blue-800 text-sm"
+                        >
+                          Open in new tab
+                        </a>
+                      </div>
+                      <div className="mt-3 text-center">
+                        <a 
+                          href={app.id_photo_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-blue-600 underline hover:text-blue-800 text-sm"
+                        >
+                          Open in new tab
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border border-gray-200 rounded-lg p-8 bg-gray-50 text-center">
+                      <div className="text-gray-400 mb-2">
+                        <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <p className="text-gray-500 text-sm">No ID photo uploaded</p>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h5 className="font-medium text-gray-700 mb-3">E-Signature</h5>
+                  {app.e_signature_url ? (
+                    <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                      <img 
+                        src={app.e_signature_url} 
+                        alt="E-Signature" 
+                        className="w-full h-64 object-contain rounded-lg shadow-sm"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          target.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                      <div className="hidden text-center text-gray-500 mt-4">
+                        <p>Image failed to load</p>
+                        <a 
+                          href={app.e_signature_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-blue-600 underline hover:text-blue-800 text-sm"
+                        >
+                          Open in new tab
+                        </a>
+                      </div>
+                      <div className="mt-3 text-center">
+                        <a 
+                          href={app.e_signature_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-blue-600 underline hover:text-blue-800 text-sm"
+                        >
+                          Open in new tab
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border border-gray-200 rounded-lg p-8 bg-gray-50 text-center">
+                      <div className="text-gray-400 mb-2">
+                        <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </div>
+                      <p className="text-gray-500 text-sm">No e-signature uploaded</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* Application Metadata */}
+            <div>
+              <h4 className="text-lg font-semibold mb-2 text-blue-700">Application Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><span className="font-medium">Submitted By:</span> {app.submitted_by || app.agent || 'Direct'}</div>
+                <div><span className="font-medium">Submitted At:</span> {app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy HH:mm') : 'N/A'}</div>
+                <div><span className="font-medium">Status:</span> 
+                  <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                    app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                    app.status === 'approved' ? 'bg-green-100 text-green-800' : 
+                    app.status === 'rejected' ? 'bg-red-100 text-red-800' : 
+                    app.status === 'submitted' ? 'bg-blue-100 text-blue-800' : 
+                    app.status === 'turn-in' ? 'bg-purple-100 text-purple-800' : 
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {app.status || 'Unknown'}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         );
       default:
@@ -588,110 +828,10 @@ const AgentDashboard: React.FC = () => {
                   </span>
                 )}
                 <h3 className="text-2xl font-bold mb-6">Application Details</h3>
+                {/* Step indicator */}
+                {renderModalStepIndicator()}
                 {/* Step content */}
-                <div className="space-y-8">
-                  {currentModalStep === 1 && (
-                    <div>
-                      <h4 className="text-lg font-semibold mb-2 text-blue-700">Personal Details</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><span className="font-medium">Last Name:</span> {viewedApp.personal_details?.lastName}</div>
-                        <div><span className="font-medium">First Name:</span> {viewedApp.personal_details?.firstName}</div>
-                        <div><span className="font-medium">Middle Name:</span> {viewedApp.personal_details?.middleName}</div>
-                        <div><span className="font-medium">Suffix:</span> {viewedApp.personal_details?.suffix}</div>
-                        <div><span className="font-medium">Date of Birth:</span> {viewedApp.personal_details?.dateOfBirth}</div>
-                        <div><span className="font-medium">Place of Birth:</span> {viewedApp.personal_details?.placeOfBirth}</div>
-                        <div><span className="font-medium">Gender:</span> {viewedApp.personal_details?.gender}</div>
-                        <div><span className="font-medium">Civil Status:</span> {viewedApp.personal_details?.civilStatus}</div>
-                        <div><span className="font-medium">Nationality:</span> {viewedApp.personal_details?.nationality}</div>
-                        <div><span className="font-medium">Mobile Number:</span> {viewedApp.personal_details?.mobileNumber}</div>
-                        <div><span className="font-medium">Home Number:</span> {viewedApp.personal_details?.homeNumber}</div>
-                        <div><span className="font-medium">Email Address:</span> {viewedApp.personal_details?.emailAddress}</div>
-                        <div><span className="font-medium">SSS/GSIS/UMID:</span> {viewedApp.personal_details?.sssGsisUmid}</div>
-                        <div><span className="font-medium">TIN:</span> {viewedApp.personal_details?.tin}</div>
-                      </div>
-                    </div>
-                  )}
-                  {currentModalStep === 2 && (
-                    <div>
-                      <h4 className="text-lg font-semibold mb-2 text-blue-700">Family & Address</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><span className="font-medium">Mother's Last Name:</span> {viewedApp.mother_details?.lastName}</div>
-                        <div><span className="font-medium">Mother's First Name:</span> {viewedApp.mother_details?.firstName}</div>
-                        <div><span className="font-medium">Mother's Middle Name:</span> {viewedApp.mother_details?.middleName}</div>
-                        <div><span className="font-medium">Mother's Suffix:</span> {viewedApp.mother_details?.suffix}</div>
-                        <div><span className="font-medium">Street:</span> {viewedApp.permanent_address?.street}</div>
-                        <div><span className="font-medium">Barangay:</span> {viewedApp.permanent_address?.barangay}</div>
-                        <div><span className="font-medium">City:</span> {viewedApp.permanent_address?.city}</div>
-                        <div><span className="font-medium">Province:</span> {viewedApp.permanent_address?.province}</div>
-                        <div><span className="font-medium">Zip Code:</span> {viewedApp.permanent_address?.zipCode}</div>
-                        <div><span className="font-medium">Years of Stay:</span> {viewedApp.permanent_address?.yearsOfStay}</div>
-                        <div><span className="font-medium">Spouse Last Name:</span> {viewedApp.spouse_details?.lastName}</div>
-                        <div><span className="font-medium">Spouse First Name:</span> {viewedApp.spouse_details?.firstName}</div>
-                        <div><span className="font-medium">Spouse Middle Name:</span> {viewedApp.spouse_details?.middleName}</div>
-                        <div><span className="font-medium">Spouse Suffix:</span> {viewedApp.spouse_details?.suffix}</div>
-                        <div><span className="font-medium">Spouse Mobile Number:</span> {viewedApp.spouse_details?.mobileNumber}</div>
-                        <div><span className="font-medium">Personal Reference Last Name:</span> {viewedApp.personal_reference?.lastName}</div>
-                        <div><span className="font-medium">Personal Reference First Name:</span> {viewedApp.personal_reference?.firstName}</div>
-                        <div><span className="font-medium">Personal Reference Middle Name:</span> {viewedApp.personal_reference?.middleName}</div>
-                        <div><span className="font-medium">Personal Reference Suffix:</span> {viewedApp.personal_reference?.suffix}</div>
-                        <div><span className="font-medium">Personal Reference Mobile Number:</span> {viewedApp.personal_reference?.mobileNumber}</div>
-                        <div><span className="font-medium">Personal Reference Relationship:</span> {viewedApp.personal_reference?.relationship}</div>
-                      </div>
-                    </div>
-                  )}
-                  {currentModalStep === 3 && (
-                    <div>
-                      <h4 className="text-lg font-semibold mb-2 text-blue-700">Work/Business Details</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><span className="font-medium">Business/Employer's Name:</span> {viewedApp.work_details?.businessEmployerName}</div>
-                        <div><span className="font-medium">Profession/Occupation:</span> {viewedApp.work_details?.professionOccupation}</div>
-                        <div><span className="font-medium">Nature of Business:</span> {viewedApp.work_details?.natureOfBusiness}</div>
-                        <div><span className="font-medium">Department:</span> {viewedApp.work_details?.department}</div>
-                        <div><span className="font-medium">Landline/Mobile:</span> {viewedApp.work_details?.landlineMobile}</div>
-                        <div><span className="font-medium">Years in Business:</span> {viewedApp.work_details?.yearsInBusiness}</div>
-                        <div><span className="font-medium">Monthly Income:</span> {viewedApp.work_details?.monthlyIncome}</div>
-                        <div><span className="font-medium">Annual Income:</span> {viewedApp.work_details?.annualIncome}</div>
-                        <div><span className="font-medium">Street:</span> {viewedApp.work_details?.address?.street}</div>
-                        <div><span className="font-medium">Barangay:</span> {viewedApp.work_details?.address?.barangay}</div>
-                        <div><span className="font-medium">City:</span> {viewedApp.work_details?.address?.city}</div>
-                        <div><span className="font-medium">Zip Code:</span> {viewedApp.work_details?.address?.zipCode}</div>
-                        <div><span className="font-medium">Unit/Floor:</span> {viewedApp.work_details?.address?.unitFloor}</div>
-                        <div><span className="font-medium">Building/Tower:</span> {viewedApp.work_details?.address?.buildingTower}</div>
-                        <div><span className="font-medium">Lot No.:</span> {viewedApp.work_details?.address?.lotNo}</div>
-                      </div>
-                    </div>
-                  )}
-                  {currentModalStep === 4 && (
-                    <div>
-                      <h4 className="text-lg font-semibold mb-2 text-blue-700">Credit Card & Bank Preferences</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><span className="font-medium">Bank/Institution:</span> {viewedApp.credit_card_details?.bankInstitution}</div>
-                        <div><span className="font-medium">Card Number:</span> {viewedApp.credit_card_details?.cardNumber}</div>
-                        <div><span className="font-medium">Credit Limit:</span> {viewedApp.credit_card_details?.creditLimit}</div>
-                        <div><span className="font-medium">Member Since:</span> {viewedApp.credit_card_details?.memberSince}</div>
-                        <div><span className="font-medium">Exp. Date:</span> {viewedApp.credit_card_details?.expirationDate}</div>
-                        <div><span className="font-medium">Deliver Card To:</span> {viewedApp.credit_card_details?.deliverCardTo === 'home' ? 'Present Home Address' : 'Business Address'}</div>
-                        <div><span className="font-medium">Best Time to Contact:</span> {viewedApp.credit_card_details?.bestTimeToContact}</div>
-                      </div>
-                      <div className="flex flex-wrap gap-2 mt-4">
-                        {viewedApp.bank_preferences && Object.entries(viewedApp.bank_preferences).filter(([_, v]) => v).map(([k]) => (
-                          <span key={k} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
-                            {k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {currentModalStep === 5 && (
-                    <div>
-                      <h4 className="text-lg font-semibold mb-2 text-blue-700">File Links & Review</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><span className="font-medium">ID Photo URL:</span> {viewedApp.id_photo_url ? <a href={viewedApp.id_photo_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a> : 'N/A'}</div>
-                        <div><span className="font-medium">E-Signature URL:</span> {viewedApp.e_signature_url ? <a href={viewedApp.e_signature_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">View</a> : 'N/A'}</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {renderModalStepContent(viewedApp)}
                 {/* Stepper navigation */}
                 <div className="flex justify-between mt-8 pt-6 border-t gap-4">
                   <button
