@@ -811,7 +811,7 @@ const AgentDashboard: React.FC = () => {
           {/* Application Details Modal (unchanged) */}
           {viewedApp && (
             <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-3xl relative overflow-y-auto max-h-[90vh]">
+              <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-5xl relative overflow-y-auto max-h-[90vh]">
                 <button onClick={() => { setViewedApp(null); setCurrentModalStep(1); }} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
                 {viewedApp.status && (
                   <span
