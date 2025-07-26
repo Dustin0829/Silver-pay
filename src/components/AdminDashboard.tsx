@@ -202,6 +202,7 @@ const AdminDashboard: React.FC = () => {
   const [currentSection, setCurrentSection] = useState(0);
   const [bankFilter, setBankFilter] = useState('');
   const [nameFilter, setNameFilter] = useState('');
+  const [applicationsSearchFilter, setApplicationsSearchFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   // Add state for pagination
   const [applicationsPage, setApplicationsPage] = useState(1);
@@ -724,6 +725,16 @@ const AdminDashboard: React.FC = () => {
     <div>
       <h2 className="text-2xl font-bold mb-2">Client Applications</h2>
       <p className="text-gray-600 mb-6">Review and manage credit card applications</p>
+      <div className="bg-white rounded-xl p-6 shadow mb-6 w-full overflow-x-hidden">
+        <div className="flex flex-col sm:flex-row gap-4 w-full mb-4 items-start sm:items-end">
+          <input
+            className="border rounded-lg px-3 py-2 w-full sm:w-1/2 mb-2 sm:mb-0"
+            placeholder="Search by agent name or bank code..."
+            value={applicationsSearchFilter}
+            onChange={e => setApplicationsSearchFilter(e.target.value)}
+          />
+        </div>
+      </div>
       <div className="bg-white rounded-xl shadow-md w-full overflow-x-hidden">
         <div className="w-full">
           {/* Desktop Table */}
@@ -846,9 +857,42 @@ const AdminDashboard: React.FC = () => {
                   ) : <span className="text-gray-400">-</span>}
                   </div>
                   <div className="flex space-x-4 mt-2">
-                    <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={() => setViewedApp(app)}><Eye className="w-5 h-5" /></button>
-                    <button className="text-green-600 hover:text-green-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a))}><Check className="w-5 h-5" /></button>
-                    <button className="text-red-600 hover:text-red-800 transition-colors" onClick={() => setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a))}><X className="w-5 h-5" /></button>
+                    <div className="relative group">
+                      <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={async () => {
+                        await supabase.from('application_form').update({ status: 'submitted' }).eq('id', app.id);
+                        setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'submitted' } : a));
+                      }}>
+                        <Send className="w-5 h-5" />
+                      </button>
+                      <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Submit</span>
+                    </div>
+                    <div className="relative group">
+                      <button className="text-purple-600 hover:text-purple-800 transition-colors" onClick={async () => {
+                        await supabase.from('application_form').update({ status: 'turn-in' }).eq('id', app.id);
+                        setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'turn-in' } : a));
+                      }}>
+                        <ArrowDownCircle className="w-5 h-5" />
+                      </button>
+                      <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Turn-in</span>
+                    </div>
+                    <div className="relative group">
+                      <button className="text-green-600 hover:text-green-800 transition-colors" onClick={async () => {
+                        await supabase.from('application_form').update({ status: 'approved' }).eq('id', app.id);
+                        setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a));
+                      }}>
+                        <ThumbsUp className="w-5 h-5" />
+                      </button>
+                      <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Approve</span>
+                    </div>
+                    <div className="relative group">
+                      <button className="text-red-600 hover:text-red-800 transition-colors" onClick={async () => {
+                        await supabase.from('application_form').update({ status: 'rejected' }).eq('id', app.id);
+                        setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a));
+                      }}>
+                        <ThumbsDown className="w-5 h-5" />
+                      </button>
+                      <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Reject</span>
+                    </div>
                   </div>
                 </div>
               );
@@ -891,22 +935,21 @@ const AdminDashboard: React.FC = () => {
       </div>
       <div className="bg-white rounded-xl p-6 shadow mb-6 w-full overflow-x-hidden">
         <div className="flex flex-col sm:flex-row gap-4 w-full mb-4 items-start sm:items-end">
-          <input
-            className="border rounded-lg px-3 py-2 w-full sm:w-1/2 mb-2 sm:mb-0"
-            placeholder="Search by agent name or bank code..."
-            value={nameFilter}
-            onChange={e => setNameFilter(e.target.value)}
-          />
           <button
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 text-sm whitespace-nowrap ml-0 sm:ml-2"
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 text-sm whitespace-nowrap mb-2 sm:mb-0"
             onClick={handleExportPreview}
             type="button"
           >
             Export as PDF
           </button>
+          <input
+            className="border rounded-lg px-3 py-2 w-full sm:w-1/2 ml-0 sm:ml-2"
+            placeholder="Search by agent name or bank code..."
+            value={nameFilter}
+            onChange={e => setNameFilter(e.target.value)}
+          />
         </div>
         <div className="flex gap-4 w-full mt-2">
-          <input className="border rounded-lg px-3 py-2 w-1/2" placeholder="mm/dd/yyyy" />
           <select className="border rounded-lg px-3 py-2 w-1/2" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="">All Status</option>
             <option value="submitted">Submitted</option>
@@ -1646,15 +1689,46 @@ const AdminDashboard: React.FC = () => {
   // Add this after applications is defined and before any rendering:
   const sortedApplications = [...applications].sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
 
+  // Filter applications based on search
+  const filteredApplicationsForSearch = sortedApplications.filter(app => {
+    const search = applicationsSearchFilter.trim().toLowerCase();
+    if (!search) return true;
+    
+    // Applicant name
+    const applicantName = `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.toLowerCase();
+    // Agent name from both possible fields
+    const agentName1 = (app.submitted_by ?? '').toLowerCase();
+    const agentName2 = (app.agent ?? '').toLowerCase();
+    // Find agent in users for bank code search
+    const agent = users.find((u: any) =>
+      u.name?.toLowerCase() === agentName1 ||
+      u.email?.toLowerCase() === agentName1 ||
+      u.name?.toLowerCase() === agentName2 ||
+      u.email?.toLowerCase() === agentName2
+    );
+    const agentName = agent?.name?.toLowerCase() || '';
+    // Bank codes from agent
+    let bankCodes = '';
+    if (agent && Array.isArray(agent.bank_codes)) {
+      bankCodes = agent.bank_codes.map((entry: any) => (entry.code || '').toLowerCase()).join(' ');
+    }
+    
+    return applicantName.includes(search) ||
+           agentName1.includes(search) ||
+           agentName2.includes(search) ||
+           agentName.includes(search) ||
+           bankCodes.includes(search);
+  });
+
   // For filtered lists:
   const sortedFilteredApplications = [...filteredApplications].sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
 
   // Update paginated lists:
-  const paginatedApplications = sortedApplications.slice(0, applicationsPage * PAGE_SIZE);
+  const paginatedApplications = filteredApplicationsForSearch.slice(0, applicationsPage * PAGE_SIZE);
   const paginatedHistory = sortedFilteredApplications.slice(0, historyPage * PAGE_SIZE);
 
   // Reset pagination when switching sections or filters
-  useEffect(() => { setApplicationsPage(1); }, [activeSection]);
+  useEffect(() => { setApplicationsPage(1); }, [activeSection, applicationsSearchFilter]);
   useEffect(() => { setHistoryPage(1); }, [activeSection, nameFilter, statusFilter]);
 
   // 1. Add state for loading and fetchedApp

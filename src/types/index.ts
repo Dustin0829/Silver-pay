@@ -9,7 +9,7 @@ export interface User {
 export interface PersonalDetails {
   lastName: string;
   firstName: string;
-  middleName: string;
+  middleName?: string;
   suffix: string;
   dateOfBirth: string;
   placeOfBirth: string;
@@ -17,7 +17,7 @@ export interface PersonalDetails {
   civilStatus: string;
   nationality: string;
   mobileNumber: string;
-  homeNumber: string;
+  homeNumber?: string;
   emailAddress: string;
   sssGsisUmid: string;
   tin: string;
