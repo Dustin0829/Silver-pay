@@ -734,7 +734,7 @@ const AdminDashboard: React.FC = () => {
         <div className="flex flex-col sm:flex-row gap-4 w-full mb-4 items-start sm:items-end">
           <input
             className="border rounded-lg px-3 py-2 w-full sm:w-1/2 mb-2 sm:mb-0"
-            placeholder="Search by agent name or bank code..."
+            placeholder="Search by applicant name, agent name, bank codes, or bank preferences..."
             value={applicationsSearchFilter}
             onChange={e => setApplicationsSearchFilter(e.target.value)}
           />
@@ -1701,9 +1701,11 @@ const AdminDashboard: React.FC = () => {
     
     // Applicant name
     const applicantName = `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.toLowerCase();
+    
     // Agent name from both possible fields
     const agentName1 = (app.submitted_by ?? '').toLowerCase();
     const agentName2 = (app.agent ?? '').toLowerCase();
+    
     // Find agent in users for bank code search
     const agent = users.find((u: any) =>
       u.name?.toLowerCase() === agentName1 ||
@@ -1711,18 +1713,27 @@ const AdminDashboard: React.FC = () => {
       u.name?.toLowerCase() === agentName2 ||
       u.email?.toLowerCase() === agentName2
     );
+    
     const agentName = agent?.name?.toLowerCase() || '';
-    // Bank codes from agent
+    
+    // Bank codes from agent - improved search
     let bankCodes = '';
+    let bankNames = '';
     if (agent && Array.isArray(agent.bank_codes)) {
       bankCodes = agent.bank_codes.map((entry: any) => (entry.code || '').toLowerCase()).join(' ');
+      bankNames = agent.bank_codes.map((entry: any) => (entry.bank || '').toLowerCase()).join(' ');
     }
+    
+    // Also search in bank preferences from the application itself
+    const appBankPreferences = app.bank_preferences ? Object.keys(app.bank_preferences).filter(k => app.bank_preferences[k]).join(' ').toLowerCase() : '';
     
     return applicantName.includes(search) ||
            agentName1.includes(search) ||
            agentName2.includes(search) ||
            agentName.includes(search) ||
-           bankCodes.includes(search);
+           bankCodes.includes(search) ||
+           bankNames.includes(search) ||
+           appBankPreferences.includes(search);
   });
 
   // For filtered lists:
