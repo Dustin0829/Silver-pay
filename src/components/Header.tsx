@@ -24,7 +24,7 @@ const Header: React.FC = () => {
           </Link>
 
           <nav className="flex items-center space-x-6">
-            {isAuthenticated && (
+            {isAuthenticated && !isLandingPage && (
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
                   <User className="h-5 w-5 text-gray-600" />
