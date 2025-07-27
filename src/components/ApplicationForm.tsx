@@ -15,6 +15,66 @@ import {
   CreditCardDetails,
 } from '../types';
 
+// Philippine location data - Simplified structure for cascading dropdowns
+const PHILIPPINE_REGIONS = [
+  'National Capital Region (NCR)',
+  'Region I - Ilocos Region',
+  'Region II - Cagayan Valley',
+  'Region III - Central Luzon',
+  'Region IV-A - Calabarzon',
+  'Region IV-B - Mimaropa',
+  'Region V - Bicol Region',
+  'Region VI - Western Visayas',
+  'Region VII - Central Visayas',
+  'Region VIII - Eastern Visayas',
+  'Region IX - Zamboanga Peninsula',
+  'Region X - Northern Mindanao',
+  'Region XI - Davao Region',
+  'Region XII - Soccsksargen',
+  'Region XIII - Caraga',
+  'Bangsamoro Autonomous Region in Muslim Mindanao (BARMM)'
+];
+
+const PHILIPPINE_PROVINCES = {
+  'National Capital Region (NCR)': ['Metro Manila'],
+  'Region I - Ilocos Region': ['Ilocos Norte', 'Ilocos Sur', 'La Union', 'Pangasinan'],
+  'Region II - Cagayan Valley': ['Batanes', 'Cagayan', 'Isabela', 'Nueva Vizcaya', 'Quirino'],
+  'Region III - Central Luzon': ['Aurora', 'Bataan', 'Bulacan', 'Nueva Ecija', 'Pampanga', 'Tarlac', 'Zambales'],
+  'Region IV-A - Calabarzon': ['Batangas', 'Cavite', 'Laguna', 'Quezon', 'Rizal'],
+  'Region IV-B - Mimaropa': ['Marinduque', 'Occidental Mindoro', 'Oriental Mindoro', 'Palawan', 'Romblon'],
+  'Region V - Bicol Region': ['Albay', 'Camarines Norte', 'Camarines Sur', 'Catanduanes', 'Masbate', 'Sorsogon'],
+  'Region VI - Western Visayas': ['Aklan', 'Antique', 'Capiz', 'Guimaras', 'Iloilo', 'Negros Occidental', 'Negros Oriental'],
+  'Region VII - Central Visayas': ['Bohol', 'Cebu', 'Negros Oriental', 'Siquijor'],
+  'Region VIII - Eastern Visayas': ['Biliran', 'Eastern Samar', 'Leyte', 'Northern Samar', 'Samar', 'Southern Leyte'],
+  'Region IX - Zamboanga Peninsula': ['Zamboanga del Norte', 'Zamboanga del Sur', 'Zamboanga Sibugay'],
+  'Region X - Northern Mindanao': ['Bukidnon', 'Camiguin', 'Lanao del Norte', 'Misamis Occidental', 'Misamis Oriental'],
+  'Region XI - Davao Region': ['Davao de Oro', 'Davao del Norte', 'Davao del Sur', 'Davao Occidental', 'Davao Oriental'],
+  'Region XII - Soccsksargen': ['Cotabato', 'Sarangani', 'South Cotabato', 'Sultan Kudarat'],
+  'Region XIII - Caraga': ['Agusan del Norte', 'Agusan del Sur', 'Dinagat Islands', 'Surigao del Norte', 'Surigao del Sur'],
+  'Bangsamoro Autonomous Region in Muslim Mindanao (BARMM)': ['Basilan', 'Lanao del Sur', 'Maguindanao', 'Sulu', 'Tawi-Tawi']
+};
+
+// Sample cities for some provinces (you can expand this)
+const PHILIPPINE_CITIES = {
+  'Metro Manila': ['Manila', 'Quezon City', 'Caloocan', 'Las Piñas', 'Makati', 'Malabon', 'Mandaluyong', 'Marikina', 'Muntinlupa', 'Navotas', 'Parañaque', 'Pasay', 'Pasig', 'San Juan', 'Taguig', 'Valenzuela', 'Pateros'],
+  'Pampanga': ['Angeles', 'Apalit', 'Arayat', 'Bacolor', 'Candaba', 'Floridablanca', 'Guagua', 'Lubao', 'Mabalacat', 'Macabebe', 'Magalang', 'Masantol', 'Mexico', 'Minalin', 'Porac', 'San Fernando', 'San Luis', 'San Simon', 'Santa Ana', 'Santa Rita', 'Santo Tomas', 'Sasmuan'],
+  'Bulacan': ['Angat', 'Balagtas', 'Baliuag', 'Bocaue', 'Bulakan', 'Bustos', 'Calumpit', 'Doña Remedios Trinidad', 'Guiguinto', 'Hagonoy', 'Malolos', 'Marilao', 'Meycauayan', 'Norzagaray', 'Obando', 'Pandi', 'Paombong', 'Plaridel', 'Pulilan', 'San Ildefonso', 'San Jose del Monte', 'San Miguel', 'San Rafael', 'San Simon', 'Santa Maria'],
+  'Cebu': ['Alcantara', 'Alcoy', 'Alegria', 'Aloguinsan', 'Argao', 'Asturias', 'Badian', 'Balamban', 'Bantayan', 'Barili', 'Bogo', 'Boljoon', 'Borbon', 'Carcar', 'Carmen', 'Catmon', 'Cebu', 'Compostela', 'Consolacion', 'Cordova', 'Daanbantayan', 'Dalaguete', 'Danao', 'Dumanjug', 'Ginatilan', 'Lapu-Lapu', 'Liloan', 'Madridejos', 'Malabuyoc', 'Mandaue', 'Medellin', 'Minglanilla', 'Moalboal', 'Naga', 'Oslob', 'Pilar', 'Pinamungajan', 'Poro', 'Ronda', 'Samboan', 'San Fernando', 'San Francisco', 'San Remigio', 'Santa Fe', 'Santander', 'Sibonga', 'Sogod', 'Tabogon', 'Tabuelan', 'Talisay', 'Toledo', 'Tuburan', 'Tudela']
+};
+
+// Sample barangays for some cities (you can expand this)
+const PHILIPPINE_BARANGAYS = {
+  'Manila': ['Barangay 1', 'Barangay 2', 'Barangay 3', 'Barangay 4', 'Barangay 5', 'Barangay 6', 'Barangay 7', 'Barangay 8', 'Barangay 9', 'Barangay 10'],
+  'Quezon City': ['Alicia', 'Bagong Silangan', 'Batasan Hills', 'Commonwealth', 'Culiat', 'E. Rodriguez', 'Holy Spirit', 'Immaculate Concepcion', 'Kamuning', 'Katipunan'],
+  'Cebu': ['Adlaon', 'Agsungot', 'Apas', 'Babag', 'Bacayan', 'Banilad', 'Basak Pardo', 'Basak San Nicolas', 'Binaliw', 'Bonbon', 'Budlaan', 'Buhisan', 'Bulacao', 'Buot-Taup', 'Calamba', 'Cambinocot', 'Capitol Site', 'Carreta', 'Central', 'Cogon Pardo', 'Cogon Ramos', 'Day-as', 'Ermita', 'Guadalupe', 'Guba', 'Hipodromo', 'Inayawan', 'Kalubihan', 'Kamagayan', 'Kamputhaw', 'Kasambagan', 'Kinasang-an Pardo', 'Labangon', 'Lahug', 'Lorega San Miguel', 'Lusaran', 'Luz', 'Mabini', 'Mabolo', 'Malubog', 'Mambaling', 'Pahina Central', 'Pahina San Nicolas', 'Pamutan', 'Parian', 'Paril', 'Pasil', 'Pit-os', 'Poblacion Pardo', 'Pulangbato', 'Pung-ol-Sibugay', 'Punta Princesa', 'Quiot Pardo', 'Sambag I', 'Sambag II', 'San Antonio', 'San Jose', 'San Nicolas Central', 'San Roque', 'Santa Cruz', 'Santo Niño', 'Sapangdaku', 'Sawang Calero', 'Sinsin', 'Sirao', 'Suba San Nicolas', 'Sudlon I', 'Sudlon II', 'T. Padilla', 'Tabunan', 'Tagbao', 'Talamban', 'Taptap', 'Tejero', 'Tinago', 'Tisa', 'To-ong Pardo', 'Zapatera'],
+  'San Fernando': ['Barangay 1', 'Barangay 2', 'Barangay 3', 'Barangay 4', 'Barangay 5', 'Barangay 6', 'Barangay 7', 'Barangay 8', 'Barangay 9', 'Barangay 10', 'Barangay 11', 'Barangay 12', 'Barangay 13', 'Barangay 14', 'Barangay 15', 'Barangay 16', 'Barangay 17', 'Barangay 18', 'Barangay 19', 'Barangay 20', 'Barangay 21', 'Barangay 22', 'Barangay 23', 'Barangay 24', 'Barangay 25', 'Barangay 26', 'Barangay 27', 'Barangay 28', 'Barangay 29', 'Barangay 30', 'Barangay 31', 'Barangay 32', 'Barangay 33', 'Barangay 34', 'Barangay 35'],
+  'Angeles': ['Barangay 1', 'Barangay 2', 'Barangay 3', 'Barangay 4', 'Barangay 5', 'Barangay 6', 'Barangay 7', 'Barangay 8', 'Barangay 9', 'Barangay 10', 'Barangay 11', 'Barangay 12', 'Barangay 13', 'Barangay 14', 'Barangay 15', 'Barangay 16', 'Barangay 17', 'Barangay 18', 'Barangay 19', 'Barangay 20', 'Barangay 21', 'Barangay 22', 'Barangay 23', 'Barangay 24', 'Barangay 25', 'Barangay 26', 'Barangay 27', 'Barangay 28', 'Barangay 29', 'Barangay 30', 'Barangay 31', 'Barangay 32', 'Barangay 33', 'Barangay 34', 'Barangay 35'],
+  'Malolos': ['Barangay 1', 'Barangay 2', 'Barangay 3', 'Barangay 4', 'Barangay 5', 'Barangay 6', 'Barangay 7', 'Barangay 8', 'Barangay 9', 'Barangay 10', 'Barangay 11', 'Barangay 12', 'Barangay 13', 'Barangay 14', 'Barangay 15', 'Barangay 16', 'Barangay 17', 'Barangay 18', 'Barangay 19', 'Barangay 20', 'Barangay 21', 'Barangay 22', 'Barangay 23', 'Barangay 24', 'Barangay 25', 'Barangay 26', 'Barangay 27', 'Barangay 28', 'Barangay 29', 'Barangay 30', 'Barangay 31', 'Barangay 32', 'Barangay 33', 'Barangay 34', 'Barangay 35'],
+  'Marilao': ['Barangay 1', 'Barangay 2', 'Barangay 3', 'Barangay 4', 'Barangay 5', 'Barangay 6', 'Barangay 7', 'Barangay 8', 'Barangay 9', 'Barangay 10', 'Barangay 11', 'Barangay 12', 'Barangay 13', 'Barangay 14', 'Barangay 15', 'Barangay 16', 'Barangay 17', 'Barangay 18', 'Barangay 19', 'Barangay 20', 'Barangay 21', 'Barangay 22', 'Barangay 23', 'Barangay 24', 'Barangay 25', 'Barangay 26', 'Barangay 27', 'Barangay 28', 'Barangay 29', 'Barangay 30', 'Barangay 31', 'Barangay 32', 'Barangay 33', 'Barangay 34', 'Barangay 35'],
+  'Meycauayan': ['Barangay 1', 'Barangay 2', 'Barangay 3', 'Barangay 4', 'Barangay 5', 'Barangay 6', 'Barangay 7', 'Barangay 8', 'Barangay 9', 'Barangay 10', 'Barangay 11', 'Barangay 12', 'Barangay 13', 'Barangay 14', 'Barangay 15', 'Barangay 16', 'Barangay 17', 'Barangay 18', 'Barangay 19', 'Barangay 20', 'Barangay 21', 'Barangay 22', 'Barangay 23', 'Barangay 24', 'Barangay 25', 'Barangay 26', 'Barangay 27', 'Barangay 28', 'Barangay 29', 'Barangay 30', 'Barangay 31', 'Barangay 32', 'Barangay 33', 'Barangay 34', 'Barangay 35'],
+  'San Jose del Monte': ['Barangay 1', 'Barangay 2', 'Barangay 3', 'Barangay 4', 'Barangay 5', 'Barangay 6', 'Barangay 7', 'Barangay 8', 'Barangay 9', 'Barangay 10', 'Barangay 11', 'Barangay 12', 'Barangay 13', 'Barangay 14', 'Barangay 15', 'Barangay 16', 'Barangay 17', 'Barangay 18', 'Barangay 19', 'Barangay 20', 'Barangay 21', 'Barangay 22', 'Barangay 23', 'Barangay 24', 'Barangay 25', 'Barangay 26', 'Barangay 27', 'Barangay 28', 'Barangay 29', 'Barangay 30', 'Barangay 31', 'Barangay 32', 'Barangay 33', 'Barangay 34', 'Barangay 35']
+};
+
 const BANK_PREFERENCE_KEYS = [
   'rcbc', 'metrobank', 'eastWestBank', 'securityBank', 'bpi', 'pnb', 'robinsonBank', 'maybank', 'aub',
 ] as const;
@@ -76,11 +136,18 @@ const ApplicationForm = ({ isAgentForm = false }) => {
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | undefined }>({ show: false, message: '', type: undefined });
   const [idPhoto, setIdPhoto] = useState<File | null>(null);
   const [eSignature, setESignature] = useState<File | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<string>('');
+  const [selectedProvince, setSelectedProvince] = useState<string>('');
+  const [selectedCity, setSelectedCity] = useState<string>('');
+  const [selectedBarangay, setSelectedBarangay] = useState<string>('');
+  const [currentLevel, setCurrentLevel] = useState<'region' | 'province' | 'city'>('region');
   const { setLoading } = useLoading();
 
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(formData));
   }, [formData]);
+
+
 
   const handleInputChange = (section: string, field: string, value: string | boolean) => {
     setFormData(prev => ({
@@ -94,6 +161,106 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       ...prev,
       [section]: { ...prev[section], [subsection]: { ...prev[section][subsection], [field]: value } },
     }));
+  };
+
+  const handleLocationChange = (value: string) => {
+    if (currentLevel === 'region') {
+      setSelectedRegion(value);
+      setCurrentLevel('province');
+      setFormData(prev => ({
+        ...prev,
+        personalDetails: { ...prev.personalDetails, placeOfBirth: '' }
+      }));
+    } else if (currentLevel === 'province') {
+      setSelectedProvince(value);
+      setCurrentLevel('city');
+      setFormData(prev => ({
+        ...prev,
+        personalDetails: { ...prev.personalDetails, placeOfBirth: '' }
+      }));
+    } else if (currentLevel === 'city') {
+      setSelectedCity(value);
+      const fullPlaceOfBirth = `${value}, ${selectedProvince}, ${selectedRegion}`;
+      setFormData(prev => ({
+        ...prev,
+        personalDetails: { ...prev.personalDetails, placeOfBirth: fullPlaceOfBirth }
+      }));
+    }
+  };
+
+  const getCurrentOptions = () => {
+    if (currentLevel === 'region') {
+      return PHILIPPINE_REGIONS;
+    } else if (currentLevel === 'province') {
+      return PHILIPPINE_PROVINCES[selectedRegion] || [];
+    } else if (currentLevel === 'city') {
+      return PHILIPPINE_CITIES[selectedProvince] || [];
+    }
+    return [];
+  };
+
+  const getCurrentLabel = () => {
+    if (currentLevel === 'region') {
+      return 'Select Region';
+    } else if (currentLevel === 'province') {
+      return `Select Province in ${selectedRegion}`;
+    } else if (currentLevel === 'city') {
+      return `Select City/Municipality in ${selectedProvince}`;
+    }
+    return 'Select';
+  };
+
+  const getAllLocations = () => {
+    const results: string[] = [];
+    
+    // Add regions
+    PHILIPPINE_REGIONS.forEach(region => {
+      results.push(region);
+    });
+    
+    // Add provinces with their regions
+    Object.entries(PHILIPPINE_PROVINCES).forEach(([region, provinces]) => {
+      provinces.forEach(province => {
+        results.push(`${province}, ${region}`);
+      });
+    });
+    
+    // Add cities with their provinces and regions
+    Object.entries(PHILIPPINE_CITIES).forEach(([province, cities]) => {
+      // Find which region this province belongs to
+      const region = Object.entries(PHILIPPINE_PROVINCES).find(([r, provinces]) => 
+        provinces.includes(province)
+      )?.[0];
+      
+      cities.forEach(city => {
+        if (region) {
+          results.push(`${city}, ${province}, ${region}`);
+        }
+      });
+    });
+    
+    // Add barangays with their cities, provinces, and regions
+    Object.entries(PHILIPPINE_BARANGAYS).forEach(([city, barangays]) => {
+      // Find which province this city belongs to
+      const province = Object.entries(PHILIPPINE_CITIES).find(([p, cities]) => 
+        cities.includes(city)
+      )?.[0];
+      
+      if (province) {
+        // Find which region this province belongs to
+        const region = Object.entries(PHILIPPINE_PROVINCES).find(([r, provinces]) => 
+          provinces.includes(province)
+        )?.[0];
+        
+        barangays.forEach(barangay => {
+          if (region) {
+            results.push(`${barangay}, ${city}, ${province}, ${region}`);
+          }
+        });
+      }
+    });
+    
+    return results.sort();
   };
 
   const uploadWithRetry = async (file: File, pathPrefix: string) => {
@@ -241,7 +408,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       if (!pd.lastName) missing.push('Last Name');
       if (!pd.firstName) missing.push('First Name');
       if (!pd.dateOfBirth) missing.push('Date of Birth');
-      if (!pd.placeOfBirth) missing.push('Place of Birth');
+      if (!formData.personalDetails.placeOfBirth) missing.push('Place of Birth');
       if (!pd.gender) missing.push('Gender');
       if (!pd.civilStatus) missing.push('Civil Status');
       if (!pd.nationality) missing.push('Nationality');
@@ -349,7 +516,20 @@ const ApplicationForm = ({ isAgentForm = false }) => {
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Middle Name</label><input type="text" value={formData.personalDetails.middleName} onChange={(e) => handleInputChange('personalDetails', 'middleName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Suffix</label><input type="text" value={formData.personalDetails.suffix} onChange={(e) => handleInputChange('personalDetails', 'suffix', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth <span className="text-red-500">*</span></label><input type="date" value={formData.personalDetails.dateOfBirth} onChange={(e) => handleInputChange('personalDetails', 'dateOfBirth', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
-        <div><label className="block text-sm font-medium text-gray-700 mb-2">Place of Birth <span className="text-red-500">*</span></label><input type="text" value={formData.personalDetails.placeOfBirth} onChange={(e) => handleInputChange('personalDetails', 'placeOfBirth', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Place of Birth <span className="text-red-500">*</span></label>
+          <select
+            value={formData.personalDetails.placeOfBirth || ""}
+            onChange={(e) => handleLocationChange(e.target.value)}
+            className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+            required
+          >
+            <option value="">{formData.personalDetails.placeOfBirth || getCurrentLabel()}</option>
+            {!formData.personalDetails.placeOfBirth && getCurrentOptions().map((option, index) => (
+              <option key={index} value={option}>{option}</option>
+            ))}
+          </select>
+        </div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Gender <span className="text-red-500">*</span></label><select value={formData.personalDetails.gender} onChange={(e) => handleInputChange('personalDetails', 'gender', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required><option value="">Select Gender</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Civil Status <span className="text-red-500">*</span></label><select value={formData.personalDetails.civilStatus} onChange={(e) => handleInputChange('personalDetails', 'civilStatus', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required><option value="">Select Status</option><option value="Single">Single</option><option value="Married">Married</option><option value="Separated">Separated</option><option value="Divorced">Divorced</option><option value="Widowed">Widowed</option></select></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Nationality <span className="text-red-500">*</span></label><input type="text" value={formData.personalDetails.nationality} onChange={(e) => handleInputChange('personalDetails', 'nationality', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>

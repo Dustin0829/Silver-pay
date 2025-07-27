@@ -8,7 +8,6 @@ interface FooterProps {
 
 const Footer: React.FC<FooterProps> = ({ onShowTerms, onShowPrivacy }) => {
   const creditCardLinks = [
-    'Compare Credit Cards',
     'Easiest Credit Cards to Get',
     'No Annual Fee Credit Cards',
     'Credit Cards for Beginners',
@@ -32,6 +31,7 @@ const Footer: React.FC<FooterProps> = ({ onShowTerms, onShowPrivacy }) => {
           <div className="flex flex-row gap-12 md:gap-12 w-full md:w-auto justify-start">
             <div className="flex flex-col gap-2 text-sm min-w-[150px] items-start text-left">
               <Link to="/promos" className="hover:text-blue-400 transition-colors px-2 py-1">Promos</Link>
+              <Link to="/contact" className="hover:text-blue-400 transition-colors px-2 py-1">Contact Us</Link>
               {onShowTerms ? (
                 <button type="button" className="hover:text-blue-400 transition-colors px-2 py-1 bg-transparent border-none outline-none" onClick={onShowTerms}>Terms and Conditions</button>
               ) : (

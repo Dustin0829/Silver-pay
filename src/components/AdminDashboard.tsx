@@ -63,6 +63,32 @@ function mapFlatToNestedApp(data: any) {
     }
     return { lastName, firstName, middleName, suffix };
   }
+
+  // Helper to parse personal reference from relative3_name
+  function parsePersonalReference(name: string) {
+    if (!name) return { lastName: '', firstName: '', middleName: '', suffix: '', mobileNumber: '', relationship: '' };
+    
+    // Extract mobile number and relationship from the end
+    const mobileMatch = name.match(/\(([^)]+)\)\s*(\d+)$/);
+    let mobileNumber = '';
+    let relationship = '';
+    let cleanName = name;
+    
+    if (mobileMatch) {
+      relationship = mobileMatch[1];
+      mobileNumber = mobileMatch[2];
+      cleanName = name.replace(/\([^)]+\)\s*\d+$/, '').trim();
+    }
+    
+    // Parse the name part
+    const nameParts = parseRelativeName(cleanName);
+    
+    return {
+      ...nameParts,
+      mobileNumber,
+      relationship
+    };
+  }
   // Map bank preferences
   const bankPreferences = {
     rcbc: !!data.rcbc,
@@ -109,21 +135,25 @@ function mapFlatToNestedApp(data: any) {
       zipCode: data.zip_code || '',
       yearsOfStay: data.years_of_stay || '',
     },
-    spouse_details: {
-      firstName: data.spouse_first_name || '',
-      middleName: data.spouse_middle_name || '',
-      lastName: data.spouse_last_name || '',
-      suffix: data.spouse_suffix || '',
-      mobileNumber: data.spouse_mobile_number || '',
-    },
-    personal_reference: {
-      firstName: data.reference_first_name || '',
-      middleName: data.reference_middle_name || '',
-      lastName: data.reference_last_name || '',
-      suffix: data.reference_suffix || '',
-      mobileNumber: data.reference_mobile_number || '',
-      relationship: data.reference_relationship || '',
-    },
+    spouse_details: data.relative2_name
+      ? parseRelativeName(data.relative2_name)
+      : {
+          firstName: data.spouse_first_name || '',
+          middleName: data.spouse_middle_name || '',
+          lastName: data.spouse_last_name || '',
+          suffix: data.spouse_suffix || '',
+          mobileNumber: data.spouse_mobile_number || '',
+        },
+    personal_reference: data.relative3_name
+      ? parsePersonalReference(data.relative3_name)
+      : {
+          firstName: data.reference_first_name || '',
+          middleName: data.reference_middle_name || '',
+          lastName: data.reference_last_name || '',
+          suffix: data.reference_suffix || '',
+          mobileNumber: data.reference_mobile_number || '',
+          relationship: data.reference_relationship || '',
+        },
     work_details: {
       businessEmployerName: data.business || '',
       professionOccupation: data.profession || '',
@@ -133,8 +163,14 @@ function mapFlatToNestedApp(data: any) {
       yearsInBusiness: data.years_in_business || '',
       monthlyIncome: data.monthly_income || '',
       annualIncome: data.annual_income || '',
+      // Additional fields for PDF preview
+      employerName: data.business || '',
+      position: data.profession || '',
+      workAddress: data.business_address || '',
+      contactNumber: data.contact_number || '',
+      yearsEmployed: data.years_in_business || '',
       address: {
-        street: data.placeholder || '', // business office address from 'placeholder' column
+        street: data.business_address || '', // Use business_address column
         barangay: data.work_barangay || '',
         city: data.work_city || '',
         zipCode: data.work_zip_code || '',
@@ -1207,25 +1243,25 @@ const AdminDashboard: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Work/Business Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span className="font-medium">Business/Employer's Name:</span> {app.workDetails?.businessEmployerName}</div>
-                <div><span className="font-medium">Profession/Occupation:</span> {app.workDetails?.professionOccupation}</div>
-                <div><span className="font-medium">Nature of Business:</span> {app.workDetails?.natureOfBusiness}</div>
-                <div><span className="font-medium">Department:</span> {app.workDetails?.department}</div>
-                <div><span className="font-medium">Landline/Mobile:</span> {app.workDetails?.landlineMobile}</div>
-                <div><span className="font-medium">Years in Business:</span> {app.workDetails?.yearsInBusiness}</div>
-                <div><span className="font-medium">Monthly Income:</span> {app.workDetails?.monthlyIncome}</div>
-                <div><span className="font-medium">Annual Income:</span> {app.workDetails?.annualIncome}</div>
+                <div><span className="font-medium">Business/Employer's Name:</span> {app.work_details?.businessEmployerName}</div>
+                <div><span className="font-medium">Profession/Occupation:</span> {app.work_details?.professionOccupation}</div>
+                <div><span className="font-medium">Nature of Business:</span> {app.work_details?.natureOfBusiness}</div>
+                <div><span className="font-medium">Department:</span> {app.work_details?.department}</div>
+                <div><span className="font-medium">Landline/Mobile:</span> {app.work_details?.landlineMobile}</div>
+                <div><span className="font-medium">Years in Business:</span> {app.work_details?.yearsInBusiness}</div>
+                <div><span className="font-medium">Monthly Income:</span> {app.work_details?.monthlyIncome}</div>
+                <div><span className="font-medium">Annual Income:</span> {app.work_details?.annualIncome}</div>
               </div>
               <div className="mt-4">
                 <h5 className="font-semibold mb-2">Business/Office Address</h5>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><span className="font-medium">Street:</span> {app.workDetails?.address?.street}</div>
-                  <div><span className="font-medium">Barangay:</span> {app.workDetails?.address?.barangay}</div>
-                  <div><span className="font-medium">City:</span> {app.workDetails?.address?.city}</div>
-                  <div><span className="font-medium">Zip Code:</span> {app.workDetails?.address?.zipCode}</div>
-                  <div><span className="font-medium">Unit/Floor:</span> {app.workDetails?.address?.unitFloor}</div>
-                  <div><span className="font-medium">Building/Tower:</span> {app.workDetails?.address?.buildingTower}</div>
-                  <div><span className="font-medium">Lot No.:</span> {app.workDetails?.address?.lotNo}</div>
+                  <div><span className="font-medium">Street:</span> {app.work_details?.address?.street}</div>
+                  <div><span className="font-medium">Barangay:</span> {app.work_details?.address?.barangay}</div>
+                  <div><span className="font-medium">City:</span> {app.work_details?.address?.city}</div>
+                  <div><span className="font-medium">Zip Code:</span> {app.work_details?.address?.zipCode}</div>
+                  <div><span className="font-medium">Unit/Floor:</span> {app.work_details?.address?.unitFloor}</div>
+                  <div><span className="font-medium">Building/Tower:</span> {app.work_details?.address?.buildingTower}</div>
+                  <div><span className="font-medium">Lot No.:</span> {app.work_details?.address?.lotNo}</div>
                 </div>
               </div>
             </div>
@@ -2448,17 +2484,11 @@ const AdminDashboard: React.FC = () => {
                   <table className="w-full text-[9px] sm:text-[11px] border-collapse">
                     <tbody>
                       <tr className="border-b border-black">
-                        <td colSpan={2} className="font-bold px-2 sm:px-3 py-1 sm:py-2">STREET/PUROK/SUBD.</td>
-                        <td colSpan={2} className="font-bold px-2 sm:px-3 py-1 sm:py-2">BARANGAY</td>
-                        <td colSpan={2} className="font-bold px-2 sm:px-3 py-1 sm:py-2">CITY</td>
-                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">ZIP CODE</td>
+                        <td colSpan={6} className="font-bold px-2 sm:px-3 py-1 sm:py-2">STREET/PUROK/SUBD.</td>
                         <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">YEARS OF STAY</td>
                       </tr>
                       <tr>
-                        <td colSpan={2} className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.permanent_address?.street}</td>
-                        <td colSpan={2} className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.permanent_address?.barangay}</td>
-                        <td colSpan={2} className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.permanent_address?.city}</td>
-                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.permanent_address?.zipCode}</td>
+                        <td colSpan={6} className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.permanent_address?.street}</td>
                         <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.permanent_address?.yearsOfStay}</td>
                       </tr>
                     </tbody>
@@ -2478,6 +2508,10 @@ const AdminDashboard: React.FC = () => {
                         <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.work_details?.position}</td>
                         <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MONTHLY INCOME</td>
                         <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.work_details?.monthlyIncome}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">ANNUAL INCOME</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={7}>{exportPreviewApp.work_details?.annualIncome}</td>
                       </tr>
                       <tr className="border-b border-black">
                         <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">WORK ADDRESS</td>
@@ -2502,8 +2536,16 @@ const AdminDashboard: React.FC = () => {
                         <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.credit_card_details?.memberSince}</td>
                       </tr>
                       <tr className="border-b border-black">
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">CARD NUMBER</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.credit_card_details?.cardNumber}</td>
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">CREDIT LIMIT</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.credit_card_details?.creditLimit}</td>
+                      </tr>
+                      <tr className="border-b border-black">
+                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">EXPIRY DATE</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.credit_card_details?.expirationDate}</td>
                         <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">BEST TIME TO CONTACT</td>
-                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={7}>{exportPreviewApp.credit_card_details?.bestTimeToContact}</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={3}>{exportPreviewApp.credit_card_details?.bestTimeToContact}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -2512,18 +2554,9 @@ const AdminDashboard: React.FC = () => {
                   <table className="w-full text-[9px] sm:text-[11px] border-collapse">
                     <tbody>
                       <tr className="border-b border-black">
-                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">LAST NAME</td>
-                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.spouse_details?.lastName}</td>
-                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">FIRST NAME</td>
-                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.spouse_details?.firstName}</td>
-                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MIDDLE NAME</td>
-                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.spouse_details?.middleName}</td>
-                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">SUFFIX</td>
-                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.spouse_details?.suffix}</td>
-                      </tr>
-                      <tr>
-                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MOBILE NUMBER</td>
-                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={7}>{exportPreviewApp.spouse_details?.mobileNumber}</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={8}>
+                          {exportPreviewApp.spouse_details?.lastName} {exportPreviewApp.spouse_details?.firstName} {exportPreviewApp.spouse_details?.middleName} {exportPreviewApp.spouse_details?.suffix} {exportPreviewApp.spouse_details?.mobileNumber}
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -2532,20 +2565,9 @@ const AdminDashboard: React.FC = () => {
                   <table className="w-full text-[9px] sm:text-[11px] border-collapse">
                     <tbody>
                       <tr>
-                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">LAST NAME</td>
-                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_reference?.lastName}</td>
-                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">FIRST NAME</td>
-                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_reference?.firstName}</td>
-                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MIDDLE NAME</td>
-                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_reference?.middleName}</td>
-                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">SUFFIX</td>
-                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_reference?.suffix}</td>
-                      </tr>
-                      <tr>
-                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">MOBILE NUMBER</td>
-                        <td className="px-2 sm:px-3 py-1 sm:py-2">{exportPreviewApp.personal_reference?.mobileNumber}</td>
-                        <td className="font-bold px-2 sm:px-3 py-1 sm:py-2">RELATIONSHIP</td>
-                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={5}>{exportPreviewApp.personal_reference?.relationship}</td>
+                        <td className="px-2 sm:px-3 py-1 sm:py-2" colSpan={8}>
+                          {exportPreviewApp.personal_reference?.lastName} {exportPreviewApp.personal_reference?.firstName} {exportPreviewApp.personal_reference?.middleName} {exportPreviewApp.personal_reference?.suffix} {exportPreviewApp.personal_reference?.mobileNumber} {exportPreviewApp.personal_reference?.relationship}
+                        </td>
                       </tr>
                     </tbody>
                   </table>

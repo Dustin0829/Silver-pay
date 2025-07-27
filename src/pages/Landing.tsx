@@ -404,12 +404,20 @@ const Landing: React.FC = () => {
             Join over 50,000 satisfied customers who have successfully obtained their credit cards through SilverCard. 
             Start your application today and get approved in 24 hours.
           </p>
-          <Link
-            to="/apply"
-            className="inline-flex items-center bg-white text-blue-700 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg"
-          >
-            Start Your Application <ArrowRight className="ml-2 h-5 w-5" />
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <Link
+              to="/apply"
+              className="inline-flex items-center bg-white text-blue-700 px-8 py-4 rounded-xl text-lg font-semibold hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg"
+            >
+              Start Your Application <ArrowRight className="ml-2 h-5 w-5" />
+            </Link>
+            <Link
+              to="/contact"
+              className="inline-flex items-center bg-transparent text-white border-2 border-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-white hover:text-blue-700 transition-all transform hover:scale-105"
+            >
+              Contact Us
+            </Link>
+          </div>
         </div>
       </section>
       {/* Careers Preview Section */}
