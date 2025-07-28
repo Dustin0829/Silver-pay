@@ -494,7 +494,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
               >
                 {step.number}
               </div>
-              <span className={`mt-1 text-xs md:text-base font-medium whitespace-nowrap truncate ${
+              <span className={`mt-1 text-xs md:text-base font-medium whitespace-nowrap truncate hidden md:block ${
                 currentStep >= step.number ? 'text-blue-700' : 'text-gray-500'
               }`} style={{ maxWidth: '6rem' }}>
                 {step.title}
