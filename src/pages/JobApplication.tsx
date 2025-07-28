@@ -2,6 +2,7 @@ import React from 'react';
 import emailjs from 'emailjs-com';
 import { useNavigate } from 'react-router-dom';
 import BackButton from '../components/BackButton';
+import { Upload, FileText, X } from 'lucide-react';
 
 const jobPositions = [
   { title: 'Sales Agent', description: 'Responsible for acquiring new clients and managing relationships.' },
@@ -13,6 +14,7 @@ const jobPositions = [
 
 const JobApplication: React.FC = () => {
   const [form, setForm] = React.useState({ name: '', email: '', message: '' });
+  const [resume, setResume] = React.useState<File | null>(null);
   const [submitted, setSubmitted] = React.useState(false);
   const navigate = useNavigate();
 
@@ -20,21 +22,67 @@ const JobApplication: React.FC = () => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+  const handleResumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Check file type
+      const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+      if (!allowedTypes.includes(file.type)) {
+        alert('Please upload a PDF, DOC, DOCX, or TXT file.');
+        e.target.value = '';
+        return;
+      }
+      // Check file size (5MB limit)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('File size must be less than 5MB.');
+        e.target.value = '';
+        return;
+      }
+      setResume(file);
+    }
+  };
+
+  const removeResume = () => {
+    setResume(null);
+    const fileInput = document.getElementById('resume-upload') as HTMLInputElement;
+    if (fileInput) fileInput.value = '';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!resume) {
+      alert('Please upload your resume.');
+      return;
+    }
+
     try {
-      await emailjs.send(
-        'YOUR_SERVICE_ID', // replace with your EmailJS service ID
-        'YOUR_TEMPLATE_ID', // replace with your EmailJS template ID
-        {
-          from_name: form.name,
-          from_email: form.email,
-          message: form.message,
-          to_email: 'silvercard.202504@gmail.com',
-        },
-        'YOUR_USER_ID' // replace with your EmailJS user/public key
-      );
+      // Create email content with resume attachment info
+      const emailContent = `
+        New Job Application from SilverCard Website
+        
+        Name: ${form.name}
+        Email: ${form.email}
+        
+        Message/Cover Letter:
+        ${form.message}
+        
+        Resume: ${resume.name} (${(resume.size / 1024 / 1024).toFixed(2)} MB)
+        
+        ---
+        This application was sent from the SilverCard careers page.
+        Note: The resume file should be attached to this email.
+      `;
+
+      // Create mailto link with the specified email
+      const mailtoLink = `mailto:silvercard.202504@gmail.com?subject=Job Application: ${encodeURIComponent(form.name)} - ${encodeURIComponent(resume.name)}&body=${encodeURIComponent(emailContent)}`;
+      
+      // Open default email client
+      window.location.href = mailtoLink;
+      
       setSubmitted(true);
+      setForm({ name: '', email: '', message: '' });
+      setResume(null);
     } catch (error) {
       alert('Failed to send message. Please try again later.');
     }
@@ -69,7 +117,54 @@ const JobApplication: React.FC = () => {
             <label className="block text-gray-700 mb-2">Message / Cover Letter</label>
             <textarea name="message" value={form.message} onChange={handleChange} className="w-full border border-gray-300 rounded-lg px-3 py-2" rows={5} required />
           </div>
-          <button type="submit" className="bg-blue-700 text-white px-6 py-2 rounded-lg hover:bg-blue-800 transition-colors">Send</button>
+
+          {/* Resume Upload Section */}
+          <div className="mb-6">
+            <label className="block text-gray-700 mb-2">Upload Resume *</label>
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition-colors">
+              {!resume ? (
+                <div className="text-center">
+                  <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-600 mb-2">Click to upload your resume</p>
+                  <p className="text-xs text-gray-500 mb-4">PDF, DOC, DOCX, or TXT files up to 5MB</p>
+                  <input
+                    type="file"
+                    id="resume-upload"
+                    accept=".pdf,.doc,.docx,.txt"
+                    onChange={handleResumeChange}
+                    className="hidden"
+                    required
+                  />
+                  <label
+                    htmlFor="resume-upload"
+                    className="cursor-pointer inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Choose File
+                  </label>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <FileText className="h-5 w-5 text-blue-600 mr-3" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{resume.name}</p>
+                      <p className="text-xs text-gray-500">{(resume.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removeResume}
+                    className="text-red-500 hover:text-red-700 transition-colors"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <button type="submit" className="bg-blue-700 text-white px-6 py-2 rounded-lg hover:bg-blue-800 transition-colors">Send Application</button>
           {submitted && <p className="text-green-600 mt-4">Thank you for your interest! We'll get back to you soon.</p>}
         </form>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Phone, MapPin, Send, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface ContactForm {
@@ -11,6 +11,7 @@ interface ContactForm {
 }
 
 const Contact: React.FC = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<ContactForm>({
     name: '',
     email: '',
@@ -89,19 +90,16 @@ const Contact: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Link 
-            to="/" 
-            className="inline-flex items-center text-blue-600 hover:text-blue-700 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Home
-          </Link>
-        </div>
-      </div>
+    <div className="min-h-screen bg-gray-50 relative">
+      {/* Circular Back Button */}
+      <button 
+        type="button" 
+        onClick={() => navigate(-1)} 
+        className="fixed top-4 left-4 z-30 flex items-center p-3 border border-gray-300 rounded-full text-gray-700 hover:bg-gray-100 bg-white shadow" 
+        aria-label="Back"
+      >
+        <ArrowLeft className="h-5 w-5" />
+      </button>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Page Header */}
@@ -120,16 +118,47 @@ const Contact: React.FC = () => {
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Get in Touch</h2>
               
               <div className="space-y-6">
-                                 <div className="flex items-start">
-                   <div className="flex-shrink-0">
-                     <Mail className="h-6 w-6 text-blue-600" />
-                   </div>
-                   <div className="ml-4">
-                     <h3 className="text-lg font-semibold text-gray-900">Email</h3>
-                     <h4 className="text-gray-600 font-semibold">thesilvercard.202504@gmail.com</h4>
-                     <p className="text-gray-600">For feedback and suggestions</p>
-                   </div>
-                 </div>
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <MapPin className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="ml-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Address</h3>
+                    <p className="text-gray-600">2/F Unit 3, PBE Building, 14 Balete Drive, Quezon City, Philippines</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <Phone className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="ml-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Phone</h3>
+                    <p className="text-gray-600">285518750</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <Mail className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="ml-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Email</h3>
+                    <p className="text-gray-600">silvercard.202504@gmail.com</p>
+                    <p className="text-gray-500 text-sm">For general inquiries and feedback</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <Mail className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="ml-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Help Center</h3>
+                    <p className="text-gray-600">support@teamscsolutions.com</p>
+                    <p className="text-gray-500 text-sm">For technical support and assistance</p>
+                  </div>
+                </div>
               </div>
 
               <div className="mt-8 p-6 bg-blue-50 rounded-xl">
