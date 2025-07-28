@@ -89,17 +89,20 @@ function mapFlatToNestedApp(data: any) {
       relationship
     };
   }
-  // Map bank preferences
+  // Map bank preferences from bank_applied field
+  const bankApplied = data.bank_applied || '';
+  const selectedBanks = bankApplied.split(',').map((bank: string) => bank.trim().toLowerCase());
+  
   const bankPreferences = {
-    rcbc: !!data.rcbc,
-    metrobank: !!data.metrobank,
-    eastWestBank: !!data.eastwestbank || !!data.eastWestBank,
-    securityBank: !!data.securitybank || !!data.securityBank,
-    bpi: !!data.bpi,
-    pnb: !!data.pnb,
-    robinsonBank: !!data.robinsonbank || !!data.robinsonBank,
-    maybank: !!data.maybank,
-    aub: !!data.aub,
+    rcbc: selectedBanks.includes('rcbc'),
+    metrobank: selectedBanks.includes('metrobank'),
+    eastWestBank: selectedBanks.includes('eastwestbank') || selectedBanks.includes('eastwest'),
+    securityBank: selectedBanks.includes('securitybank') || selectedBanks.includes('security'),
+    bpi: selectedBanks.includes('bpi'),
+    pnb: selectedBanks.includes('pnb'),
+    robinsonBank: selectedBanks.includes('robinsonbank') || selectedBanks.includes('robinson'),
+    maybank: selectedBanks.includes('maybank'),
+    aub: selectedBanks.includes('aub'),
   };
   return {
     ...data,
@@ -1460,11 +1463,23 @@ const AdminDashboard: React.FC = () => {
             {/* Bank Preferences */}
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Bank Preferences</h4>
-              <div className="flex flex-wrap gap-2">
-                {app.bank_preferences && Object.entries(app.bank_preferences).map(([k, v]) => (
-                  <span key={k} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
-                    {k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                  </span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {BANKS.map(bank => (
+                    <label key={bank.value} className="flex items-center p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!(app.bank_preferences && app.bank_preferences[bank.value])}
+                        onChange={(e) => setApp({
+                          ...app,
+                          bank_preferences: {
+                            ...(app.bank_preferences || {}),
+                            [bank.value]: e.target.checked
+                          }
+                        })}
+                        className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm font-medium text-gray-700">{bank.label}</span>
+                    </label>
                 ))}
               </div>
             </div>
@@ -1886,7 +1901,8 @@ const AdminDashboard: React.FC = () => {
     const id = app.id.startsWith('kyc-') ? app.id.replace('kyc-', '') : app.id;
     const { data, error } = await supabase.from(table).select('*').eq('id', id).single();
     if (!error && data) {
-      setEditApp(mapFlatToNestedApp(data));
+      const transformedData = mapFlatToNestedApp(data);
+      setEditApp(transformedData);
     } else {
       setEditApp(null);
       setToast({ show: true, message: 'Failed to fetch application for editing', type: 'error' });
@@ -2103,17 +2119,63 @@ const AdminDashboard: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={async () => {
-                                    // Save changes to Supabase
-                                    const { id, ...updateData } = editApp;
-                                    const { error } = await supabase.from('application_form').update(updateData).eq('id', id);
-                                    if (error) {
-                                      setToast({ show: true, message: 'Failed to update application: ' + error.message, type: 'error' });
-                                      return;
+                                    try {
+                                      console.log('DEBUG: Starting save process for editApp:', editApp);
+                                      
+                                      // Convert bank preferences back to bank_applied format
+                                      const bankApplied = editApp.bank_preferences 
+                                        ? Object.keys(editApp.bank_preferences)
+                                            .filter(key => editApp.bank_preferences[key])
+                                            .join(', ')
+                                        : '';
+                                      
+                                      console.log('DEBUG: Bank preferences converted to:', bankApplied);
+                                      
+                                      // All applications are stored in kyc_details table
+                                      const table = 'kyc_details';
+                                      const appId = editApp.id;
+                                      
+                                      console.log('DEBUG: Using table:', table, 'with ID:', appId);
+                                      
+                                      // Prepare update data - flatten the nested structure back to flat database fields
+                                      const updateData = {
+                                        last_name: editApp.personal_details?.lastName || '',
+                                        first_name: editApp.personal_details?.firstName || '',
+                                        middle_name: editApp.personal_details?.middleName || '',
+                                        suffix: editApp.personal_details?.suffix || '',
+                                        date_of_birth: editApp.personal_details?.dateOfBirth || '',
+                                        place_of_birth: editApp.personal_details?.placeOfBirth || '',
+                                        gender: editApp.personal_details?.gender || '',
+                                        civil_status: editApp.personal_details?.civilStatus || '',
+                                        nationality: editApp.personal_details?.nationality || '',
+                                        mobile_number: editApp.personal_details?.mobileNumber || '',
+                                        email_address: editApp.personal_details?.emailAddress || '',
+                                        home_number: editApp.personal_details?.homeNumber || '',
+                                        "sss/gsis/umid": editApp.personal_details?.sssGsisUmid || '',
+                                        tin: editApp.personal_details?.tin || '',
+                                        bank_applied: bankApplied,
+                                        // Add other fields as needed
+                                      };
+                                      
+                                      console.log('DEBUG: Update data prepared:', updateData);
+                                      
+                                      // Save changes to Supabase
+                                      const { error } = await supabase.from(table).update(updateData).eq('id', appId);
+                                      if (error) {
+                                        console.error('DEBUG: Supabase error:', error);
+                                        setToast({ show: true, message: 'Failed to update application: ' + (error.message || error.details || 'Unknown error'), type: 'error' });
+                                        return;
+                                      }
+                                      
+                                      console.log('DEBUG: Update successful');
+                                      setApplications(apps => apps.map(a => a.id === editApp.id ? { ...a, ...updateData } : a));
+                                      setToast({ show: true, message: 'Application updated successfully!', type: 'success' });
+                                      setEditApp(null);
+                                      setCurrentEditStep(1);
+                                    } catch (err) {
+                                      console.error('DEBUG: Exception during save:', err);
+                                      setToast({ show: true, message: 'Failed to update application: ' + (err instanceof Error ? err.message : 'Unknown error'), type: 'error' });
                                     }
-                                    setApplications(apps => apps.map(a => a.id === id ? { ...a, ...updateData } : a));
-                                    setToast({ show: true, message: 'Application updated successfully!', type: 'success' });
-                                    setEditApp(null);
-                                    setCurrentEditStep(1);
                                   }}
                                   className="flex items-center px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 text-sm"
                                 >
@@ -2579,9 +2641,9 @@ const AdminDashboard: React.FC = () => {
                 <table className="w-full text-[9px] sm:text-[11px] border-collapse">
                   <tbody>
                     <tr>
-                      {BANKS.map(b => (
+                      {BANKS.filter(b => exportPreviewApp.bank_preferences && exportPreviewApp.bank_preferences[b.value]).map(b => (
                         <td key={b.value} className="px-2 sm:px-3 py-1 sm:py-2 border-r border-black last:border-r-0">
-                          <span className="inline-block w-3 text-center mr-1">{exportPreviewApp.bank_preferences && exportPreviewApp.bank_preferences[b.value] ? '✓' : ''}</span>
+                          <span className="inline-block w-3 text-center mr-1">✓</span>
                           {b.label}
                         </td>
                       ))}

@@ -1,16 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { CreditCard, User, LogOut, MessageSquare, Gift, Briefcase } from 'lucide-react';
+import { CreditCard, User, LogOut, MessageSquare, Gift, Briefcase, Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Header: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/');
+  };
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
   };
 
   const isLandingPage = location.pathname === '/';
@@ -71,16 +76,80 @@ const Header: React.FC = () => {
             {/* Mobile Menu Button - Show on landing page and when not authenticated */}
             {(!isAuthenticated || isLandingPage) && (
               <div className="md:hidden">
-                <button className="text-gray-700 hover:text-blue-600 transition-colors">
-                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
+                <button 
+                  onClick={toggleMobileMenu}
+                  className="text-gray-700 hover:text-blue-600 transition-colors"
+                >
+                  {isMobileMenuOpen ? (
+                    <X className="h-6 w-6" />
+                  ) : (
+                    <Menu className="h-6 w-6" />
+                  )}
                 </button>
               </div>
             )}
           </nav>
         </div>
       </div>
+
+      {/* Mobile Menu Sidebar */}
+      {isMobileMenuOpen && (!isAuthenticated || isLandingPage) && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          
+          {/* Sidebar */}
+          <div className="md:hidden fixed top-0 right-0 h-full w-64 bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out">
+            <div className="flex flex-col h-full">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-800">Menu</h3>
+                <button 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+              
+              {/* Navigation Links */}
+              <div className="flex-1 p-4 space-y-2">
+                <Link 
+                  to="/promos" 
+                  className="flex items-center px-4 py-3 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <span className="font-medium">Promos</span>
+                </Link>
+                <Link 
+                  to="/jobs" 
+                  className="flex items-center px-4 py-3 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <span className="font-medium">Careers</span>
+                </Link>
+                <Link 
+                  to="/contact" 
+                  className="flex items-center px-4 py-3 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <span className="font-medium">Contact</span>
+                </Link>
+              </div>
+              
+              {/* Footer */}
+              <div className="p-4 border-t border-gray-200">
+                <div className="text-sm text-gray-500 text-center">
+                  Silver Card Solutions
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </header>
   );
 };
