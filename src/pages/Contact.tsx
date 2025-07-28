@@ -97,7 +97,7 @@ const Contact: React.FC = () => {
         onClick={() => navigate(-1)} 
         className="fixed top-4 left-4 z-30 flex items-center p-3 border border-gray-300 rounded-full text-gray-700 hover:bg-gray-100 bg-white shadow" 
         aria-label="Back"
-      >
+          >
         <ArrowLeft className="h-5 w-5" />
       </button>
 
@@ -138,12 +138,12 @@ const Contact: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <Mail className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div className="ml-4">
-                    <h3 className="text-lg font-semibold text-gray-900">Email</h3>
+                                 <div className="flex items-start">
+                   <div className="flex-shrink-0">
+                     <Mail className="h-6 w-6 text-blue-600" />
+                   </div>
+                   <div className="ml-4">
+                     <h3 className="text-lg font-semibold text-gray-900">Email</h3>
                     <p className="text-gray-600">silvercard.202504@gmail.com</p>
                     <p className="text-gray-500 text-sm">For general inquiries and feedback</p>
                   </div>
@@ -157,8 +157,8 @@ const Contact: React.FC = () => {
                     <h3 className="text-lg font-semibold text-gray-900">Help Center</h3>
                     <p className="text-gray-600">support@teamscsolutions.com</p>
                     <p className="text-gray-500 text-sm">For technical support and assistance</p>
-                  </div>
-                </div>
+                   </div>
+                 </div>
               </div>
 
               <div className="mt-8 p-6 bg-blue-50 rounded-xl">

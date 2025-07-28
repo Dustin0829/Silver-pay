@@ -2159,19 +2159,19 @@ const AdminDashboard: React.FC = () => {
                                       
                                       console.log('DEBUG: Update data prepared:', updateData);
                                       
-                                      // Save changes to Supabase
+                                    // Save changes to Supabase
                                       const { error } = await supabase.from(table).update(updateData).eq('id', appId);
-                                      if (error) {
+                                    if (error) {
                                         console.error('DEBUG: Supabase error:', error);
                                         setToast({ show: true, message: 'Failed to update application: ' + (error.message || error.details || 'Unknown error'), type: 'error' });
-                                        return;
-                                      }
+                                      return;
+                                    }
                                       
                                       console.log('DEBUG: Update successful');
                                       setApplications(apps => apps.map(a => a.id === editApp.id ? { ...a, ...updateData } : a));
-                                      setToast({ show: true, message: 'Application updated successfully!', type: 'success' });
-                                      setEditApp(null);
-                                      setCurrentEditStep(1);
+                                    setToast({ show: true, message: 'Application updated successfully!', type: 'success' });
+                                    setEditApp(null);
+                                    setCurrentEditStep(1);
                                     } catch (err) {
                                       console.error('DEBUG: Exception during save:', err);
                                       setToast({ show: true, message: 'Failed to update application: ' + (err instanceof Error ? err.message : 'Unknown error'), type: 'error' });
