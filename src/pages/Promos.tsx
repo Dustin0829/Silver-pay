@@ -259,38 +259,6 @@ const banks = [
       },
     ],
   },
-  {
-    name: 'Security Bank',
-    logo: '/banks/securitybank.jpg',
-    promoPage: 'https://www.securitybank.com/personal/credit-cards/promos/',
-    promos: [
-      {
-        title: 'Gold Mastercard Benefits',
-        desc: 'Enjoy exclusive perks and privileges with your Security Bank Gold Mastercard.',
-        img: '/promos/securitybank/gold.jpg',
-      },
-      {
-        title: 'Conscious Spending Promo',
-        desc: 'Get rewarded for making conscious spending choices with Security Bank.',
-        img: '/promos/securitybank/conscious.jpg',
-      },
-      {
-        title: 'Complete Cashback Card',
-        desc: 'Earn cashback on all your purchases with the Security Bank Complete Cashback Card.',
-        img: '/promos/securitybank/complete-cashback.png',
-      },
-      {
-        title: 'Wave Contactless Payments',
-        desc: 'Experience the convenience of contactless payments with Security Bank Wave.',
-        img: '/promos/securitybank/wave.jpg',
-      },
-      {
-        title: 'NEXT Credit Card',
-        desc: 'Step into the future of banking with the Security Bank NEXT Credit Card.',
-        img: '/promos/securitybank/next.jpg',
-      },
-    ],
-  },
 ];
 
 const Promos: React.FC = () => {

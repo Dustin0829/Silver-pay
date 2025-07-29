@@ -84,7 +84,6 @@ export interface BankPreferences {
   rcbc: boolean;
   metrobank: boolean;
   eastWestBank: boolean;
-  securityBank: boolean;
   bpi: boolean;
   pnb: boolean;
   robinsonBank: boolean;

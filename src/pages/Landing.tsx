@@ -13,7 +13,6 @@ const Landing: React.FC = () => {
     { name: 'RCBC', logo: '/banks/RCBC.jpg' },
     { name: 'Metrobank', logo: '/banks/metrobank.jpeg' },
     { name: 'EastWest Bank', logo: '/banks/eastwest.webp' },
-    { name: 'Security Bank', logo: '/banks/securitybank.jpg' },
     { name: 'BPI', logo: '/banks/bpi.jpg' },
     { name: 'PNB', logo: '/banks/pnb.png' },
     { name: 'Robinson Bank', logo: '/banks/robinson.jpg' },
@@ -47,11 +46,6 @@ const Landing: React.FC = () => {
       desc: 'Get exclusive travel deals and discounts with your Metrobank credit card.',
       img: '/promos/metrobank/bigtravel-bonus.webp',
     },
-    {
-      title: 'Gold Mastercard Benefits',
-      desc: 'Enjoy exclusive perks and privileges with your Security Bank Gold Mastercard.',
-      img: '/promos/securitybank/gold.jpg',
-    },
   ];
   const [promoIndex, setPromoIndex] = React.useState(0);
   const isMobile = window.innerWidth < 640;
@@ -66,11 +60,10 @@ const Landing: React.FC = () => {
   const handleNext = () => setPromoIndex((prev) => (prev + 1) % promos.length);
 
   const jobPositions: Job[] = [
-    { title: 'Sales Agent', description: 'Responsible for acquiring new clients and managing relationships.' },
-    { title: 'Customer Support Specialist', description: 'Assist customers with inquiries and resolve issues.' },
-    { title: 'Marketing Coordinator', description: 'Plan and execute marketing campaigns for SilverCard.' },
-    { title: 'Software Engineer', description: 'Develop and maintain SilverCard web applications.' },
-    { title: 'Compliance Officer', description: 'Ensure all operations comply with regulations and company policies.' },
+    { title: 'Credit Card Sales Officer', description: 'We are looking for a dynamic Credit Card Sales Officer to join our team and help expand our customer base.' },
+    { title: 'Bank Application Processor', description: 'Join our processing team to handle credit card applications and ensure smooth operations.' },
+    { title: 'Admin Staff', description: 'Support our operations team with administrative tasks and ensure smooth day-to-day operations.' },
+    { title: 'Data Encoder', description: 'Join our data management team to ensure accurate and timely data entry for our operations.' },
   ];
 
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -126,7 +119,7 @@ const Landing: React.FC = () => {
                   <div className="text-sm text-gray-600 mt-1">Average Processing<br />Time</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-gray-900">9</div>
+                  <div className="text-3xl font-bold text-gray-900">8</div>
                   <div className="text-sm text-gray-600 mt-1">Banking Partners</div>
                 </div>
               </div>

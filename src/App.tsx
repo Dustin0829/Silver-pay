@@ -14,6 +14,7 @@ import ApplicationSuccess from './pages/ApplicationSuccess';
 import CreditCards from './pages/CreditCards';
 import Promos from './pages/Promos';
 import JobApplication from './pages/JobApplication';
+import JobApplicationForm from './pages/JobApplicationForm';
 import Contact from './pages/Contact';
 
 const AppContent: React.FC = () => {
@@ -31,6 +32,9 @@ const AppContent: React.FC = () => {
                 <Route path="login" element={<Login />} />
                 <Route path="apply" element={<ApplicationForm />} />
                 <Route path="application-success" element={<ApplicationSuccess />} />
+                <Route path="jobs" element={<JobApplication />} />
+                <Route path="jobs/apply/:jobId" element={<JobApplicationForm />} />
+                <Route path="job-application-success" element={<ApplicationSuccess />} />
                 <Route 
                   path="dashboard" 
                   element={
@@ -76,7 +80,6 @@ const AppContent: React.FC = () => {
                 />
                 <Route path="credit-cards" element={<CreditCards />} />
                 <Route path="promos" element={<Promos />} />
-                <Route path="jobs" element={<JobApplication />} />
                 <Route path="contact" element={<Contact />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Route>

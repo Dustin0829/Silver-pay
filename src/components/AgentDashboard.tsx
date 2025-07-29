@@ -114,7 +114,6 @@ const AgentDashboard: React.FC = () => {
           rcbc: banks.includes('rcbc'),
           metrobank: banks.includes('metrobank'),
           eastWestBank: banks.includes('eastwestbank'),
-          securityBank: banks.includes('securitybank'),
           bpi: banks.includes('bpi'),
           pnb: banks.includes('pnb'),
           robinsonBank: banks.includes('robinsonbank'),

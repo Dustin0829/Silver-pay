@@ -18,7 +18,6 @@ const Footer: React.FC<FooterProps> = ({ onShowTerms, onShowPrivacy }) => {
     'UnionBank Credit Cards',
     'Metrobank Credit Cards',
     'HSBC Credit Cards',
-    'Security Bank Credit Cards',
     'BPI Credit Cards',
     'EastWest Bank Credit Cards',
   ];

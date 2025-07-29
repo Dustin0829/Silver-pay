@@ -75,26 +75,28 @@ const PHILIPPINE_BARANGAYS = {
   'San Jose del Monte': ['Barangay 1', 'Barangay 2', 'Barangay 3', 'Barangay 4', 'Barangay 5', 'Barangay 6', 'Barangay 7', 'Barangay 8', 'Barangay 9', 'Barangay 10', 'Barangay 11', 'Barangay 12', 'Barangay 13', 'Barangay 14', 'Barangay 15', 'Barangay 16', 'Barangay 17', 'Barangay 18', 'Barangay 19', 'Barangay 20', 'Barangay 21', 'Barangay 22', 'Barangay 23', 'Barangay 24', 'Barangay 25', 'Barangay 26', 'Barangay 27', 'Barangay 28', 'Barangay 29', 'Barangay 30', 'Barangay 31', 'Barangay 32', 'Barangay 33', 'Barangay 34', 'Barangay 35']
 };
 
-const BANK_PREFERENCE_KEYS = [
-  'rcbc', 'metrobank', 'eastWestBank', 'securityBank', 'bpi', 'pnb', 'robinsonBank', 'maybank', 'aub',
+// Banking preferences
+const bankTypes = [
+  'rcbc', 'metrobank', 'eastWestBank', 'bpi', 'pnb', 'robinsonBank', 'maybank', 'aub',
 ] as const;
-const BANK_PREFERENCE_LABELS = {
-  rcbc: 'RCBC', metrobank: 'Metrobank', eastWestBank: 'EastWestBank', securityBank: 'Security Bank',
-  bpi: 'BPI', pnb: 'PNB', robinsonBank: 'Robinson Bank', maybank: 'Maybank', aub: 'AUB',
+
+// Bank names for display
+const bankNames: Record<string, string> = {
+  rcbc: 'RCBC', metrobank: 'Metrobank', eastWestBank: 'EastWestBank', bpi: 'BPI',
+  pnb: 'PNB', robinsonBank: 'Robinson Bank', maybank: 'Maybank', aub: 'AUB',
 };
 
-export type BankPreferences = {
+interface BankPreferences {
   rcbc: boolean;
   metrobank: boolean;
   eastWestBank: boolean;
-  securityBank: boolean;
   bpi: boolean;
   pnb: boolean;
   robinsonBank: boolean;
   maybank: boolean;
   aub: boolean;
   [key: string]: boolean;
-};
+}
 
 type FormDataType = {
   personalDetails: PersonalDetails;
@@ -130,7 +132,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       personalReference: { lastName: '', firstName: '', middleName: '', suffix: '', mobileNumber: '', relationship: '' },
       workDetails: { businessEmployerName: '', professionOccupation: '', natureOfBusiness: '', department: '', landlineMobile: '', yearsInBusiness: '', monthlyIncome: '', annualIncome: '', address: { street: '', barangay: '', city: '', zipCode: '', unitFloor: '', buildingTower: '', lotNo: '' } },
       creditCardDetails: { bankInstitution: '', cardNumber: '', creditLimit: '', memberSince: '', expirationDate: '', deliverCardTo: 'home', bestTimeToContact: '' },
-      bankPreferences: { rcbc: false, metrobank: false, eastWestBank: false, securityBank: false, bpi: false, pnb: false, robinsonBank: false, maybank: false, aub: false },
+      bankPreferences: { rcbc: false, metrobank: false, eastWestBank: false, bpi: false, pnb: false, robinsonBank: false, maybank: false, aub: false },
     };
   });
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | undefined }>({ show: false, message: '', type: undefined });
@@ -571,7 +573,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
   const renderCreditAndPreferences = () => (
     <div className="space-y-8">
       <div><h3 className="text-2xl font-semibold text-gray-700 mb-6">Credit Card Details</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6"><div><label className="block text-sm font-medium text-gray-700 mb-2">Bank/Institution <span className="text-red-500">*</span></label><input type="text" value={formData.creditCardDetails.bankInstitution} onChange={(e) => handleInputChange('creditCardDetails', 'bankInstitution', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Card Number <span className="text-red-500">*</span></label><input type="text" value={formData.creditCardDetails.cardNumber} onChange={(e) => handleInputChange('creditCardDetails', 'cardNumber', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Credit Limit <span className="text-red-500">*</span></label><input type="text" value={formData.creditCardDetails.creditLimit} onChange={(e) => handleInputChange('creditCardDetails', 'creditLimit', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Member Since <span className="text-red-500">*</span></label><input type="date" value={formData.creditCardDetails.memberSince} onChange={(e) => handleInputChange('creditCardDetails', 'memberSince', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Exp. Date <span className="text-red-500">*</span></label><input type="date" value={formData.creditCardDetails.expirationDate} onChange={(e) => handleInputChange('creditCardDetails', 'expirationDate', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Best Time to Contact <span className="text-red-500">*</span></label><input type="text" value={formData.creditCardDetails.bestTimeToContact} onChange={(e) => handleInputChange('creditCardDetails', 'bestTimeToContact', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div></div><div className="mt-6"><label className="block text-sm font-medium text-gray-700 mb-3">Deliver Card To</label><div className="space-y-2"><label className="flex items-center"><input type="radio" name="deliverCardTo" value="home" checked={formData.creditCardDetails.deliverCardTo === 'home'} onChange={(e) => handleInputChange('creditCardDetails', 'deliverCardTo', e.target.value)} className="mr-2" />Present Home Address</label><label className="flex items-center"><input type="radio" name="deliverCardTo" value="business" checked={formData.creditCardDetails.deliverCardTo === 'business'} onChange={(e) => handleInputChange('creditCardDetails', 'deliverCardTo', e.target.value)} className="mr-2" />Business Address</label></div></div></div>
-      <div><h3 className="text-2xl font-semibold text-gray-700 mb-6">Bank Preferences</h3><p className="text-gray-600 mb-4">Check all banks that apply:</p><div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">{BANK_PREFERENCE_KEYS.map(key => <label key={key} className="flex items-center p-3 border rounded-lg hover:bg-gray-50"><input type="checkbox" checked={formData.bankPreferences[key]} onChange={(e) => handleInputChange('bankPreferences', key, e.target.checked ? true : false)} className="mr-3" /><span>{BANK_PREFERENCE_LABELS[key]}</span></label>)}</div></div>
+      <div><h3 className="text-2xl font-semibold text-gray-700 mb-6">Bank Preferences</h3><p className="text-gray-600 mb-4">Check all banks that apply:</p><div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">{bankTypes.map(key => <label key={key} className="flex items-center p-3 border rounded-lg hover:bg-gray-50"><input type="checkbox" checked={formData.bankPreferences[key]} onChange={(e) => handleInputChange('bankPreferences', key, e.target.checked ? true : false)} className="mr-3" /><span>{bankNames[key]}</span></label>)}</div></div>
     </div>
   );
 

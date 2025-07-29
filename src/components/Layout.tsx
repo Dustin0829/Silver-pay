@@ -298,7 +298,7 @@ const Layout: React.FC = () => {
                   <span className="font-semibold">Contact Us</span>
                   <p className="ml-4">For questions, concerns, or requests regarding your Personal Data, you may reach us at:</p>
                   <ul className="list-none ml-8">
-                    <li>📞 <span className="font-semibold">Phone:</span> 285518750</li>
+                    <li>📞 <span className="font-semibold">Phone:</span> 0285518750</li>
                     <li>🏢 <span className="font-semibold">Address:</span> 2/F Unit 3, PBE Building, 14 Balete Drive, Quezon City, Philippines</li>
                     <li>📩 <span className="font-semibold">Email:</span> silvercard.202504@gmail.com</li>
                     <li>🛠️ <span className="font-semibold">Help Center:</span> support@teamscsolutions.com</li>

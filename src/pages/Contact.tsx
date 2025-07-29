@@ -134,7 +134,7 @@ const Contact: React.FC = () => {
                   </div>
                   <div className="ml-4">
                     <h3 className="text-lg font-semibold text-gray-900">Phone</h3>
-                    <p className="text-gray-600">285518750</p>
+                    <p className="text-gray-600">0285518750</p>
                   </div>
                 </div>
 
