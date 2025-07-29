@@ -65,7 +65,7 @@ const Contact: React.FC = () => {
       `;
 
       // Create mailto link with the specified email
-      const mailtoLink = `mailto:thesilvercard.202504@gmail.com?subject=SilverCard Feedback: ${encodeURIComponent(formData.subject)}&body=${encodeURIComponent(emailContent)}`;
+      const mailtoLink = `mailto:hr.admin@teamscsolutions.com?subject=SilverCard Feedback: ${encodeURIComponent(formData.subject)}&body=${encodeURIComponent(emailContent)}`;
       
       // Open default email client
       window.location.href = mailtoLink;
