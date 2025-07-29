@@ -35,7 +35,16 @@ const PHILIPPINE_REGIONS = [
   'Bangsamoro Autonomous Region in Muslim Mindanao (BARMM)'
 ];
 
-const PHILIPPINE_PROVINCES = {
+// Define types for the provinces and cities objects
+type RegionToProvincesMap = {
+  [region: string]: string[];
+};
+
+type ProvinceToMunicipalitiesMap = {
+  [province: string]: string[];
+};
+
+const PHILIPPINE_PROVINCES: RegionToProvincesMap = {
   'National Capital Region (NCR)': ['Metro Manila'],
   'Region I - Ilocos Region': ['Ilocos Norte', 'Ilocos Sur', 'La Union', 'Pangasinan'],
   'Region II - Cagayan Valley': ['Batanes', 'Cagayan', 'Isabela', 'Nueva Vizcaya', 'Quirino'],
@@ -55,7 +64,7 @@ const PHILIPPINE_PROVINCES = {
 };
 
 // Sample cities for some provinces (you can expand this)
-const PHILIPPINE_CITIES = {
+const PHILIPPINE_CITIES: ProvinceToMunicipalitiesMap = {
   'Metro Manila': ['Manila', 'Quezon City', 'Caloocan', 'Las Piñas', 'Makati', 'Malabon', 'Mandaluyong', 'Marikina', 'Muntinlupa', 'Navotas', 'Parañaque', 'Pasay', 'Pasig', 'San Juan', 'Taguig', 'Valenzuela', 'Pateros'],
   'Pampanga': ['Angeles', 'Apalit', 'Arayat', 'Bacolor', 'Candaba', 'Floridablanca', 'Guagua', 'Lubao', 'Mabalacat', 'Macabebe', 'Magalang', 'Masantol', 'Mexico', 'Minalin', 'Porac', 'San Fernando', 'San Luis', 'San Simon', 'Santa Ana', 'Santa Rita', 'Santo Tomas', 'Sasmuan'],
   'Bulacan': ['Angat', 'Balagtas', 'Baliuag', 'Bocaue', 'Bulakan', 'Bustos', 'Calumpit', 'Doña Remedios Trinidad', 'Guiguinto', 'Hagonoy', 'Malolos', 'Marilao', 'Meycauayan', 'Norzagaray', 'Obando', 'Pandi', 'Paombong', 'Plaridel', 'Pulilan', 'San Ildefonso', 'San Jose del Monte', 'San Miguel', 'San Rafael', 'San Simon', 'Santa Maria'],
@@ -125,7 +134,7 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       }
     }
     return {
-      personalDetails: { lastName: '', firstName: '', middleName: '', suffix: '', dateOfBirth: '', placeOfBirth: '', gender: '', civilStatus: '', nationality: '', mobileNumber: '', homeNumber: '', emailAddress: '', sssGsisUmid: '', tin: '' },
+      personalDetails: { lastName: '', firstName: '', middleName: '', suffix: '', dateOfBirth: '', placeOfBirth: '', birthRegion: '', birthProvince: '', birthMunicipality: '', gender: '', civilStatus: '', nationality: '', mobileNumber: '', homeNumber: '', emailAddress: '', sssGsisUmid: '', tin: '' },
       motherDetails: { lastName: '', firstName: '', middleName: '', suffix: '' },
       permanentAddress: { street: '', barangay: '', city: '', zipCode: '', yearsOfStay: '' },
       spouseDetails: { lastName: '', firstName: '', middleName: '', suffix: '', mobileNumber: '' },
@@ -138,18 +147,11 @@ const ApplicationForm = ({ isAgentForm = false }) => {
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | undefined }>({ show: false, message: '', type: undefined });
   const [idPhoto, setIdPhoto] = useState<File | null>(null);
   const [eSignature, setESignature] = useState<File | null>(null);
-  const [selectedRegion, setSelectedRegion] = useState<string>('');
-  const [selectedProvince, setSelectedProvince] = useState<string>('');
-  const [selectedCity, setSelectedCity] = useState<string>('');
-  const [selectedBarangay, setSelectedBarangay] = useState<string>('');
-  const [currentLevel, setCurrentLevel] = useState<'region' | 'province' | 'city'>('region');
   const { setLoading } = useLoading();
 
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(formData));
   }, [formData]);
-
-
 
   const handleInputChange = (section: string, field: string, value: string | boolean) => {
     setFormData(prev => ({
@@ -163,106 +165,6 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       ...prev,
       [section]: { ...prev[section], [subsection]: { ...prev[section][subsection], [field]: value } },
     }));
-  };
-
-  const handleLocationChange = (value: string) => {
-    if (currentLevel === 'region') {
-      setSelectedRegion(value);
-      setCurrentLevel('province');
-      setFormData(prev => ({
-        ...prev,
-        personalDetails: { ...prev.personalDetails, placeOfBirth: '' }
-      }));
-    } else if (currentLevel === 'province') {
-      setSelectedProvince(value);
-      setCurrentLevel('city');
-      setFormData(prev => ({
-        ...prev,
-        personalDetails: { ...prev.personalDetails, placeOfBirth: '' }
-      }));
-    } else if (currentLevel === 'city') {
-      setSelectedCity(value);
-      const fullPlaceOfBirth = `${value}, ${selectedProvince}, ${selectedRegion}`;
-      setFormData(prev => ({
-        ...prev,
-        personalDetails: { ...prev.personalDetails, placeOfBirth: fullPlaceOfBirth }
-      }));
-    }
-  };
-
-  const getCurrentOptions = () => {
-    if (currentLevel === 'region') {
-      return PHILIPPINE_REGIONS;
-    } else if (currentLevel === 'province') {
-      return PHILIPPINE_PROVINCES[selectedRegion] || [];
-    } else if (currentLevel === 'city') {
-      return PHILIPPINE_CITIES[selectedProvince] || [];
-    }
-    return [];
-  };
-
-  const getCurrentLabel = () => {
-    if (currentLevel === 'region') {
-      return 'Select Region';
-    } else if (currentLevel === 'province') {
-      return `Select Province in ${selectedRegion}`;
-    } else if (currentLevel === 'city') {
-      return `Select City/Municipality in ${selectedProvince}`;
-    }
-    return 'Select';
-  };
-
-  const getAllLocations = () => {
-    const results: string[] = [];
-    
-    // Add regions
-    PHILIPPINE_REGIONS.forEach(region => {
-      results.push(region);
-    });
-    
-    // Add provinces with their regions
-    Object.entries(PHILIPPINE_PROVINCES).forEach(([region, provinces]) => {
-      provinces.forEach(province => {
-        results.push(`${province}, ${region}`);
-      });
-    });
-    
-    // Add cities with their provinces and regions
-    Object.entries(PHILIPPINE_CITIES).forEach(([province, cities]) => {
-      // Find which region this province belongs to
-      const region = Object.entries(PHILIPPINE_PROVINCES).find(([r, provinces]) => 
-        provinces.includes(province)
-      )?.[0];
-      
-      cities.forEach(city => {
-        if (region) {
-          results.push(`${city}, ${province}, ${region}`);
-        }
-      });
-    });
-    
-    // Add barangays with their cities, provinces, and regions
-    Object.entries(PHILIPPINE_BARANGAYS).forEach(([city, barangays]) => {
-      // Find which province this city belongs to
-      const province = Object.entries(PHILIPPINE_CITIES).find(([p, cities]) => 
-        cities.includes(city)
-      )?.[0];
-      
-      if (province) {
-        // Find which region this province belongs to
-        const region = Object.entries(PHILIPPINE_PROVINCES).find(([r, provinces]) => 
-          provinces.includes(province)
-        )?.[0];
-        
-        barangays.forEach(barangay => {
-          if (region) {
-            results.push(`${barangay}, ${city}, ${province}, ${region}`);
-          }
-        });
-      }
-    });
-    
-    return results.sort();
   };
 
   const uploadWithRetry = async (file: File, pathPrefix: string) => {
@@ -410,15 +312,19 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       if (!pd.lastName) missing.push('Last Name');
       if (!pd.firstName) missing.push('First Name');
       if (!pd.dateOfBirth) missing.push('Date of Birth');
-      if (!formData.personalDetails.placeOfBirth) missing.push('Place of Birth');
+      
+      // Check for birth location fields
+      if (!pd.birthRegion) missing.push('Birth Region');
+      if (!pd.birthProvince) missing.push('Birth Province');
+      if (!pd.birthMunicipality) missing.push('Birth Municipality');
+      
       if (!pd.gender) missing.push('Gender');
       if (!pd.civilStatus) missing.push('Civil Status');
       if (!pd.nationality) missing.push('Nationality');
       if (!pd.mobileNumber) missing.push('Mobile Number');
       else if (!/^\d{11}$/.test(pd.mobileNumber)) missing.push('Mobile Number must be exactly 11 digits');
       if (!pd.emailAddress) missing.push('Email Address');
-      if (!pd.sssGsisUmid) missing.push('SSS/GSIS/UMID');
-      if (!pd.tin) missing.push('TIN');
+      // SSS/GSIS/UMID and TIN are now optional
     } else if (currentStep === 2) {
       const md = formData.motherDetails;
       if (!md.lastName) missing.push('Mother Last Name');
@@ -518,28 +424,68 @@ const ApplicationForm = ({ isAgentForm = false }) => {
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Middle Name</label><input type="text" value={formData.personalDetails.middleName} onChange={(e) => handleInputChange('personalDetails', 'middleName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Suffix</label><input type="text" value={formData.personalDetails.suffix} onChange={(e) => handleInputChange('personalDetails', 'suffix', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth <span className="text-red-500">*</span></label><input type="date" value={formData.personalDetails.dateOfBirth} onChange={(e) => handleInputChange('personalDetails', 'dateOfBirth', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Place of Birth <span className="text-red-500">*</span></label>
-          <select
-            value={formData.personalDetails.placeOfBirth || ""}
-            onChange={(e) => handleLocationChange(e.target.value)}
-            className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
-            required
-          >
-            <option value="">{formData.personalDetails.placeOfBirth || getCurrentLabel()}</option>
-            {!formData.personalDetails.placeOfBirth && getCurrentOptions().map((option, index) => (
-              <option key={index} value={option}>{option}</option>
-            ))}
-          </select>
+        
+        {/* Place of Birth Region dropdown */}
+        <div className="md:col-span-2">
+          <h4 className="block text-sm font-medium text-gray-700 mb-4">Place of Birth <span className="text-red-500">*</span></h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Region <span className="text-red-500">*</span></label>
+              <select
+                value={formData.personalDetails.birthRegion}
+                onChange={(e) => handleBirthRegionChange(e.target.value)}
+                className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+                required
+              >
+                <option value="">Select Region</option>
+                {PHILIPPINE_REGIONS.map((region, index) => (
+                  <option key={index} value={region}>{region}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Province <span className="text-red-500">*</span></label>
+              <select
+                value={formData.personalDetails.birthProvince}
+                onChange={(e) => handleBirthProvinceChange(e.target.value)}
+                className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+                disabled={!formData.personalDetails.birthRegion}
+                required
+              >
+                <option value="">Select Province</option>
+                {formData.personalDetails.birthRegion && getProvinces(formData.personalDetails.birthRegion).map((province, index) => (
+                  <option key={index} value={province}>{province}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Municipality <span className="text-red-500">*</span></label>
+              <select
+                value={formData.personalDetails.birthMunicipality}
+                onChange={(e) => handleBirthMunicipalityChange(e.target.value)}
+                className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+                disabled={!formData.personalDetails.birthProvince}
+                required
+              >
+                <option value="">Select Municipality</option>
+                {formData.personalDetails.birthProvince && getMunicipalities(formData.personalDetails.birthProvince).map((municipality, index) => (
+                  <option key={index} value={municipality}>{municipality}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
+
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Gender <span className="text-red-500">*</span></label><select value={formData.personalDetails.gender} onChange={(e) => handleInputChange('personalDetails', 'gender', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required><option value="">Select Gender</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Civil Status <span className="text-red-500">*</span></label><select value={formData.personalDetails.civilStatus} onChange={(e) => handleInputChange('personalDetails', 'civilStatus', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required><option value="">Select Status</option><option value="Single">Single</option><option value="Married">Married</option><option value="Separated">Separated</option><option value="Divorced">Divorced</option><option value="Widowed">Widowed</option></select></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Nationality <span className="text-red-500">*</span></label><input type="text" value={formData.personalDetails.nationality} onChange={(e) => handleInputChange('personalDetails', 'nationality', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Mobile Number <span className="text-red-500">*</span></label><input type="tel" inputMode="numeric" pattern="[0-9]{11}" maxLength={11} value={formData.personalDetails.mobileNumber} onInput={e => { const input = e.target as HTMLInputElement; input.value = input.value.replace(/\D/g, '').slice(0, 11); }} onChange={(e) => handleInputChange('personalDetails', 'mobileNumber', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Home Number</label><input type="tel" inputMode="numeric" pattern="[0-9]*" value={formData.personalDetails.homeNumber} onInput={e => { const input = e.target as HTMLInputElement; input.value = input.value.replace(/\D/g, ''); }} onChange={(e) => handleInputChange('personalDetails', 'homeNumber', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Email Address <span className="text-red-500">*</span></label><input type="email" value={formData.personalDetails.emailAddress} onChange={(e) => handleInputChange('personalDetails', 'emailAddress', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
-        <div><label className="block text-sm font-medium text-gray-700 mb-2">SSS/GSIS/UMID <span className="text-red-500">*</span></label><input type="text" value={formData.personalDetails.sssGsisUmid} onChange={(e) => handleInputChange('personalDetails', 'sssGsisUmid', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
-        <div><label className="block text-sm font-medium text-gray-700 mb-2">TIN <span className="text-red-500">*</span></label><input type="text" value={formData.personalDetails.tin} onChange={(e) => handleInputChange('personalDetails', 'tin', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
+        <div><label className="block text-sm font-medium text-gray-700 mb-2">SSS/GSIS/UMID</label><input type="text" value={formData.personalDetails.sssGsisUmid} onChange={(e) => handleInputChange('personalDetails', 'sssGsisUmid', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div>
+        <div><label className="block text-sm font-medium text-gray-700 mb-2">TIN</label><input type="text" value={formData.personalDetails.tin} onChange={(e) => handleInputChange('personalDetails', 'tin', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div>
       </div>
       <div><h3 className="text-xl font-semibold text-gray-700 mb-4">Mother's Maiden Name</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6"><div><label className="block text-sm font-medium text-gray-700 mb-2">Last Name <span className="text-red-500">*</span></label><input type="text" value={formData.motherDetails.lastName} onChange={(e) => handleInputChange('motherDetails', 'lastName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">First Name <span className="text-red-500">*</span></label><input type="text" value={formData.motherDetails.firstName} onChange={(e) => handleInputChange('motherDetails', 'firstName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Middle Name <span className="text-red-500">*</span></label><input type="text" value={formData.motherDetails.middleName} onChange={(e) => handleInputChange('motherDetails', 'middleName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Suffix</label><input type="text" value={formData.motherDetails.suffix} onChange={(e) => handleInputChange('motherDetails', 'suffix', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div></div></div>
       <div><h3 className="text-xl font-semibold text-gray-700 mb-4">Spouse Details</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6"><div><label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label><input type="text" value={formData.spouseDetails.lastName} onChange={(e) => handleInputChange('spouseDetails', 'lastName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">First Name</label><input type="text" value={formData.spouseDetails.firstName} onChange={(e) => handleInputChange('spouseDetails', 'firstName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Middle Name</label><input type="text" value={formData.spouseDetails.middleName} onChange={(e) => handleInputChange('spouseDetails', 'middleName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Suffix</label><input type="text" value={formData.spouseDetails.suffix} onChange={(e) => handleInputChange('spouseDetails', 'suffix', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div><div><label className="block text-sm font-medium text-gray-700 mb-2">Mobile Number</label><input type="tel" inputMode="numeric" pattern="[0-9]*" value={formData.spouseDetails.mobileNumber} onInput={e => { const input = e.target as HTMLInputElement; input.value = input.value.replace(/\D/g, ''); }} onChange={(e) => handleInputChange('spouseDetails', 'mobileNumber', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div></div></div>
@@ -605,6 +551,55 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       return;
     }
     setCurrentStep(s => Math.min(5, s + 1));
+  };
+
+  const handleBirthRegionChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      personalDetails: { 
+        ...prev.personalDetails, 
+        birthRegion: value,
+        birthProvince: '',
+        birthMunicipality: '',
+        placeOfBirth: value ? value : ''
+      }
+    }));
+  };
+
+  const handleBirthProvinceChange = (value: string) => {
+    const birthRegion = formData.personalDetails.birthRegion;
+    setFormData(prev => ({
+      ...prev,
+      personalDetails: { 
+        ...prev.personalDetails, 
+        birthProvince: value,
+        birthMunicipality: '',
+        placeOfBirth: value ? `${value}, ${birthRegion}` : birthRegion
+      }
+    }));
+  };
+
+  const handleBirthMunicipalityChange = (value: string) => {
+    const birthRegion = formData.personalDetails.birthRegion;
+    const birthProvince = formData.personalDetails.birthProvince;
+    setFormData(prev => ({
+      ...prev,
+      personalDetails: { 
+        ...prev.personalDetails, 
+        birthMunicipality: value,
+        placeOfBirth: value ? `${value}, ${birthProvince}, ${birthRegion}` : `${birthProvince}, ${birthRegion}`
+      }
+    }));
+  };
+
+  // Get municipalities for a province
+  const getMunicipalities = (province: string): string[] => {
+    return PHILIPPINE_CITIES[province as keyof typeof PHILIPPINE_CITIES] || [];
+  };
+
+  // Get provinces for a region
+  const getProvinces = (region: string): string[] => {
+    return PHILIPPINE_PROVINCES[region as keyof typeof PHILIPPINE_PROVINCES] || [];
   };
 
   return (

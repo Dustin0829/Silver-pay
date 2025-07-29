@@ -13,6 +13,9 @@ export interface PersonalDetails {
   suffix: string;
   dateOfBirth: string;
   placeOfBirth: string;
+  birthRegion: string;
+  birthProvince: string;
+  birthMunicipality: string;
   gender: string;
   civilStatus: string;
   nationality: string;
