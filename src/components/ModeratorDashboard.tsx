@@ -190,6 +190,7 @@ const ModeratorDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [nameFilter, setNameFilter] = useState('');
   const [selectedBank, setSelectedBank] = useState<string>('');
+  const [maybankApplications, setMaybankApplications] = useState<any[]>([]);
   const [totalApplicationsCount, setTotalApplicationsCount] = useState(0);
   const [applicationsSearchFilter, setApplicationsSearchFilter] = useState('');
   const [applicationsPage, setApplicationsPage] = useState(1);
@@ -485,7 +486,65 @@ const ModeratorDashboard: React.FC = () => {
       }
     };
     
+    // Fetch Maybank applications from maybank_applications table
+    const fetchMaybankApplications = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('maybank_applications')
+          .select('*')
+          .order('created_at', { ascending: false });
+          
+        if (error) {
+          console.error('Error fetching Maybank applications:', error);
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          console.log('ModeratorDashboard: Fetched Maybank applications:', data.length);
+          
+          // Transform Maybank application data to match the standard application format
+          const normalizedMaybankApps = data.map((app: any) => ({
+            id: `maybank-${app.id}`,
+            personal_details: {
+              firstName: app.first_name || '',
+              lastName: app.last_name || '',
+              middleName: app.middle_name || '',
+              emailAddress: '', // Not available in your table structure
+              mobileNumber: '', // Not available in your table structure
+            },
+            status: app.status || 'pending',
+            agent: app.agent_cd || '',
+            encoder: '', // Not available in your table structure
+            submitted_at: app.encoding_date || app.created_at || null,
+            // Add a flag to identify this as a Maybank application
+            isMaybankApplication: true,
+            // Include all original fields for reference
+            originalData: app,
+            // Set bank preference for filtering
+            bank_preferences: { maybank: true },
+            // Additional fields from your table structure
+            applicationNo: app.application_no,
+            cardType: app.card_type,
+            declineReason: app.decline_reason,
+            applnType: app.appln_type,
+            sourceCd: app.source_cd,
+            agencyBrName: app.agency_br_name,
+            month: app.month,
+            remarks: app.remarks,
+            oCodes: app.o_codes,
+          }));
+          
+          if (isMounted) {
+            setMaybankApplications(normalizedMaybankApps);
+          }
+        }
+      } catch (err) {
+        console.error('Unexpected error fetching Maybank applications:', err);
+      }
+    };
+
     fetchAllData();
+    fetchMaybankApplications();
     
     // Real-time subscription for KYC updates
     const kycChannel = supabase
@@ -513,10 +572,24 @@ const ModeratorDashboard: React.FC = () => {
       )
       .subscribe();
     
+    // Real-time subscription for Maybank applications
+    const maybankChannel = supabase
+      .channel('realtime:maybank_applications')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'maybank_applications' },
+        () => {
+          console.log('Maybank application data changed');
+          fetchMaybankApplications();
+        }
+      )
+      .subscribe();
+
     return () => {
       isMounted = false;
       supabase.removeChannel(kycChannel);
       supabase.removeChannel(userChannel);
+      supabase.removeChannel(maybankChannel);
     };
   }, [setLoading]);
 
@@ -937,6 +1010,11 @@ const ModeratorDashboard: React.FC = () => {
 
   // Status Report functions
   const getBankApplications = (bankValue: string) => {
+    // Special case for Maybank - fetch from maybank_application table
+    if (bankValue === 'maybank' && maybankApplications.length > 0) {
+      return maybankApplications;
+    }
+
     return applications.filter(app => {
       const bankPrefs = app.bank_preferences || {};
       return bankPrefs[bankValue] === true;
@@ -947,13 +1025,38 @@ const ModeratorDashboard: React.FC = () => {
     const bankApps = getBankApplications(bankValue);
     const withStatus = bankApps.filter(app => app.status && app.status.trim() !== '');
     
+    // Debug: Log all unique status values for Maybank
+    if (bankValue === 'maybank' && bankApps.length > 0) {
+      const uniqueStatuses = [...new Set(bankApps.map(app => app.status))];
+      console.log('ModeratorDashboard - Maybank unique statuses:', uniqueStatuses);
+      console.log('ModeratorDashboard - Maybank status counts:', uniqueStatuses.map(status => ({
+        status,
+        count: bankApps.filter(app => app.status === status).length
+      })));
+    }
+    
     return {
       total: bankApps.length,
-      pending: withStatus.filter(a => (a.status || '').toLowerCase() === 'pending').length,
-      approved: withStatus.filter(a => (a.status || '').toLowerCase() === 'approved').length,
-      rejected: withStatus.filter(a => (a.status || '').toLowerCase() === 'rejected').length,
-      submitted: withStatus.filter(a => (a.status || '').toLowerCase() === 'submitted').length,
-      turnIn: withStatus.filter(a => (a.status || '').toLowerCase() === 'turn-in').length,
+      pending: withStatus.filter(a => {
+        const status = (a.status || '').toLowerCase();
+        return status === 'pending' || status.includes('pending');
+      }).length,
+      approved: withStatus.filter(a => {
+        const status = (a.status || '').toLowerCase();
+        return status === 'approved' || status.includes('approved') || status.includes('cif');
+      }).length,
+      rejected: withStatus.filter(a => {
+        const status = (a.status || '').toLowerCase();
+        return status === 'rejected' || status.includes('rejected') || status.includes('decline');
+      }).length,
+      submitted: withStatus.filter(a => {
+        const status = (a.status || '').toLowerCase();
+        return status === 'submitted' || status.includes('submitted');
+      }).length,
+      turnIn: withStatus.filter(a => {
+        const status = (a.status || '').toLowerCase();
+        return status === 'turn-in' || status.includes('turn-in') || status.includes('turnin');
+      }).length,
     };
   };
   
@@ -1279,7 +1382,7 @@ const ModeratorDashboard: React.FC = () => {
               <div className="flex flex-col sm:flex-row gap-4">
                 <input
                   className="border rounded-lg px-3 py-2 flex-1"
-                  placeholder="Search by applicant name..."
+                  placeholder={selectedBank === 'maybank' ? "Search by application no, name, or card type..." : "Search by applicant name..."}
                   value={nameFilter}
                   onChange={e => setNameFilter(e.target.value)}
                 />
@@ -1302,12 +1405,15 @@ const ModeratorDashboard: React.FC = () => {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Applicant</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      {selectedBank === 'maybank' ? 'Application No.' : 'Applicant'}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      {selectedBank === 'maybank' ? 'Card Type' : 'Email'}
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -1316,7 +1422,14 @@ const ModeratorDashboard: React.FC = () => {
                       const search = nameFilter.toLowerCase();
                       const name = `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.toLowerCase();
                       const email = (app.personal_details?.emailAddress ?? '').toLowerCase();
-                      const matchesSearch = !search || name.includes(search) || email.includes(search);
+                      const applicationNo = (app.applicationNo || '').toLowerCase();
+                      const cardType = (app.cardType || '').toLowerCase();
+                      
+                      const matchesSearch = !search || 
+                        name.includes(search) || 
+                        email.includes(search) || 
+                        applicationNo.includes(search) || 
+                        cardType.includes(search);
                       const matchesStatus = !statusFilter || (app.status || '').toLowerCase() === statusFilter.toLowerCase();
                       return matchesSearch && matchesStatus;
                     })
@@ -1324,19 +1437,30 @@ const ModeratorDashboard: React.FC = () => {
                       <tr key={app.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="font-medium text-gray-900">
-                            {`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}
+                            {selectedBank === 'maybank' 
+                              ? app.applicationNo || `Maybank-${app.id}`
+                              : `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()
+                            }
                           </div>
+                          {selectedBank === 'maybank' && app.personal_details?.firstName && (
+                            <div className="text-xs text-gray-500">
+                              {`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {app.personal_details?.emailAddress || ''}
+                          {selectedBank === 'maybank' 
+                            ? app.cardType || 'N/A'
+                            : app.personal_details?.emailAddress || ''
+                          }
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                            app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            app.status === 'approved' ? 'bg-green-100 text-green-800' :
-                            app.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                            app.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
-                            app.status === 'turn-in' ? 'bg-purple-100 text-purple-800' :
+                            (app.status || '').toLowerCase().includes('pending') ? 'bg-yellow-100 text-yellow-800' :
+                            (app.status || '').toLowerCase().includes('approved') || (app.status || '').toLowerCase().includes('cif') ? 'bg-green-100 text-green-800' :
+                            (app.status || '').toLowerCase().includes('rejected') || (app.status || '').toLowerCase().includes('decline') ? 'bg-red-100 text-red-800' :
+                            (app.status || '').toLowerCase().includes('submitted') ? 'bg-blue-100 text-blue-800' :
+                            (app.status || '').toLowerCase().includes('turn-in') || (app.status || '').toLowerCase().includes('turnin') ? 'bg-purple-100 text-purple-800' :
                             'bg-gray-100 text-gray-600'
                           }`}>
                             {app.status || 'Unknown'}
@@ -1347,27 +1471,6 @@ const ModeratorDashboard: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {app.submitted_by || app.agent || 'Direct'}
-                        </td>
-                        <td className="py-3 flex space-x-2">
-                          <button className="text-blue-600 hover:text-blue-800" onClick={() => handleViewApp(app)}><Eye className="w-4 h-4" /></button>
-                          <button className="text-green-600 hover:text-green-800" onClick={() => handleEditApp(app)} disabled={loadingEditApp}><Edit className="w-4 h-4" /></button>
-                          <button className="text-purple-600 hover:text-purple-800" title="Export PDF" onClick={() => handleSingleExportPreview(app)}><Download className="w-4 h-4" /></button>
-                          <button className="text-red-600 hover:text-red-800" title="Delete Application" onClick={async () => {
-                            if (!window.confirm('Are you sure you want to delete this application? This action cannot be undone.')) return;
-                            let table = 'application_form';
-                            let appId = app.id;
-                            if (typeof app.id === 'string' && app.id.startsWith('kyc-')) {
-                              table = 'kyc_details';
-                              appId = app.id.replace('kyc-', '');
-                            }
-                            const { error } = await supabase.from(table).delete().eq('id', appId);
-                            if (error) {
-                              setToast({ show: true, message: 'Failed to delete application: ' + error.message, type: 'error' });
-                            } else {
-                              setApplications(apps => apps.filter(a => a.id !== app.id));
-                              setToast({ show: true, message: 'Application deleted successfully!', type: 'success' });
-                            }
-                          }}><Trash2 className="w-4 h-4" /></button>
                         </td>
                       </tr>
                     ))}
@@ -1882,7 +1985,7 @@ const ModeratorDashboard: React.FC = () => {
                       }
                     } else {
                       setPendingDeleteIdx(i);
-                      setToast({ show: true, message: 'Click again to confirm delete.', type: 'warning' });
+                      setToast({ show: true, message: 'Click again to confirm delete.', type: 'error' });
                       setTimeout(() => setPendingDeleteIdx(null), 3000);
                     }
                   }}><Trash2 className="w-4 h-4" /></button>

@@ -257,6 +257,7 @@ const AdminDashboard: React.FC = () => {
   const PAGE_SIZE = 15;
   const [totalApplicationsCount, setTotalApplicationsCount] = useState(0);
   const [selectedBank, setSelectedBank] = useState<string>('');
+  const [maybankApplications, setMaybankApplications] = useState<any[]>([]);
   const { setLoading } = useLoading();
 
   // Sidebar navigation
@@ -345,8 +346,69 @@ const AdminDashboard: React.FC = () => {
       }
     };
     
+    // Fetch Maybank applications from maybank_application table
+    const fetchMaybankApplications = async () => {
+      try {
+        console.log('Fetching Maybank applications from maybank_applications table...');
+        const { data, error } = await supabase
+          .from('maybank_applications')
+          .select('*')
+          .order('created_at', { ascending: false });
+          
+        if (error) {
+          console.error('Error fetching Maybank applications:', error);
+          return;
+        }
+        
+        console.log('Maybank applications raw data:', data);
+        
+        if (data && data.length > 0) {
+          console.log('Fetched Maybank applications:', data.length);
+          
+          // Transform Maybank application data to match the standard application format
+          const normalizedMaybankApps = data.map((app: any) => ({
+            id: `maybank-${app.id}`,
+            personal_details: {
+              firstName: app.first_name || '',
+              lastName: app.last_name || '',
+              middleName: app.middle_name || '',
+              emailAddress: '', // Not available in your table structure
+              mobileNumber: '', // Not available in your table structure
+            },
+            status: app.status || 'pending',
+            agent: app.agent_cd || '',
+            encoder: '', // Not available in your table structure
+            submitted_at: app.encoding_date || app.created_at || null,
+            // Add a flag to identify this as a Maybank application
+            isMaybankApplication: true,
+            // Include all original fields for reference
+            originalData: app,
+            // Set bank preference for filtering
+            bank_preferences: { maybank: true },
+            // Additional fields from your table structure
+            applicationNo: app.application_no,
+            cardType: app.card_type,
+            declineReason: app.decline_reason,
+            applnType: app.appln_type,
+            sourceCd: app.source_cd,
+            agencyBrName: app.agency_br_name,
+            month: app.month,
+            remarks: app.remarks,
+            oCodes: app.o_codes,
+          }));
+          
+          if (isMounted) {
+            setMaybankApplications(normalizedMaybankApps);
+          }
+        }
+      } catch (err) {
+        console.error('Unexpected error fetching Maybank applications:', err);
+      }
+    };
+
     // Initial data fetch
     fetchAllData();
+    fetchMaybankApplications();
     
     // Set up real-time subscription
     const channel = supabase
@@ -366,11 +428,27 @@ const AdminDashboard: React.FC = () => {
         }
       });
     
+    // Also set up real-time subscription for Maybank applications
+    const maybankChannel = supabase
+      .channel('realtime:maybank_applications')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'maybank_applications' },
+        () => {
+          console.log('Real-time update received for Maybank applications');
+          fetchMaybankApplications();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Maybank application subscription status:', status);
+      });
+
     // Cleanup function
     return () => {
-      console.log('Cleaning up real-time subscription');
+      console.log('Cleaning up real-time subscriptions');
       isMounted = false;
       supabase.removeChannel(channel);
+      supabase.removeChannel(maybankChannel);
     };
   }, [setLoading]);
 
@@ -1712,19 +1790,51 @@ const AdminDashboard: React.FC = () => {
 
   // Status Report functions
   const getBankApplications = (bankValue: string) => {
-    return applications.filter(app => {
+    console.log('getBankApplications called with bankValue:', bankValue);
+    console.log('maybankApplications length:', maybankApplications.length);
+    
+    // Special case for Maybank - fetch from maybank_application table
+    if (bankValue === 'maybank' && maybankApplications.length > 0) {
+      console.log('Returning Maybank applications:', maybankApplications);
+      return maybankApplications;
+    }
+
+    const filteredApps = applications.filter(app => {
       const bankPreferences = app.bank_preferences || {};
       return bankPreferences[bankValue] === true;
     });
+    
+    console.log('Returning filtered applications for', bankValue, ':', filteredApps.length);
+    return filteredApps;
   };
 
   const getBankStats = (bankValue: string) => {
     const bankApps = getBankApplications(bankValue);
+    
+    // Debug: Log all unique status values for Maybank
+    if (bankValue === 'maybank' && bankApps.length > 0) {
+      const uniqueStatuses = [...new Set(bankApps.map(app => app.status))];
+      console.log('Maybank unique statuses:', uniqueStatuses);
+      console.log('Maybank status counts:', uniqueStatuses.map(status => ({
+        status,
+        count: bankApps.filter(app => app.status === status).length
+      })));
+    }
+    
     return {
       total: bankApps.length,
-      pending: bankApps.filter(app => app.status === 'pending').length,
-      approved: bankApps.filter(app => app.status === 'approved').length,
-      rejected: bankApps.filter(app => app.status === 'rejected').length,
+      pending: bankApps.filter(app => {
+        const status = (app.status || '').toLowerCase();
+        return status === 'pending' || status.includes('pending');
+      }).length,
+      approved: bankApps.filter(app => {
+        const status = (app.status || '').toLowerCase();
+        return status === 'approved' || status.includes('approved') || status.includes('cif');
+      }).length,
+      rejected: bankApps.filter(app => {
+        const status = (app.status || '').toLowerCase();
+        return status === 'rejected' || status.includes('rejected') || status.includes('decline');
+      }).length,
     };
   };
 
@@ -1809,8 +1919,12 @@ const AdminDashboard: React.FC = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {selectedBank === 'maybank' ? 'Application No.' : 'Applicant'}
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {selectedBank === 'maybank' ? 'Card Type' : 'Email'}
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
@@ -1821,19 +1935,30 @@ const AdminDashboard: React.FC = () => {
                     <tr key={app.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}
+                          {selectedBank === 'maybank' 
+                            ? app.applicationNo || `Maybank-${app.id}`
+                            : `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()
+                          }
                         </div>
+                        {selectedBank === 'maybank' && app.personal_details?.firstName && (
+                          <div className="text-xs text-gray-500">
+                            {`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {app.personal_details?.emailAddress || ''}
+                        {selectedBank === 'maybank' 
+                          ? app.cardType || 'N/A'
+                          : app.personal_details?.emailAddress || ''
+                        }
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                          app.status === 'approved' ? 'bg-green-100 text-green-800' :
-                          app.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                          app.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
-                          app.status === 'turn-in' ? 'bg-purple-100 text-purple-800' :
+                          (app.status || '').toLowerCase().includes('pending') ? 'bg-yellow-100 text-yellow-800' :
+                          (app.status || '').toLowerCase().includes('approved') || (app.status || '').toLowerCase().includes('cif') ? 'bg-green-100 text-green-800' :
+                          (app.status || '').toLowerCase().includes('rejected') || (app.status || '').toLowerCase().includes('decline') ? 'bg-red-100 text-red-800' :
+                          (app.status || '').toLowerCase().includes('submitted') ? 'bg-blue-100 text-blue-800' :
+                          (app.status || '').toLowerCase().includes('turn-in') || (app.status || '').toLowerCase().includes('turnin') ? 'bg-purple-100 text-purple-800' :
                           'bg-gray-100 text-gray-600'
                         }`}>
                           {app.status || 'Unknown'}
