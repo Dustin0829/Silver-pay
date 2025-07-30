@@ -192,6 +192,8 @@ const ModeratorDashboard: React.FC = () => {
   const [selectedBank, setSelectedBank] = useState<string>('');
   const [maybankApplications, setMaybankApplications] = useState<any[]>([]);
   const [importingCSV, setImportingCSV] = useState(false);
+  const [viewBankApp, setViewBankApp] = useState<any | null>(null);
+  const [loadingBankApp, setLoadingBankApp] = useState(false);
   const [totalApplicationsCount, setTotalApplicationsCount] = useState(0);
   const [applicationsSearchFilter, setApplicationsSearchFilter] = useState('');
   const [applicationsPage, setApplicationsPage] = useState(1);
@@ -1005,6 +1007,35 @@ const ModeratorDashboard: React.FC = () => {
     setShowExportPreview(false);
   };
 
+  // Handler to view bank application details
+  const handleViewBankApplication = async (app: any) => {
+    setLoadingBankApp(true);
+    setViewBankApp(app);
+    
+    try {
+      // If it's a Maybank application, fetch the full data from maybank_applications table
+      if (app.isMaybankApplication && app.originalData) {
+        const { data, error } = await supabase
+          .from('maybank_applications')
+          .select('*')
+          .eq('id', app.originalData.id)
+          .single();
+          
+        if (error) {
+          console.error('Error fetching Maybank application details:', error);
+          setToast({ show: true, message: 'Failed to fetch application details', type: 'error' });
+        } else if (data) {
+          setViewBankApp({ ...app, fullData: data });
+        }
+      }
+    } catch (error) {
+      console.error('Unexpected error fetching bank application:', error);
+      setToast({ show: true, message: 'Unexpected error while fetching application details', type: 'error' });
+    } finally {
+      setLoadingBankApp(false);
+    }
+  };
+
   // Filtering logic (copied from AdminDashboard)
   const filteredApplications = applications.filter(app => {
     const search = nameFilter.trim().toLowerCase();
@@ -1529,6 +1560,7 @@ const ModeratorDashboard: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -1586,6 +1618,15 @@ const ModeratorDashboard: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {app.submitted_by || app.agent || 'Direct'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button 
+                            className="text-blue-600 hover:text-blue-800 p-1 rounded"
+                            onClick={() => handleViewBankApplication(app)}
+                            title="View Application Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -3016,6 +3057,103 @@ const ModeratorDashboard: React.FC = () => {
                   Update User
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bank Application View Modal */}
+      {viewBankApp && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">
+                  {selectedBank === 'maybank' ? 'Maybank' : 'Bank'} Application Details
+                </h2>
+                <button 
+                  onClick={() => setViewBankApp(null)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              {loadingBankApp ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-2">Loading application details...</span>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Basic Information */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h3 className="font-semibold text-lg mb-3 text-blue-700">Basic Information</h3>
+                      <div className="space-y-2">
+                        <div><span className="font-medium">Application No:</span> {viewBankApp.applicationNo || 'N/A'}</div>
+                        <div><span className="font-medium">Name:</span> {viewBankApp.personal_details?.firstName} {viewBankApp.personal_details?.lastName}</div>
+                        <div><span className="font-medium">Status:</span> 
+                          <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full ${
+                            (viewBankApp.status || '').toLowerCase().includes('approved') || (viewBankApp.status || '').toLowerCase().includes('cif') ? 'bg-green-100 text-green-800' :
+                            (viewBankApp.status || '').toLowerCase().includes('pending') ? 'bg-yellow-100 text-yellow-800' :
+                            (viewBankApp.status || '').toLowerCase().includes('rejected') ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {viewBankApp.status}
+                          </span>
+                        </div>
+                        <div><span className="font-medium">Card Type:</span> {viewBankApp.cardType || 'N/A'}</div>
+                        <div><span className="font-medium">Agent:</span> {viewBankApp.agent || 'N/A'}</div>
+                        <div><span className="font-medium">Submitted:</span> {viewBankApp.submitted_at ? format(new Date(viewBankApp.submitted_at), 'MMM dd, yyyy') : 'N/A'}</div>
+                      </div>
+                    </div>
+                    
+                    {/* Additional Details */}
+                    <div>
+                      <h3 className="font-semibold text-lg mb-3 text-blue-700">Additional Details</h3>
+                      <div className="space-y-2">
+                        <div><span className="font-medium">Application Type:</span> {viewBankApp.applnType || 'N/A'}</div>
+                        <div><span className="font-medium">Source Code:</span> {viewBankApp.sourceCd || 'N/A'}</div>
+                        <div><span className="font-medium">Agency Branch:</span> {viewBankApp.agencyBrName || 'N/A'}</div>
+                        <div><span className="font-medium">Month:</span> {viewBankApp.month || 'N/A'}</div>
+                        <div><span className="font-medium">O Codes:</span> {viewBankApp.oCodes || 'N/A'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Decline Reason if applicable */}
+                  {viewBankApp.declineReason && (
+                    <div>
+                      <h3 className="font-semibold text-lg mb-3 text-red-700">Decline Reason</h3>
+                      <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                        <p className="text-red-800">{viewBankApp.declineReason}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Remarks */}
+                  {viewBankApp.remarks && (
+                    <div>
+                      <h3 className="font-semibold text-lg mb-3 text-blue-700">Remarks</h3>
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <p className="text-blue-800">{viewBankApp.remarks}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-6 border-t">
+              <button 
+                onClick={() => setViewBankApp(null)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
