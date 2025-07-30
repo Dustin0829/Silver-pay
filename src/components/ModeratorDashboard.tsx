@@ -191,6 +191,7 @@ const ModeratorDashboard: React.FC = () => {
   const [nameFilter, setNameFilter] = useState('');
   const [selectedBank, setSelectedBank] = useState<string>('');
   const [maybankApplications, setMaybankApplications] = useState<any[]>([]);
+  const [importingCSV, setImportingCSV] = useState(false);
   const [totalApplicationsCount, setTotalApplicationsCount] = useState(0);
   const [applicationsSearchFilter, setApplicationsSearchFilter] = useState('');
   const [applicationsPage, setApplicationsPage] = useState(1);
@@ -907,6 +908,98 @@ const ModeratorDashboard: React.FC = () => {
   // Export preview modal handlers
   const handleExportPreview = () => setShowExportPreview(true);
   const handleClosePreview = () => setShowExportPreview(false);
+  // Handler to import CSV file
+  const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImportingCSV(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n');
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      
+      console.log('CSV Headers:', headers);
+      
+      const data = lines.slice(1).filter(line => line.trim()).map(line => {
+        const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+        const row: any = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] || null;
+        });
+        return row;
+      });
+
+      console.log('Parsed CSV data:', data);
+
+      // Determine which table to insert into based on selected bank
+      let tableName = '';
+      if (selectedBank === 'maybank') {
+        tableName = 'maybank_applications';
+      } else {
+        setToast({ show: true, message: 'CSV import is currently only supported for Maybank applications', type: 'error' });
+        return;
+      }
+
+      // Insert data into the appropriate table
+      const { error } = await supabase
+        .from(tableName)
+        .insert(data);
+
+      if (error) {
+        console.error('Error inserting CSV data:', error);
+        setToast({ show: true, message: 'Failed to import CSV: ' + error.message, type: 'error' });
+      } else {
+        setToast({ show: true, message: `Successfully imported ${data.length} records from CSV`, type: 'success' });
+        // Refresh the data
+        if (selectedBank === 'maybank') {
+          // Re-fetch Maybank applications
+          const { data: newData, error: fetchError } = await supabase
+            .from('maybank_applications')
+            .select('*')
+            .order('created_at', { ascending: false });
+            
+          if (!fetchError && newData) {
+            const normalizedMaybankApps = newData.map((app: any) => ({
+              id: `maybank-${app.id}`,
+              personal_details: {
+                firstName: app.first_name || '',
+                lastName: app.last_name || '',
+                middleName: app.middle_name || '',
+                emailAddress: '',
+                mobileNumber: '',
+              },
+              status: app.status || 'pending',
+              agent: app.agent_cd || '',
+              encoder: '',
+              submitted_at: app.encoding_date || app.created_at || null,
+              isMaybankApplication: true,
+              originalData: app,
+              bank_preferences: { maybank: true },
+              applicationNo: app.application_no,
+              cardType: app.card_type,
+              declineReason: app.decline_reason,
+              applnType: app.appln_type,
+              sourceCd: app.source_cd,
+              agencyBrName: app.agency_br_name,
+              month: app.month,
+              remarks: app.remarks,
+              oCodes: app.o_codes,
+            }));
+            setMaybankApplications(normalizedMaybankApps);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error processing CSV:', error);
+      setToast({ show: true, message: 'Error processing CSV file', type: 'error' });
+    } finally {
+      setImportingCSV(false);
+      // Reset the file input
+      event.target.value = '';
+    }
+  };
+
   const handleExportPDF = () => {
     exportHistoryToPDF();
     setShowExportPreview(false);
@@ -1364,16 +1457,38 @@ const ModeratorDashboard: React.FC = () => {
       ) : (
         <div>
           <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center">
-              <button
-                onClick={() => setSelectedBank('')}
-                className="mr-4 p-2 rounded-lg bg-gray-100 hover:bg-gray-200"
-              >
-                ← Back to Banks
-              </button>
-              <h3 className="text-xl font-semibold">
-                {BANKS.find(b => b.value === selectedBank)?.label} Applications
-              </h3>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center">
+                <button
+                  onClick={() => setSelectedBank('')}
+                  className="mr-4 p-2 rounded-lg bg-gray-100 hover:bg-gray-200"
+                >
+                  ← Back to Banks
+                </button>
+                <h3 className="text-xl font-semibold">
+                  {BANKS.find(b => b.value === selectedBank)?.label} Applications
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleImportCSV}
+                  className="hidden"
+                  id="csv-import-moderator"
+                  disabled={importingCSV}
+                />
+                <label
+                  htmlFor="csv-import-moderator"
+                  className={`px-4 py-2 rounded-lg cursor-pointer text-sm font-medium transition-colors ${
+                    importingCSV
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {importingCSV ? 'Importing...' : 'Import CSV'}
+                </label>
+              </div>
             </div>
           </div>
           

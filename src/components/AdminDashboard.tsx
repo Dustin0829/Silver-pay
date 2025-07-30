@@ -258,6 +258,9 @@ const AdminDashboard: React.FC = () => {
   const [totalApplicationsCount, setTotalApplicationsCount] = useState(0);
   const [selectedBank, setSelectedBank] = useState<string>('');
   const [maybankApplications, setMaybankApplications] = useState<any[]>([]);
+  const [importingCSV, setImportingCSV] = useState(false);
+  const [viewBankApp, setViewBankApp] = useState<any | null>(null);
+  const [loadingBankApp, setLoadingBankApp] = useState(false);
   const { setLoading } = useLoading();
 
   // Sidebar navigation
@@ -1760,6 +1763,127 @@ const AdminDashboard: React.FC = () => {
     setExportingPDF(false);
   };
 
+  // Handler to view bank application details
+  const handleViewBankApplication = async (app: any) => {
+    setLoadingBankApp(true);
+    setViewBankApp(app);
+    
+    try {
+      // If it's a Maybank application, fetch the full data from maybank_applications table
+      if (app.isMaybankApplication && app.originalData) {
+        const { data, error } = await supabase
+          .from('maybank_applications')
+          .select('*')
+          .eq('id', app.originalData.id)
+          .single();
+          
+        if (error) {
+          console.error('Error fetching Maybank application details:', error);
+          setToast({ show: true, message: 'Failed to fetch application details', type: 'error' });
+        } else if (data) {
+          setViewBankApp({ ...app, fullData: data });
+        }
+      }
+    } catch (error) {
+      console.error('Unexpected error fetching bank application:', error);
+      setToast({ show: true, message: 'Unexpected error while fetching application details', type: 'error' });
+    } finally {
+      setLoadingBankApp(false);
+    }
+  };
+
+  // Handler to import CSV file
+  const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImportingCSV(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n');
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      
+      console.log('CSV Headers:', headers);
+      
+      const data = lines.slice(1).filter(line => line.trim()).map(line => {
+        const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+        const row: any = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] || null;
+        });
+        return row;
+      });
+
+      console.log('Parsed CSV data:', data);
+
+      // Determine which table to insert into based on selected bank
+      let tableName = '';
+      if (selectedBank === 'maybank') {
+        tableName = 'maybank_applications';
+      } else {
+        setToast({ show: true, message: 'CSV import is currently only supported for Maybank applications', type: 'error' });
+        return;
+      }
+
+      // Insert data into the appropriate table
+      const { error } = await supabase
+        .from(tableName)
+        .insert(data);
+
+      if (error) {
+        console.error('Error inserting CSV data:', error);
+        setToast({ show: true, message: 'Failed to import CSV: ' + error.message, type: 'error' });
+      } else {
+        setToast({ show: true, message: `Successfully imported ${data.length} records from CSV`, type: 'success' });
+        // Refresh the data
+        if (selectedBank === 'maybank') {
+          // Re-fetch Maybank applications
+          const { data: newData, error: fetchError } = await supabase
+            .from('maybank_applications')
+            .select('*')
+            .order('created_at', { ascending: false });
+            
+          if (!fetchError && newData) {
+            const normalizedMaybankApps = newData.map((app: any) => ({
+              id: `maybank-${app.id}`,
+              personal_details: {
+                firstName: app.first_name || '',
+                lastName: app.last_name || '',
+                middleName: app.middle_name || '',
+                emailAddress: '',
+                mobileNumber: '',
+              },
+              status: app.status || 'pending',
+              agent: app.agent_cd || '',
+              encoder: '',
+              submitted_at: app.encoding_date || app.created_at || null,
+              isMaybankApplication: true,
+              originalData: app,
+              bank_preferences: { maybank: true },
+              applicationNo: app.application_no,
+              cardType: app.card_type,
+              declineReason: app.decline_reason,
+              applnType: app.appln_type,
+              sourceCd: app.source_cd,
+              agencyBrName: app.agency_br_name,
+              month: app.month,
+              remarks: app.remarks,
+              oCodes: app.o_codes,
+            }));
+            setMaybankApplications(normalizedMaybankApps);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error processing CSV:', error);
+      setToast({ show: true, message: 'Error processing CSV file', type: 'error' });
+    } finally {
+      setImportingCSV(false);
+      // Reset the file input
+      event.target.value = '';
+    }
+  };
+
   // Handler to export the preview as PDF
   const handleExportSinglePDF = async () => {
     if (!exportPreviewApp) return;
@@ -1912,9 +2036,51 @@ const AdminDashboard: React.FC = () => {
                 {BANKS.find(b => b.value === selectedBank)?.label} Applications
               </h3>
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleImportCSV}
+                className="hidden"
+                id="csv-import"
+                disabled={importingCSV}
+              />
+              <label
+                htmlFor="csv-import"
+                className={`px-4 py-2 rounded-lg cursor-pointer text-sm font-medium transition-colors ${
+                  importingCSV
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {importingCSV ? 'Importing...' : 'Import CSV'}
+              </label>
+            </div>
           </div>
           
           <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="p-6 border-b">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <input
+                  className="border rounded-lg px-3 py-2 flex-1"
+                  placeholder={selectedBank === 'maybank' ? "Search by application no, name, or card type..." : "Search by applicant name..."}
+                  value={nameFilter}
+                  onChange={e => setNameFilter(e.target.value)}
+                />
+                <select 
+                  className="border rounded-lg px-3 py-2"
+                  value={statusFilter} 
+                  onChange={e => setStatusFilter(e.target.value)}
+                >
+                  <option value="">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="submitted">Submitted</option>
+                  <option value="turn-in">Turn-in</option>
+                </select>
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -1928,10 +2094,27 @@ const AdminDashboard: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {getBankApplications(selectedBank).map((app) => (
+                  {getBankApplications(selectedBank)
+                    .filter(app => {
+                      const search = nameFilter.toLowerCase();
+                      const name = `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.toLowerCase();
+                      const email = (app.personal_details?.emailAddress ?? '').toLowerCase();
+                      const applicationNo = (app.applicationNo || '').toLowerCase();
+                      const cardType = (app.cardType || '').toLowerCase();
+                      
+                      const matchesSearch = !search || 
+                        name.includes(search) || 
+                        email.includes(search) || 
+                        applicationNo.includes(search) || 
+                        cardType.includes(search);
+                      const matchesStatus = !statusFilter || (app.status || '').toLowerCase() === statusFilter.toLowerCase();
+                      return matchesSearch && matchesStatus;
+                    })
+                    .map((app) => (
                     <tr key={app.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
@@ -1969,6 +2152,15 @@ const AdminDashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {app.submitted_by || app.agent || 'Direct'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button 
+                          className="text-blue-600 hover:text-blue-800 p-1 rounded"
+                          onClick={() => handleViewBankApplication(app)}
+                          title="View Application Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -2706,6 +2898,105 @@ const AdminDashboard: React.FC = () => {
             <div className="flex flex-col sm:flex-row justify-end gap-2 mt-4">
               <button className="px-3 sm:px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-sm" onClick={() => setExportPreviewApp(null)}>Cancel</button>
               <button className="px-3 sm:px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 text-sm" onClick={handleExportSinglePDF} disabled={exportingPDF}>{exportingPDF ? 'Exporting...' : 'Download PDF'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bank Application View Modal */}
+      {viewBankApp && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">
+                  {selectedBank === 'maybank' ? 'Maybank' : 'Bank'} Application Details
+                </h2>
+                <button 
+                  onClick={() => setViewBankApp(null)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              {loadingBankApp ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-2">Loading application details...</span>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Basic Information */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <h3 className="font-semibold text-lg mb-3 text-blue-700">Basic Information</h3>
+                      <div className="space-y-2">
+                        <div><span className="font-medium">Application No:</span> {viewBankApp.applicationNo || 'N/A'}</div>
+                        <div><span className="font-medium">Name:</span> {viewBankApp.personal_details?.firstName} {viewBankApp.personal_details?.lastName}</div>
+                        <div><span className="font-medium">Status:</span> 
+                          <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full ${
+                            (viewBankApp.status || '').toLowerCase().includes('approved') || (viewBankApp.status || '').toLowerCase().includes('cif') ? 'bg-green-100 text-green-800' :
+                            (viewBankApp.status || '').toLowerCase().includes('pending') ? 'bg-yellow-100 text-yellow-800' :
+                            (viewBankApp.status || '').toLowerCase().includes('rejected') ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {viewBankApp.status}
+                          </span>
+                        </div>
+                        <div><span className="font-medium">Card Type:</span> {viewBankApp.cardType || 'N/A'}</div>
+                        <div><span className="font-medium">Agent:</span> {viewBankApp.agent || 'N/A'}</div>
+                        <div><span className="font-medium">Submitted:</span> {viewBankApp.submitted_at ? format(new Date(viewBankApp.submitted_at), 'MMM dd, yyyy') : 'N/A'}</div>
+                      </div>
+                    </div>
+                    
+                    {/* Additional Details */}
+                    <div>
+                      <h3 className="font-semibold text-lg mb-3 text-blue-700">Additional Details</h3>
+                      <div className="space-y-2">
+                        <div><span className="font-medium">Application Type:</span> {viewBankApp.applnType || 'N/A'}</div>
+                        <div><span className="font-medium">Source Code:</span> {viewBankApp.sourceCd || 'N/A'}</div>
+                        <div><span className="font-medium">Agency Branch:</span> {viewBankApp.agencyBrName || 'N/A'}</div>
+                        <div><span className="font-medium">Month:</span> {viewBankApp.month || 'N/A'}</div>
+                        <div><span className="font-medium">O Codes:</span> {viewBankApp.oCodes || 'N/A'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+
+
+                  {/* Decline Reason if applicable */}
+                  {viewBankApp.declineReason && (
+                    <div>
+                      <h3 className="font-semibold text-lg mb-3 text-red-700">Decline Reason</h3>
+                      <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                        <p className="text-red-800">{viewBankApp.declineReason}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Remarks */}
+                  {viewBankApp.remarks && (
+                    <div>
+                      <h3 className="font-semibold text-lg mb-3 text-blue-700">Remarks</h3>
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <p className="text-blue-800">{viewBankApp.remarks}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-6 border-t">
+              <button 
+                onClick={() => setViewBankApp(null)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
