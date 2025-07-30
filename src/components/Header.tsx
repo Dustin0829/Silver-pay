@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { CreditCard, User, LogOut, MessageSquare, Gift, Briefcase, Menu, X } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { User, LogOut, Menu, X } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 const Header: React.FC = () => {
   const { user, logout, isAuthenticated } = useAuth();

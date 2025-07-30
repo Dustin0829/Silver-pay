@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Save, ArrowLeft, ArrowRight } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import Toast from './Toast';
-import { useAuth } from '../context/AuthContext';
-import { useLoading } from '../context/LoadingContext';
+import { useAuth } from '../hooks/useAuth';
+import { useLoading } from '../hooks/useLoading';
 import {
   PersonalDetails,
   MotherDetails,
@@ -121,7 +121,7 @@ type FormDataType = {
 
 const LOCAL_STORAGE_KEY = 'applicationFormData';
 
-const ApplicationForm = ({ isAgentForm = false }) => {
+const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false }) => {
   const navigate = useNavigate();
   const { user } = isAgentForm ? useAuth() : { user: null };
   const [currentStep, setCurrentStep] = useState(1);
@@ -147,11 +147,47 @@ const ApplicationForm = ({ isAgentForm = false }) => {
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | undefined }>({ show: false, message: '', type: undefined });
   const [idPhoto, setIdPhoto] = useState<File | null>(null);
   const [eSignature, setESignature] = useState<File | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<string>('');
+  const [agents, setAgents] = useState<any[]>([]);
   const { setLoading } = useLoading();
 
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(formData));
   }, [formData]);
+
+  // Fetch real agents from Supabase for encoder form
+  useEffect(() => {
+    if (isEncoderForm) {
+      const fetchAgents = async () => {
+        setLoading(true);
+        try {
+          // Fetch users with 'agent' role from Supabase
+          const { data, error } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('role', 'agent');
+            
+          if (error) {
+            console.error('Error fetching agents:', error);
+            return;
+          }
+          
+          if (data && data.length > 0) {
+            console.log('Fetched agents:', data);
+            setAgents(data);
+          } else {
+            console.log('No agents found');
+          }
+        } catch (err) {
+          console.error('Unexpected error fetching agents:', err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      fetchAgents();
+    }
+  }, [isEncoderForm, setLoading]);
 
   const handleInputChange = (section: string, field: string, value: string | boolean) => {
     setFormData(prev => ({
@@ -197,6 +233,13 @@ const ApplicationForm = ({ isAgentForm = false }) => {
     const missing = validateStep();
     if (missing.length > 0) {
       setToast({ show: true, message: 'Fill all the requirements', type: 'error' as const });
+      setLoading(false);
+      return;
+    }
+
+    // Validate agent selection for encoder form
+    if (isEncoderForm && !selectedAgent) {
+      setToast({ show: true, message: 'Please select an agent for this application', type: 'error' });
       setLoading(false);
       return;
     }
@@ -263,15 +306,54 @@ const ApplicationForm = ({ isAgentForm = false }) => {
       deliver_card_to: formData.creditCardDetails.deliverCardTo,
       best_time_to_contact: formData.creditCardDetails.bestTimeToContact,
       location: '',
-      agent: isAgentForm && user ? user.name : 'direct',
+      agent: isAgentForm && user ? user.name : (isEncoderForm ? selectedAgent : 'direct'),
+      encoder: isEncoderForm && user ? user.name : null,
       relative3_name: formData.personalReference.lastName ? `${formData.personalReference.lastName}, ${formData.personalReference.firstName} ${formData.personalReference.middleName} ${formData.personalReference.suffix} (${formData.personalReference.relationship}) ${formData.personalReference.mobileNumber}`.trim() : null,
       remarks: '',
       bank_applied: Object.keys(formData.bankPreferences).filter(k => formData.bankPreferences[k as keyof BankPreferences]).join(', '),
       id_photo_url: idPhotoUrl,
       e_signature_url: eSignatureUrl,
+      submitted_at: new Date().toISOString(),
+      status: 'pending',
     };
     console.log('Inserting data into kyc_details table:', JSON.stringify(insertData, null, 2));
   
+    // For encoder form, validate agent selection and submit to database
+    if (isEncoderForm) {
+      if (!selectedAgent) {
+        setToast({ show: true, message: 'Please select an agent for this application', type: 'error' });
+        setLoading(false);
+        return;
+      }
+      
+      console.log('Submitting encoder form application:', insertData);
+      
+      const { error, data } = await supabase.from('kyc_details').insert(insertData);
+      
+      if (error) {
+        console.error('Application Insert Error:', {
+          message: error.message,
+          details: error.details,
+          code: error.code,
+          hint: error.hint,
+        });
+        setToast({ show: true, message: `Error submitting application: ${error.message}`, type: 'error' as const });
+        setLoading(false);
+        return;
+      }
+      
+      console.log('Application inserted successfully:', data);
+      setToast({ show: true, message: 'Application submitted successfully', type: 'success' as const });
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      
+      setTimeout(() => {
+        setLoading(false);
+        navigate('/encoder/history');
+      }, 2000);
+      
+      return;
+    }
+
     const { error, data } = await supabase.from('kyc_details').insert(insertData);
     if (error) {
       console.error('Application Insert Error:', {
@@ -418,6 +500,34 @@ const ApplicationForm = ({ isAgentForm = false }) => {
   const renderPersonalDetails = () => (
     <div className="space-y-6">
       <h3 className="text-2xl font-semibold text-gray-700 mb-6">Personal Details</h3>
+      
+      {/* Agent Selection for Encoder Form */}
+      {isEncoderForm && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <h4 className="text-lg font-semibold text-blue-800 mb-3">Agent Information</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select Agent <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={selectedAgent}
+                onChange={(e) => setSelectedAgent(e.target.value)}
+                className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+                required
+              >
+                <option value="">Select an Agent</option>
+                {agents.map((agent) => (
+                  <option key={agent.user_id || agent.id} value={agent.name}>
+                    {agent.name} ({agent.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Last Name <span className="text-red-500">*</span></label><input type="text" value={formData.personalDetails.lastName} onChange={(e) => handleInputChange('personalDetails', 'lastName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">First Name <span className="text-red-500">*</span></label><input type="text" value={formData.personalDetails.firstName} onChange={(e) => handleInputChange('personalDetails', 'firstName', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>

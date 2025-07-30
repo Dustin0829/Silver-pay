@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { FileText, Plus, Eye, Download, List, History, User, LogOut, Menu, X } from 'lucide-react';
+import { FileText, Eye, List, History, LogOut, Menu } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { format } from 'date-fns';
-import { useLoading } from '../context/LoadingContext';
+import { useLoading } from '../hooks/useLoading';
 // import Logo from '../assets/Company/Logo.png';
 
 const AgentDashboard: React.FC = () => {
   console.log('Input rendered!');
   const [applications, setApplications] = useState<any[]>([]); // merged applications
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('dashboard');
   const [viewedApp, setViewedApp] = useState<any | null>(null);
   const [currentModalStep, setCurrentModalStep] = useState(1);
@@ -36,13 +34,9 @@ const AgentDashboard: React.FC = () => {
     const fetchAllData = async () => {
       setLoading(true);
       // Fetch applications (first 1000 for display)
-      const { data: kycData, error: kycError } = await supabase.from('kyc_details').select('*').limit(1000);
-      // Fetch total count efficiently
-      const { count, error: countError } = await supabase
-        .from('kyc_details')
-        .select('*', { count: 'exact', head: true });
-      if (!countError && isMounted) setTotalApplicationsCount(count || 0);
-      const { data: userData, error: userError } = await supabase.from('users').select('*');
+      const { data: kycData } = await supabase.from('kyc_details').select('*').limit(1000);
+      // We'll set the count based on filtered applications, not global count
+      const { data: userData } = await supabase.from('users').select('*');
       
       // Helper function to parse relative name
       const parseRelativeName = (relativeName: string) => {
@@ -122,7 +116,10 @@ const AgentDashboard: React.FC = () => {
         };
       };
 
-      const normalizedKyc = (kycData || []).map((k: any) => {
+      // Filter for applications where the agent is the current user
+      const normalizedKyc = (kycData || [])
+        .filter((k: any) => k.agent === user?.name || k.agent === user?.email)
+        .map((k: any) => {
         const permanentAddress = parseAddress(k.address);
         const businessAddress = parseBusinessAddress(k.business_address);
         const motherDetails = parseRelativeName(k.relative_name);
@@ -191,6 +188,7 @@ const AgentDashboard: React.FC = () => {
       if (isMounted) {
         setApplications(normalizedKyc);
         setUsers(userData || []);
+        setTotalApplicationsCount(normalizedKyc.length); // Set count from filtered applications
       }
       setLoading(false);
     };
@@ -200,22 +198,18 @@ const AgentDashboard: React.FC = () => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'kyc_details' },
-        (payload) => { fetchAllData(); }
+        () => { fetchAllData(); }
       )
       .subscribe();
     return () => { isMounted = false; supabase.removeChannel(channel); };
-  }, []);
+  }, [user]);
 
-  const exportToPDF = () => {
-    // This would normally generate a PDF report
-    alert('PDF export functionality would be implemented here');
-  };
+  // PDF export functionality removed
 
   // 1. Sidebar navigation (match AdminDashboard)
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: <List className="w-5 h-5 mr-2" /> },
     { key: 'history', label: 'Application History', icon: <History className="w-5 h-5 mr-2" /> },
-    { key: 'apply', label: 'Apply', icon: <Plus className="w-5 h-5 mr-2" /> },
   ];
 
   // Stepper for modal
@@ -252,7 +246,6 @@ const AgentDashboard: React.FC = () => {
         <div className="space-y-2">
           <button className={`w-full flex items-center px-4 py-3 rounded-lg font-medium border-2 ${activeSection === 'dashboard' ? 'bg-blue-50 text-blue-700 border-blue-500' : 'bg-white text-blue-700 border-transparent hover:bg-blue-100'}`} onClick={() => setActiveSection('dashboard')}><List className="w-5 h-5 mr-2" /> Dashboard</button>
           <button className={`w-full flex items-center px-4 py-3 rounded-lg font-medium border-2 ${activeSection === 'history' ? 'bg-purple-50 text-purple-700 border-purple-400' : 'bg-white text-purple-700 border-transparent hover:bg-purple-100'}`} onClick={() => setActiveSection('history')}><History className="w-5 h-5 mr-2" /> Application History</button>
-          <button className={`w-full flex items-center px-4 py-3 rounded-lg font-medium border-2 ${activeSection === 'apply' ? 'bg-green-50 text-green-700 border-green-400' : 'bg-white text-green-700 border-transparent hover:bg-green-100'}`} onClick={() => setActiveSection('apply')}><Plus className="w-5 h-5 mr-2" /> Apply</button>
         </div>
       </div>
     </div>
@@ -303,7 +296,6 @@ const AgentDashboard: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
-  const sortedApplications = [...applications].sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
   const sortedFilteredApplications = [...filteredApplications].sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
 
   const visibleApplications = sortedFilteredApplications.slice(0, visibleCount);
@@ -345,7 +337,7 @@ const AgentDashboard: React.FC = () => {
             <th className="py-2">Applicant</th>
             <th className="py-2 min-w-[150px] px-4">Date & Time</th>
             <th className="py-2">Status</th>
-            <th className="py-2">Submitted By</th>
+            <th className="py-2">Encoder</th>
             <th className="py-2">Actions</th>
           </tr>
         </thead>
@@ -353,9 +345,23 @@ const AgentDashboard: React.FC = () => {
           {visibleApplications.map((app, i) => (
             <tr key={i} className="border-t">
               <td className="py-3">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
-              <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy HH:mm') : ''}</td>
+              <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}</td>
               <td className="py-3 px-4 text-sm"><span className={`px-3 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : app.status === 'rejected' ? 'bg-red-100 text-red-800' : app.status === 'submitted' ? 'bg-blue-100 text-blue-800' : app.status === 'turn-in' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'}`}>{app.status}</span></td>
-              <td className="py-3">{app.submitted_by || app.agent || 'direct'}</td>
+              <td className="py-3">
+                {app.encoder ? (
+                  <span className="text-purple-700 font-medium flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="8.5" cy="7" r="4"></circle>
+                      <line x1="20" y1="8" x2="20" y2="14"></line>
+                      <line x1="23" y1="11" x2="17" y2="11"></line>
+                    </svg>
+                    {app.encoder}
+                  </span>
+                ) : (
+                  <span className="text-gray-400">None</span>
+                )}
+              </td>
               <td className="py-3 flex space-x-2">
                 <button
                   onClick={() => { setViewedApp(app); setCurrentModalStep(1); }}
@@ -374,9 +380,22 @@ const AgentDashboard: React.FC = () => {
         {visibleApplications.map((app, i) => (
           <div key={i} className="bg-white rounded-xl shadow p-4 mb-4 border border-gray-100">
             <div className="font-semibold text-lg mb-1">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</div>
-            <div className="text-xs text-gray-500 mb-1">Date: {app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy HH:mm') : ''}</div>
+            <div className="text-xs text-gray-500 mb-1">Date: {app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}</div>
             <div className="mb-1 text-sm"><span className="font-medium">Status:</span> <span className={`px-2 py-1 rounded-full text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : app.status === 'approved' ? 'bg-green-100 text-green-800' : app.status === 'rejected' ? 'bg-red-100 text-red-800' : app.status === 'submitted' ? 'bg-blue-100 text-blue-800' : app.status === 'turn-in' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'}`}>{app.status}</span></div>
-            <div className="mb-1 text-sm"><span className="font-medium">Submitted By:</span> {app.submitted_by || app.agent || 'direct'}</div>
+            {app.encoder && (
+              <div className="mb-1 text-sm flex items-center">
+                <span className="font-medium mr-1">Encoder:</span> 
+                <span className="text-purple-700 font-medium flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="8.5" cy="7" r="4"></circle>
+                    <line x1="20" y1="8" x2="20" y2="14"></line>
+                    <line x1="23" y1="11" x2="17" y2="11"></line>
+                  </svg>
+                  {app.encoder}
+                </span>
+              </div>
+            )}
             <div className="flex gap-2 mt-2">
               <button
                 onClick={() => { setViewedApp(app); setCurrentModalStep(1); }}
@@ -676,8 +695,11 @@ const AgentDashboard: React.FC = () => {
             <div>
               <h4 className="text-lg font-semibold mb-2 text-blue-700">Application Information</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><span className="font-medium">Submitted By:</span> {app.submitted_by || app.agent || 'Direct'}</div>
-                <div><span className="font-medium">Submitted At:</span> {app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy HH:mm') : 'N/A'}</div>
+                <div><span className="font-medium">Agent:</span> <span className="font-semibold text-blue-700">{app.agent || 'Not specified'}</span></div>
+                {app.encoder && (
+                  <div><span className="font-medium">Encoder:</span> <span className="font-semibold text-purple-700">{app.encoder}</span></div>
+                )}
+                <div><span className="font-medium">Submitted At:</span> {app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : 'N/A'}</div>
                 <div><span className="font-medium">Status:</span> 
                   <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
                     app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
@@ -690,6 +712,13 @@ const AgentDashboard: React.FC = () => {
                     {app.status || 'Unknown'}
                   </span>
                 </div>
+                {app.encoder && (
+                  <div className="md:col-span-2 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                    <p className="text-sm text-blue-800">
+                      <span className="font-medium">Note:</span> This application was submitted by an encoder on your behalf.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -699,10 +728,7 @@ const AgentDashboard: React.FC = () => {
     }
   };
 
-  // Handle Apply navigation
-  if (activeSection === 'apply') {
-    navigate('/agent/apply');
-  }
+
 
   // 2. Main layout (match AdminDashboard)
   return (

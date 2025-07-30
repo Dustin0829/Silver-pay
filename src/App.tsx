@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ApplicationProvider } from './context/ApplicationContext';
-import { LoadingProvider, useLoading } from './context/LoadingContext';
+import { LoadingProvider } from './context/LoadingContext';
+import { useLoading } from './hooks/useLoading';
 import LoadingSpinner from './components/LoadingSpinner';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -17,86 +18,102 @@ import JobApplication from './pages/JobApplication';
 import JobApplicationForm from './pages/JobApplicationForm';
 import Contact from './pages/Contact';
 
+function App() {  
+  return (
+    <LoadingProvider>
+      <AuthProvider>
+        <ApplicationProvider>
+          <AppContent />
+        </ApplicationProvider>
+      </AuthProvider>
+    </LoadingProvider>
+  );
+}
+
 const AppContent: React.FC = () => {
   const { loading } = useLoading();
   
   return (
     <>
       {loading && <LoadingSpinner />}
-      <AuthProvider>
-        <ApplicationProvider>
-          <Router>
-            <Routes>
-              <Route path="/" element={<Layout />}>
-                <Route index element={<Landing />} />
-                <Route path="login" element={<Login />} />
-                <Route path="apply" element={<ApplicationForm />} />
-                <Route path="application-success" element={<ApplicationSuccess />} />
-                <Route path="jobs" element={<JobApplication />} />
-                <Route path="jobs/apply/:jobId" element={<JobApplicationForm />} />
-                <Route path="job-application-success" element={<ApplicationSuccess />} />
-                <Route 
-                  path="dashboard" 
-                  element={
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="admin/*" 
-                  element={
-                    <ProtectedRoute role="admin">
-                      <Dashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="agent/apply" 
-                  element={
-                    <ProtectedRoute role="agent">
-                      <ApplicationForm isAgentForm={true} />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="agent/*" 
-                  element={
-                    <ProtectedRoute role="agent">
-                      <Dashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="unauthorized" 
-                  element={
-                    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                      <div className="text-center">
-                        <h1 className="text-2xl font-bold text-gray-900 mb-4">Unauthorized Access</h1>
-                        <p className="text-gray-600">You don't have permission to access this page.</p>
-                      </div>
-                    </div>
-                  } 
-                />
-                <Route path="credit-cards" element={<CreditCards />} />
-                <Route path="promos" element={<Promos />} />
-                <Route path="contact" element={<Contact />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Route>
-            </Routes>
-          </Router>
-        </ApplicationProvider>
-      </AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Landing />} />
+            <Route path="login" element={<Login />} />
+            <Route path="apply" element={<ApplicationForm />} />
+            <Route path="application-success" element={<ApplicationSuccess />} />
+            <Route path="jobs" element={<JobApplication />} />
+            <Route path="jobs/apply/:jobId" element={<JobApplicationForm />} />
+            <Route path="job-application-success" element={<ApplicationSuccess />} />
+            <Route 
+              path="dashboard" 
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="admin/*" 
+              element={
+                <ProtectedRoute role="admin">
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="agent/apply" 
+              element={
+                <ProtectedRoute role="agent">
+                  <ApplicationForm isAgentForm={true} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="agent/*" 
+              element={
+                <ProtectedRoute role="agent">
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="encoder/apply" 
+              element={
+                <ProtectedRoute role="encoder">
+                  <ApplicationForm isEncoderForm={true} />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="encoder/*" 
+              element={
+                <ProtectedRoute role="encoder">
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="unauthorized" 
+              element={
+                <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                  <div className="text-center">
+                    <h1 className="text-2xl font-bold text-gray-900 mb-4">Unauthorized Access</h1>
+                    <p className="text-gray-600">You don't have permission to access this page.</p>
+                  </div>
+                </div>
+              } 
+            />
+            <Route path="credit-cards" element={<CreditCards />} />
+            <Route path="promos" element={<Promos />} />
+            <Route path="contact" element={<Contact />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </Router>
     </>
   );
 };
-
-function App() {  
-  return (
-    <LoadingProvider>
-      <AppContent />
-    </LoadingProvider>
-  );
-}
 
 export default App;

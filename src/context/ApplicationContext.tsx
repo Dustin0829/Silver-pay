@@ -1,30 +1,36 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../supabaseClient';
 import { Application } from '../types';
-import { useLoading } from './LoadingContext';
-
-interface ApplicationContextType {
-  applications: Application[];
-  addApplication: (application: Omit<Application, 'id' | 'submittedAt'>) => void;
-  updateApplication: (id: string, updates: Partial<Application>) => void;
-  getApplicationById: (id: string) => Application | undefined;
-}
-
-const ApplicationContext = createContext<ApplicationContextType | undefined>(undefined);
+import { ApplicationContext } from '../hooks/useApplications';
 
 export const ApplicationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [applications, setApplications] = useState<Application[]>([]);
-  const { setLoading } = useLoading();
+  const [isLoadingApplications, setIsLoadingApplications] = useState(false); // Local loading state
 
   useEffect(() => {
-    setLoading(true);
+    console.log('ApplicationContext: Starting to fetch applications');
+    setIsLoadingApplications(true); // Use local loading state instead
     const fetchApplications = async () => {
-      const { data, error } = await supabase.from('kyc_details').select('*');
-      if (!error && data) setApplications(data as Application[]);
-      setLoading(false);
+      try {
+        console.log('ApplicationContext: Fetching from Supabase...');
+        const { data, error } = await supabase.from('kyc_details').select('*');
+        if (!error && data) {
+          console.log('ApplicationContext: Data fetched successfully:', data.length, 'applications');
+          setApplications(data as Application[]);
+        } else {
+          console.warn('ApplicationContext: No applications data found or error occurred:', error);
+          setApplications([]);
+        }
+      } catch (error) {
+        console.error('ApplicationContext: Error fetching applications:', error);
+        setApplications([]);
+      } finally {
+        console.log('ApplicationContext: Setting loading to false');
+        setIsLoadingApplications(false); // Use local loading state instead
+      }
     };
     fetchApplications();
-  }, []);
+  }, []); // Remove setLoading from dependencies
 
   const addApplication = (applicationData: Omit<Application, 'id' | 'submittedAt'>) => {
     const newApplication: Application = {
@@ -55,10 +61,5 @@ export const ApplicationProvider: React.FC<{ children: ReactNode }> = ({ childre
   return <ApplicationContext.Provider value={value}>{children}</ApplicationContext.Provider>;
 };
 
-export const useApplications = () => {
-  const context = useContext(ApplicationContext);
-  if (context === undefined) {
-    throw new Error('useApplications must be used within an ApplicationProvider');
-  }
-  return context;
-};
+
+

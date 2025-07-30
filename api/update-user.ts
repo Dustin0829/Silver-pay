@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import crypto from 'crypto';
 
 // Initialize Supabase client with service role key to bypass RLS
 const supabase = createClient(
@@ -47,46 +46,68 @@ export default async function handler(
       return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
     }
     
-    const { name, email, password, role, bankCodes } = req.body;
+    const { id, name, role, bankCodes, password } = req.body;
     
     // Validate inputs
-    if (!name || !email || !password || !role) {
+    if (!id || !name || !role) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
-    // Create a direct entry in the user_profiles table
-    // For a real application, you would use proper auth flow
-    // This is a simplified approach for demonstration purposes
-    // Generate a UUID for the user_id
-    const userId = crypto.randomUUID();
-    
-    // Create user profile in the database
-    const newUserProfile = {
-      id: crypto.randomUUID(),
-      user_id: userId,
+    // Update user profile in the database
+    const updateData: any = {
       name,
-      email,
       role,
       bank_codes: role === 'agent' ? bankCodes : [],
-      created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
     
-    const { error: insertError } = await supabase
+    const { error: updateError } = await supabase
       .from('user_profiles')
-      .insert(newUserProfile);
+      .update(updateData)
+      .eq('id', id);
       
-    if (insertError) {
-      console.error('Error inserting user profile:', insertError);
-      return res.status(400).json({ error: insertError.message });
+    if (updateError) {
+      return res.status(400).json({ error: updateError.message });
     }
     
-    // For a real application, you would create the auth user here
-    console.log('User profile created successfully:', newUserProfile);
+    // If password was provided, update it
+    if (password) {
+      // Get user_id from the profile
+      const { data: userData, error: userError } = await supabase
+        .from('user_profiles')
+        .select('user_id')
+        .eq('id', id)
+        .single();
+        
+      if (userError || !userData) {
+        return res.status(400).json({ error: 'Failed to find user_id' });
+      }
+      
+      // Update the password
+      const { error: passwordError } = await supabase.auth.admin.updateUserById(
+        userData.user_id,
+        { password }
+      );
+      
+      if (passwordError) {
+        return res.status(400).json({ error: 'Failed to update password: ' + passwordError.message });
+      }
+    }
     
-    return res.status(200).json({ success: true, user: newUserProfile });
+    // Get the updated user profile
+    const { data: updatedProfile, error: fetchError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', id)
+      .single();
+      
+    if (fetchError || !updatedProfile) {
+      return res.status(200).json({ success: true, user: { id, ...updateData } });
+    }
+    
+    return res.status(200).json({ success: true, user: updatedProfile });
   } catch (error) {
-    console.error('Unexpected error in create-user:', error);
+    console.error('Unexpected error in update-user:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

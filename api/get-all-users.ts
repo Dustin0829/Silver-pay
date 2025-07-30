@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import crypto from 'crypto';
 
 // Initialize Supabase client with service role key to bypass RLS
 const supabase = createClient(
@@ -12,7 +11,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  if (req.method !== 'POST') {
+  if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
@@ -47,46 +46,20 @@ export default async function handler(
       return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
     }
     
-    const { name, email, password, role, bankCodes } = req.body;
-    
-    // Validate inputs
-    if (!name || !email || !password || !role) {
-      return res.status(400).json({ error: 'Missing required fields' });
-    }
-    
-    // Create a direct entry in the user_profiles table
-    // For a real application, you would use proper auth flow
-    // This is a simplified approach for demonstration purposes
-    // Generate a UUID for the user_id
-    const userId = crypto.randomUUID();
-    
-    // Create user profile in the database
-    const newUserProfile = {
-      id: crypto.randomUUID(),
-      user_id: userId,
-      name,
-      email,
-      role,
-      bank_codes: role === 'agent' ? bankCodes : [],
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    const { error: insertError } = await supabase
+    // Fetch all users using service role (bypassing RLS)
+    const { data: users, error: fetchError } = await supabase
       .from('user_profiles')
-      .insert(newUserProfile);
-      
-    if (insertError) {
-      console.error('Error inserting user profile:', insertError);
-      return res.status(400).json({ error: insertError.message });
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (fetchError) {
+      console.error('Error fetching users:', fetchError);
+      return res.status(500).json({ error: 'Failed to fetch users' });
     }
     
-    // For a real application, you would create the auth user here
-    console.log('User profile created successfully:', newUserProfile);
-    
-    return res.status(200).json({ success: true, user: newUserProfile });
+    return res.status(200).json(users);
   } catch (error) {
-    console.error('Unexpected error in create-user:', error);
+    console.error('Unexpected error in get-all-users:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }

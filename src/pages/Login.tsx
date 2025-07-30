@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { LogIn, Mail, Lock } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { LogIn, Mail, Lock, Copy, Check } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 import Toast from '../components/Toast';
 import BackButton from '../components/BackButton';
-import { useLoading } from '../context/LoadingContext';
+import { useLoading } from '../hooks/useLoading';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -13,11 +13,8 @@ const Login: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const { setLoading } = useLoading();
-  const [showToast, setShowToast] = useState(false);
 
-  useEffect(() => {
-    setShowToast(true);
-  }, []);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,21 +28,23 @@ const Login: React.FC = () => {
       } else {
         setError('Invalid email or password');
       }
-    } catch (err) {
+    } catch {
       setError('An error occurred during login');
     } finally {
       setLoading(false);
     }
   };
 
+
+
   return (
-    <div className="min-h-0 bg-gradient-to-br from-white-900 to-blue-700 flex items-center justify-center px-2 sm:px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center px-2 sm:px-4 py-8">
       <BackButton />
       <div className="max-w-md w-full bg-white rounded-xl shadow-2xl p-4 sm:p-6">
         <div className="text-center mb-8">
           <LogIn className="h-12 w-12 text-blue-700 mx-auto mb-4" />
-          <h2 className="text-2xl sm:text-3xl font-bold text-red-600">Authorized Personel Only</h2>
-          <p className="text-gray-600 mt-2">Access your SilverCard dashboard</p>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">SilverCard Login</h2>
+          <p className="text-gray-600 mt-2">Access your dashboard</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -98,19 +97,14 @@ const Login: React.FC = () => {
             Sign In
           </button>
         </form>
+
         <div className="mt-6 text-center">
           <Link to="/" className="text-blue-700 hover:text-blue-800 text-sm">
             ← Back to Home
           </Link>
         </div>
-              </div>
-        <Toast 
-          message="This is for admin only" 
-          show={showToast} 
-          onClose={() => setShowToast(false)}
-          type="error"
-        />
       </div>
+    </div>
   );
 };
 

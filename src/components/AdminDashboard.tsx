@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Users, FileText, BarChart3, Settings, Plus, Check, X, Eye, Edit, LogOut, User, Clock, CheckCircle, List, History, Trash2, Download, Menu, Send, ArrowDownCircle, ThumbsUp, ThumbsDown } from 'lucide-react';
-import { useApplications } from '../context/ApplicationContext';
-import { useAuth } from '../context/AuthContext';
+import { FileText, Check, X, Eye, Edit, LogOut, User, Clock, CheckCircle, List, History, Trash2, Download, Menu, Send, ArrowDownCircle, ThumbsUp, ThumbsDown, BarChart3 } from 'lucide-react';
+import { useApplications } from '../hooks/useApplications';
+import { useAuth } from '../hooks/useAuth';
 import { format } from 'date-fns';
 import Toast from './Toast';
 // import Logo from '../assets/Company/Logo.png';
@@ -10,18 +10,18 @@ import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
-import { useLoading } from '../context/LoadingContext';
+import { useLoading } from '../hooks/useLoading';
 
 // Add this to the top, after imports
 const BANKS = [
-  { value: 'rcbc', label: 'RCBC' },
-  { value: 'metrobank', label: 'Metrobank' },
-  { value: 'eastWestBank', label: 'EastWest Bank' },
-  { value: 'bpi', label: 'BPI' },
-  { value: 'pnb', label: 'PNB' },
-  { value: 'robinsonBank', label: 'Robinson Bank' },
-  { value: 'maybank', label: 'Maybank' },
-  { value: 'aub', label: 'AUB' },
+  { value: 'rcbc', label: 'RCBC', logo: '/banks/RCBC.jpg' },
+  { value: 'metrobank', label: 'Metrobank', logo: '/banks/metrobank.jpeg' },
+  { value: 'eastWestBank', label: 'EastWest Bank', logo: '/banks/eastwest.webp' },
+  { value: 'bpi', label: 'BPI', logo: '/banks/bpi.jpg' },
+  { value: 'pnb', label: 'PNB', logo: '/banks/pnb.png' },
+  { value: 'robinsonBank', label: 'Robinson Bank', logo: '/banks/robinson.jpg' },
+  { value: 'maybank', label: 'Maybank', logo: '/banks/maybank.png' },
+  { value: 'aub', label: 'AUB', logo: '/banks/AUB.jpg' },
 ];
 
 // Add this at the top after imports
@@ -214,15 +214,24 @@ function renderObjectDetails(obj: any) {
 const AdminDashboard: React.FC = () => {
   const { logout, user } = useAuth();
   const [activeSection, setActiveSection] = useState('dashboard');
-  const [showAddUser, setShowAddUser] = useState(false);
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
-  const [users, setUsers] = useState<any[]>([]); // fetched from Supabase
   const [applications, setApplications] = useState<any[]>([]); // merged applications
   const [viewedApp, setViewedApp] = useState<any | null>(null);
-  const [editUserIdx, setEditUserIdx] = useState<number | null>(null);
-  const [editUser, setEditUser] = useState({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
   const [toast, setToast] = useState<typeof initialToastState>(initialToastState);
-  const [pendingDeleteIdx, setPendingDeleteIdx] = useState<number | null>(null);
+  
+  // Mock users data for agent information
+  const users = [
+    {
+      id: 'agent-1',
+      name: 'Agent User',
+      email: 'agent@silvercard.com',
+      role: 'agent',
+      bank_codes: [
+        { bank: 'rcbc', code: 'RC001' },
+        { bank: 'metrobank', code: 'MB002' },
+        { bank: 'bpi', code: 'BP003' },
+      ],
+    }
+  ];
   const [editApp, setEditApp] = useState<any | null>(null);
   const [currentModalStep, setCurrentModalStep] = useState(1);
   const [currentEditStep, setCurrentEditStep] = useState(1);
@@ -247,13 +256,14 @@ const AdminDashboard: React.FC = () => {
   const [historyPage, setHistoryPage] = useState(1);
   const PAGE_SIZE = 15;
   const [totalApplicationsCount, setTotalApplicationsCount] = useState(0);
+  const [selectedBank, setSelectedBank] = useState<string>('');
   const { setLoading } = useLoading();
 
   // Sidebar navigation
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: <List className="w-5 h-5 mr-2" /> },
-    { key: 'account', label: 'Account Management', icon: <User className="w-5 h-5 mr-2" /> },
     { key: 'applications', label: 'Client Applications', icon: <FileText className="w-5 h-5 mr-2" /> },
+    { key: 'statusReport', label: 'Status Report', icon: <BarChart3 className="w-5 h-5 mr-2" /> },
     { key: 'history', label: 'Application History', icon: <History className="w-5 h-5 mr-2" /> },
   ];
 
@@ -326,15 +336,7 @@ const AdminDashboard: React.FC = () => {
           console.log('Applications state updated with', normalizedKyc.length, 'records');
         }
 
-        // Fetch all users from Supabase
-        const { data: userData, error: userError } = await supabase.from('users').select('*');
-        if (userError) {
-          console.error('Failed to fetch users:', userError.message);
-          setToast({ show: true, message: 'Failed to fetch users: ' + userError.message, type: 'error' });
-        } else if (isMounted) {
-          setUsers(userData || []);
-          console.log('Users state updated with', userData?.length || 0, 'records');
-        }
+
       } catch (error) {
         console.error('Unexpected error in fetchAllData:', error);
         setToast({ show: true, message: 'Unexpected error while fetching data', type: 'error' });
@@ -382,7 +384,6 @@ const AdminDashboard: React.FC = () => {
   const rejected = applicationsWithStatus.filter(a => (a.status || '').toLowerCase() === 'rejected').length;
   const submitted = applicationsWithStatus.filter(a => (a.status || '').toLowerCase() === 'submitted').length;
   const turnIn = applicationsWithStatus.filter(a => (a.status || '').toLowerCase() === 'turn-in').length;
-  const totalUsers = users.length;
 
   // Stepper for modal
   const modalSteps = [
@@ -463,9 +464,9 @@ const AdminDashboard: React.FC = () => {
           <div className="text-green-600 text-xs mt-1">↑+8% from last month</div>
             </div>
         <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
-          <div className="flex items-center mb-2"><User className="w-6 h-6 text-purple-500 mr-2" /> <span className="font-semibold">Total Users</span></div>
-          <div className="text-2xl font-bold">{totalUsers}</div>
-          <div className="text-green-600 text-xs mt-1">↑+2 from last month</div>
+          <div className="flex items-center mb-2"><User className="w-6 h-6 text-purple-500 mr-2" /> <span className="font-semibold">Rejected</span></div>
+          <div className="text-2xl font-bold">{rejected}</div>
+          <div className="text-red-600 text-xs mt-1">↓-5% from last month</div>
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -480,7 +481,7 @@ const AdminDashboard: React.FC = () => {
                   <li key={app.id} className="flex items-center justify-between py-2 border-b last:border-b-0">
                 <div>
                       <span className="font-medium">{`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}</span>
-                      <span className="ml-2 text-xs text-gray-500">{app.submitted_at ? new Date(app.submitted_at).toLocaleDateString() : ''}</span>
+                      <span className="ml-2 text-xs text-gray-500">{app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}</span>
                 </div>
                     <span className={`px-2 py-1 rounded-full text-xs font-semibold ml-2
                       ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
@@ -499,7 +500,6 @@ const AdminDashboard: React.FC = () => {
           <div className="space-y-2">
             <button className={`w-full flex items-center px-4 py-3 rounded-lg font-medium border-2 ${activeSection === 'dashboard' ? 'bg-blue-50 text-blue-700 border-blue-500' : 'bg-white text-blue-700 border-transparent hover:bg-blue-100'}`} onClick={() => setActiveSection('dashboard')}><List className="w-5 h-5 mr-2" /> Dashboard</button>
             <button className={`w-full flex items-center px-4 py-3 rounded-lg font-medium border-2 ${activeSection === 'applications' ? 'bg-blue-50 text-blue-700 border-blue-500' : 'bg-white text-blue-700 border-transparent hover:bg-blue-100'}`} onClick={() => setActiveSection('applications')}><FileText className="w-5 h-5 mr-2" /> Client Applications</button>
-            <button className={`w-full flex items-center px-4 py-3 rounded-lg font-medium border-2 ${activeSection === 'account' ? 'bg-green-50 text-green-700 border-green-400' : 'bg-white text-green-700 border-transparent hover:bg-green-100'}`} onClick={() => setActiveSection('account')}><User className="w-5 h-5 mr-2" /> Account Management</button>
             <button className={`w-full flex items-center px-4 py-3 rounded-lg font-medium border-2 ${activeSection === 'history' ? 'bg-purple-50 text-purple-700 border-purple-400' : 'bg-white text-purple-700 border-transparent hover:bg-purple-100'}`} onClick={() => setActiveSection('history')}><History className="w-5 h-5 mr-2" /> Application History</button>
           </div>
         </div>
@@ -507,261 +507,7 @@ const AdminDashboard: React.FC = () => {
     </div>
   );
 
-  const renderAccount = () => (
-    <div>
-      <h2 className="text-2xl font-bold mb-2">Account Management</h2>
-      <p className="text-gray-600 mb-6">Manage admin and agent accounts</p>
-      <div className="bg-white rounded-xl p-6 shadow">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-semibold">System Users</h3>
-          <button onClick={() => setShowAddUser(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center"><Plus className="w-4 h-4 mr-2" /> Add User</button>
-        </div>
-        <table className="w-full text-xs sm:text-sm md:text-base">
-          <thead>
-            <tr className="text-left text-xs text-gray-500 uppercase">
-              <th className="py-2">User</th>
-              <th className="py-2">Email</th>
-              <th className="py-2">Role</th>
-              <th className="py-2">Actions</th>
-              </tr>
-            </thead>
-          <tbody>
-            {users.map((u, i) => (
-              <tr key={i} className="border-t">
-                <td className="py-3">{u.name}</td>
-                <td className="py-3">{u.email}</td>
-                <td className="py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${u.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{u.role}</span></td>
-                <td className="py-3 flex space-x-2">
-                  <button className="text-blue-600 hover:text-blue-800" onClick={() => {
-                    setEditUserIdx(i);
-                    setEditUser({
-                      name: u.name,
-                      email: u.email,
-                      password: u.password || '',
-                      role: u.role,
-                      bankCodes: Array.isArray(u.bank_codes) && u.bank_codes.length > 0 ? u.bank_codes : (u.role === 'agent' ? [{ bank: '', code: '' }] : []),
-                    });
-                  }}><Edit className="w-4 h-4" /></button>
-                  <button className="text-red-600 hover:text-red-800" onClick={async () => {
-                    if (pendingDeleteIdx === i) {
-                      // Delete user via backend API
-                      try {
-                        const response = await fetch('/api/delete-user', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ email: u.email }),
-                        });
-                        const result = await response.json();
-                        if (!response.ok) {
-                          setToast({ show: true, message: 'Failed to delete user: ' + (result.error || response.statusText), type: 'error' });
-                          return;
-                        }
-                        setUsers(prev => prev.filter((_, idx) => idx !== i));
-                        setPendingDeleteIdx(null);
-                        setToast({ show: true, message: 'User deleted successfully!', type: 'success' });
-                      } catch (err) {
-                        let errorMsg = 'Unknown error';
-                        if (err instanceof Error) {
-                          errorMsg = err.message;
-                        } else if (typeof err === 'string') {
-                          errorMsg = err;
-                        }
-                        setToast({ show: true, message: 'Failed to delete user: ' + errorMsg, type: 'error' });
-                      }
-                    } else {
-                      setPendingDeleteIdx(i);
-                      setToast({ show: true, message: 'Click again to confirm delete.', type: 'error' });
-                      setTimeout(() => setPendingDeleteIdx(null), 3000);
-                    }
-                  }}><Trash2 className="w-4 h-4" /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        {showAddUser && (
-          <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md relative">
-              <button onClick={() => setShowAddUser(false)} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
-              <h3 className="text-xl font-bold mb-4">Add New User</h3>
-              <form onSubmit={async e => {
-                e.preventDefault();
-                // Call backend API to create user in Supabase Auth and users table
-                try {
-                  const response = await fetch('/api/create-user', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      name: newUser.name,
-                      email: newUser.email,
-                      password: newUser.password,
-                      role: newUser.role,
-                      bank_codes: newUser.bankCodes,
-                    }),
-                  });
-                  const result = await response.json();
-                  if (!response.ok) {
-                    setToast({ show: true, message: 'Failed to add user: ' + (result.error || response.statusText), type: 'error' as const });
-                    return;
-                  }
-                setShowAddUser(false);
-                setNewUser({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
-                  setToast({ show: true, message: 'User created successfully!', type: 'success' as const });
-                } catch (err) {
-                  let errorMsg = 'Unknown error';
-                  if (err instanceof Error) {
-                    errorMsg = err.message;
-                  } else if (typeof err === 'string') {
-                    errorMsg = err;
-                  }
-                  setToast({ show: true, message: 'Failed to add user: ' + errorMsg, type: 'error' as const });
-                }
-              }} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Name</label>
-                  <input type="text" value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} className="w-full border rounded-lg px-3 py-2" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Email</label>
-                  <input type="email" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} className="w-full border rounded-lg px-3 py-2" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Password</label>
-                  <input type="password" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} className="w-full border rounded-lg px-3 py-2" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Role</label>
-                  <select value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })} className="w-full border rounded-lg px-3 py-2" required>
-                    <option value="admin">Admin</option>
-                    <option value="agent">Agent</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Bank Codes</label>
-                  {(newUser.bankCodes ? newUser.bankCodes : [{ bank: '', code: '' }]).map((entry, idx) => (
-                    <div key={idx} className="flex gap-2 mb-2">
-                      <select
-                        value={entry.bank}
-                        onChange={e => {
-                          const bank = e.target.value;
-                          setNewUser(u => ({
-                            ...u,
-                            bankCodes: u.bankCodes.map((b, i) => i === idx ? { ...b, bank } : b)
-                          }));
-                        }}
-                        className="border rounded-lg px-2 py-1 flex-1"
-                        required
-                      >
-                        <option value="">Select Bank</option>
-                        {BANKS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-                      </select>
-                      <input
-                        type="text"
-                        placeholder="Code"
-                        value={entry.code}
-                        onChange={e => {
-                          const code = e.target.value;
-                          setNewUser(u => ({
-                            ...u,
-                            bankCodes: u.bankCodes.map((b, i) => i === idx ? { ...b, code } : b)
-                          }));
-                        }}
-                        className="border rounded-lg px-2 py-1 flex-1"
-                        required
-                      />
-                      <button type="button" onClick={() => setNewUser(u => ({ ...u, bankCodes: u.bankCodes.filter((_, i) => i !== idx) }))} className="text-red-500 px-2">&times;</button>
-                    </div>
-                  ))}
-                  <button type="button" onClick={() => setNewUser(u => ({ ...u, bankCodes: [...u.bankCodes, { bank: '', code: '' }] }))} className="text-blue-600 text-xs underline">+ Add Another</button>
-                </div>
-                <button type="submit" className="w-full bg-blue-700 text-white py-2 rounded-lg font-semibold hover:bg-blue-800">Create Account</button>
-              </form>
-              <div className="text-xs text-gray-500 mt-2">User creation is handled securely via a backend API.</div>
-            </div>
-          </div>
-        )}
-        {editUserIdx !== null && (
-          <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md relative">
-              <button onClick={() => setEditUserIdx(null)} className="absolute top-3 right-3 text-gray-400 hover:text-red-600 text-2xl">&times;</button>
-              <h3 className="text-xl font-bold mb-4">Edit User</h3>
-              <form onSubmit={async e => {
-                e.preventDefault();
-                // Update user in Supabase (excluding password)
-                const { error } = await supabase.from('users').update({
-                  name: editUser.name,
-                  role: editUser.role,
-                  bank_codes: editUser.bankCodes,
-                }).eq('email', editUser.email);
-                if (error) {
-                  setToast({ show: true, message: 'Failed to update user: ' + error.message, type: 'error' as const });
-                  return;
-                }
-                setUsers(prev => prev.map((u, idx) => idx === editUserIdx ? { ...u, ...editUser } : u));
-                setEditUserIdx(null);
-                setToast({ show: true, message: 'User updated successfully!', type: 'success' as const });
-              }} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Name</label>
-                  <input type="text" value={editUser.name} onChange={e => setEditUser({ ...editUser, name: e.target.value })} className="w-full border rounded-lg px-3 py-2" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Email</label>
-                  <input type="email" value={editUser.email} onChange={e => setEditUser({ ...editUser, email: e.target.value })} className="w-full border rounded-lg px-3 py-2" required disabled />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Role</label>
-                  <select value={editUser.role} onChange={e => setEditUser({ ...editUser, role: e.target.value })} className="w-full border rounded-lg px-3 py-2" required>
-                    <option value="admin">Admin</option>
-                    <option value="agent">Agent</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Bank Codes</label>
-                  {(editUser.bankCodes ? editUser.bankCodes : [{ bank: '', code: '' }]).map((entry, idx) => (
-                    <div key={idx} className="flex gap-2 mb-2">
-                      <select
-                        value={entry.bank}
-                        onChange={e => {
-                          const bank = e.target.value;
-                          setEditUser(u => ({
-                            ...u,
-                            bankCodes: u.bankCodes.map((b, i) => i === idx ? { ...b, bank } : b)
-                          }));
-                        }}
-                        className="border rounded-lg px-2 py-1 flex-1"
-                        required
-                      >
-                        <option value="">Select Bank</option>
-                        {BANKS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
-                      </select>
-                      <input
-                        type="text"
-                        placeholder="Code"
-                        value={entry.code}
-                        onChange={e => {
-                          const code = e.target.value;
-                          setEditUser(u => ({
-                            ...u,
-                            bankCodes: u.bankCodes.map((b, i) => i === idx ? { ...b, code } : b)
-                          }));
-                        }}
-                        className="border rounded-lg px-2 py-1 flex-1"
-                        required
-                      />
-                      <button type="button" onClick={() => setEditUser(u => ({ ...u, bankCodes: u.bankCodes.filter((_, i) => i !== idx) }))} className="text-red-500 px-2">&times;</button>
-                    </div>
-                  ))}
-                  <button type="button" onClick={() => setEditUser(u => ({ ...u, bankCodes: [...u.bankCodes, { bank: '', code: '' }] }))} className="text-blue-600 text-xs underline">+ Add Another</button>
-                </div>
-                <button type="submit" className="w-full bg-blue-700 text-white py-2 rounded-lg font-semibold hover:bg-blue-800">Save Changes</button>
-              </form>
-            </div>
-        </div>
-        )}
-      </div>
-    </div>
-  );
+
 
   const renderApplications = () => (
     <div>
@@ -809,7 +555,7 @@ const AdminDashboard: React.FC = () => {
                       {`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}
                     </td>
                     <td className="py-3 px-2 align-middle whitespace-nowrap text-sm text-gray-600 max-w-[180px] truncate">{app.personal_details?.emailAddress || app.email || ''}</td>
-                    <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
+                    <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}</td>
                     <td className="py-3 px-4 text-sm">
                       <span>{app.status && app.status.trim() !== '' ? app.status : '-'}</span>
                     </td>
@@ -885,7 +631,7 @@ const AdminDashboard: React.FC = () => {
                 <div key={app.id} className="p-4 mb-4">
                   <div className="mb-2 font-semibold text-lg">{`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Email:</span> {app.personal_details?.emailAddress || app.email || ''}</div>
-                  <div className="mb-1 text-sm"><span className="font-medium">Submitted:</span> {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</div>
+                  <div className="mb-1 text-sm"><span className="font-medium">Submitted:</span> {app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Status:</span> <span>{app.status && app.status.trim() !== '' ? app.status : '-'}</span></div>
                   <div className="mb-1 text-sm"><span className="font-medium">By:</span> {!app.submitted_by || app.submitted_by === 'direct' ? 'direct' : app.submitted_by}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Bank Codes:</span> {agentBankCodes ? (
@@ -1010,6 +756,7 @@ const AdminDashboard: React.FC = () => {
             <th className="py-2 min-w-[150px] px-4">Date & Time</th>
             <th className="py-2">Status</th>
             <th className="py-2">Submitted By</th>
+            <th className="py-2">Encoder</th>
             <th className="py-2">Bank Codes</th>
             <th className="py-2">Actions</th>
           </tr>
@@ -1027,11 +774,12 @@ const AdminDashboard: React.FC = () => {
             return (
               <tr key={i} className="border-t">
                 <td className="py-3">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
-                <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</td>
+                <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}</td>
                 <td className="py-3 px-4 text-sm">
                   <span>{app.status && app.status.trim() !== '' ? app.status : '-'}</span>
                 </td>
                 <td className="py-3">{app.submitted_by || 'direct'}</td>
+                <td className="py-3">{app.encoder || app.submitted_by || 'direct'}</td>
                 <td className="py-3">
                   {agentBankCodes ? (
                     <ul className="space-y-1">
@@ -1084,9 +832,10 @@ const AdminDashboard: React.FC = () => {
           return (
             <div key={i} className="border-b py-4">
               <div className="font-semibold">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</div>
-              <div className="text-xs text-gray-500 mb-1">Date: {app.submitted_at ? new Date(app.submitted_at).toLocaleString() : ''}</div>
+              <div className="text-xs text-gray-500 mb-1">Date: {app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}</div>
               <div className="text-sm mb-1">Status: <span>{app.status && app.status.trim() !== '' ? app.status : '-'}</span></div>
               <div className="text-sm mb-1">Submitted By: {app.submitted_by || 'direct'}</div>
+              <div className="text-sm mb-1">Encoder: {app.encoder || app.submitted_by || 'direct'}</div>
               <div className="text-sm mb-1">Bank Codes: {agentBankCodes ? (
                 <ul className="space-y-1">
                   {agentBankCodes.map((entry: any, idx: any) => (
@@ -1961,6 +1710,152 @@ const AdminDashboard: React.FC = () => {
     setExportPreviewApp(null);
   };
 
+  // Status Report functions
+  const getBankApplications = (bankValue: string) => {
+    return applications.filter(app => {
+      const bankPreferences = app.bank_preferences || {};
+      return bankPreferences[bankValue] === true;
+    });
+  };
+
+  const getBankStats = (bankValue: string) => {
+    const bankApps = getBankApplications(bankValue);
+    return {
+      total: bankApps.length,
+      pending: bankApps.filter(app => app.status === 'pending').length,
+      approved: bankApps.filter(app => app.status === 'approved').length,
+      rejected: bankApps.filter(app => app.status === 'rejected').length,
+    };
+  };
+
+  const renderStatusReport = () => (
+    <div>
+      <h2 className="text-2xl font-bold mb-2">Status Report</h2>
+      <p className="text-gray-600 mb-6">Track application status by bank</p>
+      
+      {!selectedBank ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {BANKS.map((bank) => {
+            const stats = getBankStats(bank.value);
+            return (
+              <button
+                key={bank.value}
+                onClick={() => setSelectedBank(bank.value)}
+                className="bg-white rounded-xl p-6 shadow hover:shadow-lg transition-shadow"
+              >
+                <div className="text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 mb-3">
+                    <img 
+                      src={bank.logo} 
+                      alt={`${bank.label} logo`} 
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        // Fallback to colored circle if image fails to load
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const fallback = target.nextElementSibling as HTMLElement;
+                        if (fallback) fallback.style.display = 'flex';
+                      }}
+                    />
+                    <div 
+                      className={`hidden w-12 h-12 rounded-full bg-gray-200 items-center justify-center`}
+                      style={{ display: 'none' }}
+                    >
+                      <span className="font-bold text-lg text-gray-600">{bank.label.charAt(0)}</span>
+                    </div>
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">{bank.label}</h3>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span>Total:</span>
+                      <span className="font-semibold">{stats.total}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Pending:</span>
+                      <span className="font-semibold text-yellow-600">{stats.pending}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Approved:</span>
+                      <span className="font-semibold text-green-600">{stats.approved}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Rejected:</span>
+                      <span className="font-semibold text-red-600">{stats.rejected}</span>
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setSelectedBank('')}
+                className="text-blue-600 hover:text-blue-800 font-semibold"
+              >
+                ← Back to Banks
+              </button>
+              <h3 className="text-xl font-bold">
+                {BANKS.find(b => b.value === selectedBank)?.label} Applications
+              </h3>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {getBankApplications(selectedBank).map((app) => (
+                    <tr key={app.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {app.personal_details?.emailAddress || ''}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          app.status === 'approved' ? 'bg-green-100 text-green-800' :
+                          app.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                          app.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
+                          app.status === 'turn-in' ? 'bg-purple-100 text-purple-800' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {app.status || 'Unknown'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {app.submitted_by || app.agent || 'Direct'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   // Main layout
   return (
     <>
@@ -2063,8 +1958,9 @@ const AdminDashboard: React.FC = () => {
             {/* Content */}
           <main className="flex-1 overflow-y-auto px-8 py-8">
               {activeSection === 'dashboard' && renderDashboard()}
-              {activeSection === 'account' && renderAccount()}
+  
               {activeSection === 'applications' && renderApplications()}
+              {activeSection === 'statusReport' && renderStatusReport()}
               {activeSection === 'history' && renderHistory()}
             </main>
               {previewApp && (
@@ -2654,7 +2550,7 @@ const AdminDashboard: React.FC = () => {
                 <div className="flex flex-col flex-1 min-w-0">
                   <div className="text-xs">
                     <div><span className="font-bold">LOCATION:</span> {exportPreviewApp.location}</div>
-                    <div><span className="font-bold">DATE:</span> {exportPreviewApp.submitted_at ? new Date(exportPreviewApp.submitted_at).toLocaleDateString() : ''}</div>
+                    <div><span className="font-bold">DATE:</span> {exportPreviewApp.submitted_at ? format(new Date(exportPreviewApp.submitted_at), 'MMM dd, yyyy') : ''}</div>
                     <div><span className="font-bold">AGENT:</span> {exportPreviewApp.agent}</div>
                   </div>
                   <div className="text-xs mt-4">

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Shield, Clock, Users, Star, CreditCard, CheckCircle, ArrowRight, TrendingUp, Award, Zap, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Shield, Clock, Users, Star, CreditCard, CheckCircle, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
 interface Job {
