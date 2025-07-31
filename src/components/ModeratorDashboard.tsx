@@ -9,6 +9,7 @@ import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 import { useLoading } from '../hooks/useLoading';
+import BankStatusModal from './BankStatusModal';
 
 // Bank configuration
 const BANKS = [
@@ -217,6 +218,11 @@ const ModeratorDashboard: React.FC = () => {
   const [editUserIdx, setEditUserIdx] = useState<number | null>(null);
   const [editUser, setEditUser] = useState({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState<number | null>(null);
+
+  // Bank Status Modal state
+  const [bankStatusModalOpen, setBankStatusModalOpen] = useState(false);
+  const [selectedApplicationForStatus, setSelectedApplicationForStatus] = useState<any | null>(null);
+  const [applicationsBankStatus, setApplicationsBankStatus] = useState<Record<string, Record<string, string>>>({});
   
   // User management functions
   const handleAddUser = async () => {
@@ -1132,55 +1138,62 @@ const ModeratorDashboard: React.FC = () => {
 
 
 
+  // Bank Status Modal handlers
+  const handleOpenBankStatusModal = (application: any) => {
+    setSelectedApplicationForStatus(application);
+    setBankStatusModalOpen(true);
+  };
+
+  const handleCloseBankStatusModal = () => {
+    setBankStatusModalOpen(false);
+    setSelectedApplicationForStatus(null);
+  };
+
+  const handleUpdateBankStatus = (applicationId: string, bankStatus: Record<string, string>) => {
+    setApplicationsBankStatus(prev => ({
+      ...prev,
+      [applicationId]: bankStatus
+    }));
+    
+    setToast({ 
+      show: true, 
+      message: 'Bank status updated successfully', 
+      type: 'success' 
+    });
+  };
+
   // Status Report functions
   const getBankApplications = (bankValue: string) => {
-    // Special case for Maybank - fetch from maybank_application table
-    if (bankValue === 'maybank' && maybankApplications.length > 0) {
-      return maybankApplications;
-    }
-
+    // Filter applications that have been accepted for this specific bank
     return applications.filter(app => {
-      const bankPrefs = app.bank_preferences || {};
-      return bankPrefs[bankValue] === true;
+      const appBankStatus = applicationsBankStatus[app.id] || {};
+      return appBankStatus[bankValue] === 'accepted';
     });
   };
 
   const getBankStats = (bankValue: string) => {
-    const bankApps = getBankApplications(bankValue);
-    const withStatus = bankApps.filter(app => app.status && app.status.trim() !== '');
-    
-    // Debug: Log all unique status values for Maybank
-    if (bankValue === 'maybank' && bankApps.length > 0) {
-      const uniqueStatuses = [...new Set(bankApps.map(app => app.status))];
-      console.log('ModeratorDashboard - Maybank unique statuses:', uniqueStatuses);
-      console.log('ModeratorDashboard - Maybank status counts:', uniqueStatuses.map(status => ({
-        status,
-        count: bankApps.filter(app => app.status === status).length
-      })));
-    }
-    
+    const acceptedApps = applications.filter(app => {
+      const appBankStatus = applicationsBankStatus[app.id] || {};
+      return appBankStatus[bankValue] === 'accepted';
+    });
+
+    const pendingApps = applications.filter(app => {
+      const appBankStatus = applicationsBankStatus[app.id] || {};
+      return appBankStatus[bankValue] === 'pending';
+    });
+
+    const rejectedApps = applications.filter(app => {
+      const appBankStatus = applicationsBankStatus[app.id] || {};
+      return appBankStatus[bankValue] === 'rejected';
+    });
+
     return {
-      total: bankApps.length,
-      pending: withStatus.filter(a => {
-        const status = (a.status || '').toLowerCase();
-        return status === 'pending' || status.includes('pending');
-      }).length,
-      approved: withStatus.filter(a => {
-        const status = (a.status || '').toLowerCase();
-        return status === 'approved' || status.includes('approved') || status.includes('cif');
-      }).length,
-      rejected: withStatus.filter(a => {
-        const status = (a.status || '').toLowerCase();
-        return status === 'rejected' || status.includes('rejected') || status.includes('decline');
-      }).length,
-      submitted: withStatus.filter(a => {
-        const status = (a.status || '').toLowerCase();
-        return status === 'submitted' || status.includes('submitted');
-      }).length,
-      turnIn: withStatus.filter(a => {
-        const status = (a.status || '').toLowerCase();
-        return status === 'turn-in' || status.includes('turn-in') || status.includes('turnin');
-      }).length,
+      total: acceptedApps.length, // Only count accepted applications in total
+      pending: pendingApps.length,
+      approved: acceptedApps.length,
+      rejected: rejectedApps.length,
+      submitted: 0, // Not used in this implementation
+      turnIn: 0, // Not used in this implementation
     };
   };
   
@@ -1365,21 +1378,11 @@ const ModeratorDashboard: React.FC = () => {
     <div>
       <h2 className="text-2xl font-bold mb-2">Moderator Dashboard</h2>
       <p className="text-gray-600 mb-6">Welcome back! Here's what's happening today.</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
         <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
           <div className="flex items-center mb-2"><FileText className="w-6 h-6 text-blue-500 mr-2" /> <span className="font-semibold">Total Applications</span></div>
           <div className="text-2xl font-bold">{totalApplications}</div>
           <div className="text-green-600 text-xs mt-1">↑+12% from last month</div>
-        </div>
-        <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
-          <div className="flex items-center mb-2"><Clock className="w-6 h-6 text-yellow-500 mr-2" /> <span className="font-semibold">Pending Reviews</span></div>
-          <div className="text-2xl font-bold">{pendingReviews}</div>
-          <div className="text-green-600 text-xs mt-1">↑+3 from last month</div>
-        </div>
-        <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
-          <div className="flex items-center mb-2"><CheckCircle className="w-6 h-6 text-green-500 mr-2" /> <span className="font-semibold">Approved</span></div>
-          <div className="text-2xl font-bold">{approved}</div>
-          <div className="text-green-600 text-xs mt-1">↑+8% from last month</div>
         </div>
         <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
           <div className="flex items-center mb-2"><Users className="w-6 h-6 text-purple-500 mr-2" /> <span className="font-semibold">Total Users</span></div>
@@ -1703,43 +1706,13 @@ const ModeratorDashboard: React.FC = () => {
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="py-3 px-4 align-middle flex space-x-4">
-                      <div className="relative group">
-                        <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={async () => {
-                          await supabase.from('application_form').update({ status: 'submitted' }).eq('id', app.id);
-                          setApplications(apps => apps.map(a => a.id === app.id ? { ...a, status: 'submitted' } : a));
-                        }}>
-                          <Send className="w-5 h-5" />
-                        </button>
-                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Submit</span>
-                      </div>
-                      <div className="relative group">
-                        <button className="text-purple-600 hover:text-purple-800 transition-colors" onClick={async () => {
-                          await supabase.from('application_form').update({ status: 'turn-in' }).eq('id', app.id);
-                          setApplications(apps => apps.map(a => a.id === app.id ? { ...a, status: 'turn-in' } : a));
-                        }}>
-                          <ArrowDownCircle className="w-5 h-5" />
-                        </button>
-                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Turn-in</span>
-                      </div>
-                      <div className="relative group">
-                        <button className="text-green-600 hover:text-green-800 transition-colors" onClick={async () => {
-                          await supabase.from('application_form').update({ status: 'approved' }).eq('id', app.id);
-                          setApplications(apps => apps.map(a => a.id === app.id ? { ...a, status: 'approved' } : a));
-                        }}>
-                          <ThumbsUp className="w-5 h-5" />
-                        </button>
-                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Approve</span>
-                      </div>
-                      <div className="relative group">
-                        <button className="text-red-600 hover:text-red-800 transition-colors" onClick={async () => {
-                          await supabase.from('application_form').update({ status: 'rejected' }).eq('id', app.id);
-                          setApplications(apps => apps.map(a => a.id === app.id ? { ...a, status: 'rejected' } : a));
-                        }}>
-                          <ThumbsDown className="w-5 h-5" />
-                        </button>
-                        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Reject</span>
-                      </div>
+                    <td className="py-3 px-4 align-middle">
+                      <button 
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                        onClick={() => handleOpenBankStatusModal(app)}
+                      >
+                        Bank Status
+                      </button>
                     </td>
                   </tr>
                 );
@@ -1774,43 +1747,13 @@ const ModeratorDashboard: React.FC = () => {
                     </ul>
                   ) : <span className="text-gray-400">-</span>}
                   </div>
-                  <div className="flex space-x-4 mt-2">
-                    <div className="relative group">
-                      <button className="text-blue-600 hover:text-blue-800 transition-colors" onClick={async () => {
-                        await supabase.from('application_form').update({ status: 'submitted' }).eq('id', app.id);
-                        setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'submitted' } : a));
-                      }}>
-                        <Send className="w-5 h-5" />
-                      </button>
-                      <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Submit</span>
-                    </div>
-                    <div className="relative group">
-                      <button className="text-purple-600 hover:text-purple-800 transition-colors" onClick={async () => {
-                        await supabase.from('application_form').update({ status: 'turn-in' }).eq('id', app.id);
-                        setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'turn-in' } : a));
-                      }}>
-                        <ArrowDownCircle className="w-5 h-5" />
-                      </button>
-                      <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Turn-in</span>
-                    </div>
-                    <div className="relative group">
-                      <button className="text-green-600 hover:text-green-800 transition-colors" onClick={async () => {
-                        await supabase.from('application_form').update({ status: 'approved' }).eq('id', app.id);
-                        setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'approved' } : a));
-                      }}>
-                        <ThumbsUp className="w-5 h-5" />
-                      </button>
-                      <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Approve</span>
-                    </div>
-                    <div className="relative group">
-                      <button className="text-red-600 hover:text-red-800 transition-colors" onClick={async () => {
-                        await supabase.from('application_form').update({ status: 'rejected' }).eq('id', app.id);
-                        setApplications(apps => apps.map((a, idx) => idx === i ? { ...a, status: 'rejected' } : a));
-                      }}>
-                        <ThumbsDown className="w-5 h-5" />
-                      </button>
-                      <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2 py-1 rounded bg-gray-800 text-white text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">Reject</span>
-                    </div>
+                  <div className="mt-2">
+                    <button 
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                      onClick={() => handleOpenBankStatusModal(app)}
+                    >
+                      Bank Status
+                    </button>
                   </div>
                 </div>
               );
@@ -3158,6 +3101,15 @@ const ModeratorDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Bank Status Modal */}
+      <BankStatusModal
+        isOpen={bankStatusModalOpen}
+        onClose={handleCloseBankStatusModal}
+        application={selectedApplicationForStatus}
+        onUpdateStatus={handleUpdateBankStatus}
+        banks={BANKS}
+      />
 
       {/* Toast */}
       {toast.show && (

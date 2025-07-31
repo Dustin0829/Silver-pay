@@ -266,18 +266,10 @@ const EncoderDashboard: React.FC = () => {
     <div>
       <h2 className="text-2xl font-bold mb-2">Encoder Dashboard</h2>
       <p className="text-gray-600 mb-6">Welcome! Here are your encoded application stats.</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
         <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
           <div className="flex items-center mb-2"><FileText className="w-6 h-6 text-blue-500 mr-2" /> <span className="font-semibold">Applications Encoded</span></div>
           <div className="text-2xl font-bold">{totalApplicationsCount}</div>
-        </div>
-        <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
-          <div className="flex items-center mb-2"><FileText className="w-6 h-6 text-yellow-500 mr-2" /> <span className="font-semibold">Pending</span></div>
-          <div className="text-2xl font-bold text-yellow-600">{applications.filter(app => app.status === 'pending').length}</div>
-        </div>
-        <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
-          <div className="flex items-center mb-2"><FileText className="w-6 h-6 text-green-500 mr-2" /> <span className="font-semibold">Approved</span></div>
-          <div className="text-2xl font-bold text-green-600">{applications.filter(app => app.status === 'approved').length}</div>
         </div>
       </div>
       {/* Quick Actions for Encoder */}
