@@ -12,6 +12,7 @@ import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 import { useLoading } from '../hooks/useLoading';
 import BankStatusModal from './BankStatusModal';
+import ConfirmationModal from './ConfirmationModal';
 
 // Add this to the top, after imports
 const BANKS = [
@@ -250,8 +251,9 @@ const AdminDashboard: React.FC = () => {
   const [currentSection, setCurrentSection] = useState(0);
   const [bankFilter, setBankFilter] = useState('');
   const [nameFilter, setNameFilter] = useState('');
-  const [applicationsSearchFilter, setApplicationsSearchFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [applicationsSearchFilter, setApplicationsSearchFilter] = useState('');
+
   // Add state for pagination
   const [applicationsPage, setApplicationsPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
@@ -268,6 +270,15 @@ const AdminDashboard: React.FC = () => {
   const [bankStatusModalOpen, setBankStatusModalOpen] = useState(false);
   const [selectedApplicationForStatus, setSelectedApplicationForStatus] = useState<any | null>(null);
   const [applicationsBankStatus, setApplicationsBankStatus] = useState<Record<string, Record<string, string>>>({});
+  
+  // Confirmation Modal state
+  const [confirmationModal, setConfirmationModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    type: 'danger' as 'danger' | 'warning' | 'info'
+  });
 
   // Sidebar navigation
   const navItems = [
@@ -346,6 +357,31 @@ const AdminDashboard: React.FC = () => {
           console.log('Applications state updated with', normalizedKyc.length, 'records');
         }
 
+        // Fetch bank status data
+        console.log('AdminDashboard: Fetching bank status data...');
+        const { data: bankStatusData, error: bankStatusError } = await supabase
+          .from('bank_status')
+          .select('*')
+          .order('updated_at', { ascending: false });
+          
+        if (bankStatusError) {
+          console.error('Failed to fetch bank status data:', bankStatusError.message);
+          setToast({ show: true, message: 'Failed to fetch bank status data: ' + bankStatusError.message, type: 'error' });
+        } else {
+          console.log('AdminDashboard: Fetched', bankStatusData?.length || 0, 'bank status records');
+          
+          if (isMounted && bankStatusData) {
+            // Transform bank status data into the expected format
+            const bankStatusMap: Record<string, Record<string, string>> = {};
+            bankStatusData.forEach((status: any) => {
+              if (!bankStatusMap[status.application_id]) {
+                bankStatusMap[status.application_id] = {};
+              }
+              bankStatusMap[status.application_id][status.bank_name] = status.status;
+            });
+            setApplicationsBankStatus(bankStatusMap);
+          }
+        }
 
       } catch (error) {
         console.error('Unexpected error in fetchAllData:', error);
@@ -384,7 +420,7 @@ const AdminDashboard: React.FC = () => {
               emailAddress: '', // Not available in your table structure
               mobileNumber: '', // Not available in your table structure
             },
-            status: app.status || 'pending',
+            status: app.status || '',
             agent: app.agent_cd || '',
             encoder: '', // Not available in your table structure
             submitted_at: app.encoding_date || app.created_at || null,
@@ -452,12 +488,26 @@ const AdminDashboard: React.FC = () => {
         console.log('Maybank application subscription status:', status);
       });
 
+    // Real-time subscription for bank status updates
+    const bankStatusChannel = supabase
+      .channel('realtime:bank_status')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bank_status' },
+        () => {
+          console.log('Bank status data changed');
+          fetchAllData(); // Refetch all data to get updated bank status
+        }
+      )
+      .subscribe();
+
     // Cleanup function
     return () => {
       console.log('Cleaning up real-time subscriptions');
       isMounted = false;
       supabase.removeChannel(channel);
       supabase.removeChannel(maybankChannel);
+      supabase.removeChannel(bankStatusChannel);
     };
   }, [setLoading]);
 
@@ -605,7 +655,7 @@ const AdminDashboard: React.FC = () => {
                 <th className="py-2 align-middle w-1/5">Applicant</th>
                 <th className="py-2 align-middle w-1/5">Email</th>
                 <th className="py-2 min-w-[150px] px-4">Submitted</th>
-                <th className="py-2 align-middle w-1/8">Status</th>
+
                 <th className="py-2 align-middle w-1/8">Submitted By</th>
                 <th className="py-2 align-middle w-1/6">Bank Codes</th>
                 <th className="py-2 align-middle w-1/8">Actions</th>
@@ -628,9 +678,7 @@ const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="py-3 px-2 align-middle whitespace-nowrap text-sm text-gray-600 max-w-[180px] truncate">{app.personal_details?.emailAddress || app.email || ''}</td>
                     <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}</td>
-                    <td className="py-3 px-4 text-sm">
-                      <span>{app.status && app.status.trim() !== '' ? app.status : '-'}</span>
-                    </td>
+
                     <td className="py-3 px-2 align-middle whitespace-nowrap max-w-[80px] truncate">{!app.submitted_by || app.submitted_by === 'direct' ? 'direct' : app.submitted_by}</td>
                     <td className="py-3 px-2 align-middle whitespace-nowrap max-w-[140px] truncate">
                       {agentBankCodes ? (
@@ -674,7 +722,7 @@ const AdminDashboard: React.FC = () => {
                   <div className="mb-2 font-semibold text-lg">{`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Email:</span> {app.personal_details?.emailAddress || app.email || ''}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Submitted:</span> {app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}</div>
-                  <div className="mb-1 text-sm"><span className="font-medium">Status:</span> <span>{app.status && app.status.trim() !== '' ? app.status : '-'}</span></div>
+
                   <div className="mb-1 text-sm"><span className="font-medium">By:</span> {!app.submitted_by || app.submitted_by === 'direct' ? 'direct' : app.submitted_by}</div>
                   <div className="mb-1 text-sm"><span className="font-medium">Bank Codes:</span> {agentBankCodes ? (
                     <ul className="space-y-1">
@@ -749,16 +797,7 @@ const AdminDashboard: React.FC = () => {
             onChange={e => setNameFilter(e.target.value)}
           />
         </div>
-        <div className="flex gap-4 w-full mt-2">
-          <select className="border rounded-lg px-3 py-2 w-1/2" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-            <option value="">All Status</option>
-            <option value="submitted">Submitted</option>
-            <option value="turn-in">Turn-in</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
+
       </div>
       {/* Desktop Table */}
       <table className="w-full text-xs sm:text-sm md:text-base table-fixed hidden sm:table">
@@ -766,7 +805,7 @@ const AdminDashboard: React.FC = () => {
           <tr className="text-left text-xs text-gray-500 uppercase">
             <th className="py-2">Applicant</th>
             <th className="py-2 min-w-[150px] px-4">Date & Time</th>
-            <th className="py-2">Status</th>
+
             <th className="py-2">Submitted By</th>
             <th className="py-2">Encoder</th>
             <th className="py-2">Bank Codes</th>
@@ -787,9 +826,7 @@ const AdminDashboard: React.FC = () => {
               <tr key={i} className="border-t">
                 <td className="py-3">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</td>
                 <td className="py-3 px-6 min-w-[170px] whitespace-nowrap text-sm">{app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}</td>
-                <td className="py-3 px-4 text-sm">
-                  <span>{app.status && app.status.trim() !== '' ? app.status : '-'}</span>
-                </td>
+
                 <td className="py-3">{app.submitted_by || 'direct'}</td>
                 <td className="py-3">{app.encoder || app.submitted_by || 'direct'}</td>
                 <td className="py-3">
@@ -845,7 +882,7 @@ const AdminDashboard: React.FC = () => {
             <div key={i} className="border-b py-4">
               <div className="font-semibold">{app.personal_details?.firstName ?? ''} {app.personal_details?.lastName ?? ''}</div>
               <div className="text-xs text-gray-500 mb-1">Date: {app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}</div>
-              <div className="text-sm mb-1">Status: <span>{app.status && app.status.trim() !== '' ? app.status : '-'}</span></div>
+
               <div className="text-sm mb-1">Submitted By: {app.submitted_by || 'direct'}</div>
               <div className="text-sm mb-1">Encoder: {app.encoder || app.submitted_by || 'direct'}</div>
               <div className="text-sm mb-1">Bank Codes: {agentBankCodes ? (
@@ -1443,12 +1480,7 @@ const AdminDashboard: React.FC = () => {
         agentName.includes(search) ||
         bankCodes.includes(search);
     }
-    // Status filter
-    let matchesStatus = true;
-    if (statusFilter) {
-      matchesStatus = (app.status || '').toLowerCase() === statusFilter.toLowerCase();
-    }
-    return matchesSearch && matchesStatus;
+    return matchesSearch;
   });
 
   const exportHistoryToPDF = () => {
@@ -1460,7 +1492,7 @@ const AdminDashboard: React.FC = () => {
     doc.line(20, 25, 190, 25);
     doc.setFontSize(12);
     // Change: Agent's Name is now the first column
-    const tableColumn = ['Agent', 'Applicant', 'Date & Time', 'Status', 'Bank Codes'];
+    const tableColumn = ['Agent', 'Applicant', 'Date & Time', 'Bank Codes'];
     const tableRows = filteredApplications.map(app => [
       // Agent's Name (from users list or fallback)
       (() => {
@@ -1470,7 +1502,6 @@ const AdminDashboard: React.FC = () => {
       })(),
       `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`,
       app.submitted_at ? new Date(app.submitted_at).toLocaleString() : '',
-      app.status,
       (() => {
         if (!app.submitted_by || app.submitted_by === 'direct') return '-';
         const agent = users.find(u => u.name === app.submitted_by || u.email === app.submitted_by);
@@ -1554,7 +1585,7 @@ const AdminDashboard: React.FC = () => {
 
   // Reset pagination when switching sections or filters
   useEffect(() => { setApplicationsPage(1); }, [activeSection, applicationsSearchFilter]);
-  useEffect(() => { setHistoryPage(1); }, [activeSection, nameFilter, statusFilter]);
+  useEffect(() => { setHistoryPage(1); }, [activeSection, nameFilter]);
 
   // 1. Add state for loading and fetchedApp
   const [loadingApp, setLoadingApp] = useState(false);
@@ -1714,6 +1745,22 @@ const AdminDashboard: React.FC = () => {
         } else if (data) {
           setViewBankApp({ ...app, fullData: data });
         }
+      } else {
+        // For regular KYC applications, fetch the full data from kyc_details table
+        const id = app.id.startsWith('kyc-') ? app.id.replace('kyc-', '') : app.id;
+        const { data, error } = await supabase
+          .from('kyc_details')
+          .select('*')
+          .eq('id', id)
+          .single();
+          
+        if (error) {
+          console.error('Error fetching KYC application details:', error);
+          setToast({ show: true, message: 'Failed to fetch application details', type: 'error' });
+        } else if (data) {
+          const flattenedData = flattenApplicationData(data);
+          setViewBankApp({ ...app, fullData: flattenedData });
+        }
       }
     } catch (error) {
       console.error('Unexpected error fetching bank application:', error);
@@ -1784,7 +1831,7 @@ const AdminDashboard: React.FC = () => {
                 emailAddress: '',
                 mobileNumber: '',
               },
-              status: app.status || 'pending',
+              status: app.status || '',
               agent: app.agent_cd || '',
               encoder: '',
               submitted_at: app.encoding_date || app.created_at || null,
@@ -1854,48 +1901,154 @@ const AdminDashboard: React.FC = () => {
     setSelectedApplicationForStatus(null);
   };
 
-  const handleUpdateBankStatus = (applicationId: string, bankStatus: Record<string, string>) => {
-    setApplicationsBankStatus(prev => ({
-      ...prev,
-      [applicationId]: bankStatus
-    }));
-    
-    setToast({ 
-      show: true, 
-      message: 'Bank status updated successfully', 
-      type: 'success' 
-    });
+  const handleDeleteBankStatus = async (applicationId: string, bankName: string) => {
+    try {
+      // Delete the specific bank status from database
+      const { error } = await supabase
+        .from('bank_status')
+        .delete()
+        .eq('application_id', applicationId)
+        .eq('bank_name', bankName);
+
+      if (error) {
+        console.error('Error deleting bank status:', error);
+        setToast({ 
+          show: true, 
+          message: 'Failed to delete bank status: ' + error.message, 
+          type: 'error' 
+        });
+        return;
+      }
+
+      // Update local state
+      setApplicationsBankStatus(prev => {
+        const newStatus = { ...prev };
+        if (newStatus[applicationId]) {
+          delete newStatus[applicationId][bankName];
+          // If no more statuses for this application, remove the entire entry
+          if (Object.keys(newStatus[applicationId]).length === 0) {
+            delete newStatus[applicationId];
+          }
+        }
+        return newStatus;
+      });
+      
+      setToast({ 
+        show: true, 
+        message: 'Bank status deleted successfully', 
+        type: 'success' 
+      });
+    } catch (error) {
+      console.error('Error deleting bank status:', error);
+      setToast({ 
+        show: true, 
+        message: 'Failed to delete bank status: ' + (error instanceof Error ? error.message : 'Unknown error'), 
+        type: 'error' 
+      });
+    }
+  };
+
+  const handleUpdateBankStatus = async (applicationId: string, bankStatus: Record<string, string>) => {
+    try {
+      // Save bank status to database
+      const bankStatusEntries = Object.entries(bankStatus).map(([bankName, status]) => ({
+        application_id: applicationId,
+        bank_name: bankName,
+        status: status,
+        updated_by: user?.email || 'unknown'
+      }));
+
+      // Delete existing status entries for this application
+      const { error: deleteError } = await supabase
+        .from('bank_status')
+        .delete()
+        .eq('application_id', applicationId);
+
+      if (deleteError) {
+        console.error('Error deleting existing bank status:', deleteError);
+        setToast({ 
+          show: true, 
+          message: 'Failed to update bank status: ' + deleteError.message, 
+          type: 'error' 
+        });
+        return;
+      }
+
+      // Insert new status entries
+      if (bankStatusEntries.length > 0) {
+        const { error: insertError } = await supabase
+          .from('bank_status')
+          .insert(bankStatusEntries);
+
+        if (insertError) {
+          console.error('Error inserting bank status:', insertError);
+          setToast({ 
+            show: true, 
+            message: 'Failed to update bank status: ' + insertError.message, 
+            type: 'error' 
+          });
+          return;
+        }
+      }
+
+      // Update local state
+      setApplicationsBankStatus(prev => ({
+        ...prev,
+        [applicationId]: bankStatus
+      }));
+      
+      setToast({ 
+        show: true, 
+        message: 'Bank status updated successfully', 
+        type: 'success' 
+      });
+    } catch (error) {
+      console.error('Error updating bank status:', error);
+      setToast({ 
+        show: true, 
+        message: 'Failed to update bank status: ' + (error instanceof Error ? error.message : 'Unknown error'), 
+        type: 'error' 
+      });
+    }
   };
 
   // Status Report functions
   const getBankApplications = (bankValue: string) => {
-    // Filter applications that have been accepted for this specific bank
+    // Show applications that have been set to any status for this bank through the Bank Status modal
     return applications.filter(app => {
       const appBankStatus = applicationsBankStatus[app.id] || {};
-      return appBankStatus[bankValue] === 'accepted';
+      // Check if this application has any status set for this bank
+      return appBankStatus[bankValue] !== undefined;
     });
   };
 
   const getBankStats = (bankValue: string) => {
-    const acceptedApps = applications.filter(app => {
+    // Get applications that have been set to any status for this bank through the Bank Status modal
+    const bankApps = applications.filter(app => {
       const appBankStatus = applicationsBankStatus[app.id] || {};
-      return appBankStatus[bankValue] === 'accepted';
+      return appBankStatus[bankValue] !== undefined;
     });
 
-    const pendingApps = applications.filter(app => {
+    // Count by bank-specific status
+    const pendingApps = bankApps.filter(app => {
       const appBankStatus = applicationsBankStatus[app.id] || {};
       return appBankStatus[bankValue] === 'pending';
     });
 
-    const rejectedApps = applications.filter(app => {
+    const approvedApps = bankApps.filter(app => {
+      const appBankStatus = applicationsBankStatus[app.id] || {};
+      return appBankStatus[bankValue] === 'accepted';
+    });
+
+    const rejectedApps = bankApps.filter(app => {
       const appBankStatus = applicationsBankStatus[app.id] || {};
       return appBankStatus[bankValue] === 'rejected';
     });
 
     return {
-      total: acceptedApps.length, // Only count accepted applications in total
+      total: bankApps.length,
       pending: pendingApps.length,
-      approved: acceptedApps.length,
+      approved: approvedApps.length,
       rejected: rejectedApps.length,
     };
   };
@@ -1974,26 +2127,7 @@ const AdminDashboard: React.FC = () => {
                 {BANKS.find(b => b.value === selectedBank)?.label} Applications
               </h3>
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleImportCSV}
-                className="hidden"
-                id="csv-import"
-                disabled={importingCSV}
-              />
-              <label
-                htmlFor="csv-import"
-                className={`px-4 py-2 rounded-lg cursor-pointer text-sm font-medium transition-colors ${
-                  importingCSV
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                {importingCSV ? 'Importing...' : 'Import CSV'}
-              </label>
-            </div>
+
           </div>
           
           <div className="bg-white rounded-xl shadow-md overflow-hidden">
@@ -2001,22 +2135,11 @@ const AdminDashboard: React.FC = () => {
               <div className="flex flex-col sm:flex-row gap-4">
                 <input
                   className="border rounded-lg px-3 py-2 flex-1"
-                  placeholder={selectedBank === 'maybank' ? "Search by application no, name, or card type..." : "Search by applicant name..."}
+                  placeholder="Search by applicant name..."
                   value={nameFilter}
                   onChange={e => setNameFilter(e.target.value)}
                 />
-                <select 
-                  className="border rounded-lg px-3 py-2"
-                  value={statusFilter} 
-                  onChange={e => setStatusFilter(e.target.value)}
-                >
-                  <option value="">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Rejected</option>
-                  <option value="submitted">Submitted</option>
-                  <option value="turn-in">Turn-in</option>
-                </select>
+
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -2024,12 +2147,12 @@ const AdminDashboard: React.FC = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {selectedBank === 'maybank' ? 'Application No.' : 'Applicant'}
+                      Applicant
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {selectedBank === 'maybank' ? 'Card Type' : 'Email'}
+                      Email
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -2041,14 +2164,10 @@ const AdminDashboard: React.FC = () => {
                       const search = nameFilter.toLowerCase();
                       const name = `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.toLowerCase();
                       const email = (app.personal_details?.emailAddress ?? '').toLowerCase();
-                      const applicationNo = (app.applicationNo || '').toLowerCase();
-                      const cardType = (app.cardType || '').toLowerCase();
                       
                       const matchesSearch = !search || 
                         name.includes(search) || 
-                        email.includes(search) || 
-                        applicationNo.includes(search) || 
-                        cardType.includes(search);
+                        email.includes(search);
                       const matchesStatus = !statusFilter || (app.status || '').toLowerCase() === statusFilter.toLowerCase();
                       return matchesSearch && matchesStatus;
                     })
@@ -2056,35 +2175,13 @@ const AdminDashboard: React.FC = () => {
                     <tr key={app.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {selectedBank === 'maybank' 
-                            ? app.applicationNo || `Maybank-${app.id}`
-                            : `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()
-                          }
+                          {`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}
                         </div>
-                        {selectedBank === 'maybank' && app.personal_details?.firstName && (
-                          <div className="text-xs text-gray-500">
-                            {`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}
-                          </div>
-                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {selectedBank === 'maybank' 
-                          ? app.cardType || 'N/A'
-                          : app.personal_details?.emailAddress || ''
-                        }
+                        {app.personal_details?.emailAddress || ''}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          (app.status || '').toLowerCase().includes('pending') ? 'bg-yellow-100 text-yellow-800' :
-                          (app.status || '').toLowerCase().includes('approved') || (app.status || '').toLowerCase().includes('cif') ? 'bg-green-100 text-green-800' :
-                          (app.status || '').toLowerCase().includes('rejected') || (app.status || '').toLowerCase().includes('decline') ? 'bg-red-100 text-red-800' :
-                          (app.status || '').toLowerCase().includes('submitted') ? 'bg-blue-100 text-blue-800' :
-                          (app.status || '').toLowerCase().includes('turn-in') || (app.status || '').toLowerCase().includes('turnin') ? 'bg-purple-100 text-purple-800' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>
-                          {app.status || 'Unknown'}
-                        </span>
-                      </td>
+
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}
                       </td>
@@ -2092,13 +2189,36 @@ const AdminDashboard: React.FC = () => {
                         {app.submitted_by || app.agent || 'Direct'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <button 
-                          className="text-blue-600 hover:text-blue-800 p-1 rounded"
-                          onClick={() => handleViewBankApplication(app)}
-                          title="View Application Details"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
+                        <div className="flex space-x-2">
+                          <button 
+                            className="text-blue-600 hover:text-blue-800 p-1 rounded"
+                            onClick={() => handleViewBankApplication(app)}
+                            title="View Application Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          {(() => {
+                            const appBankStatus = applicationsBankStatus[app.id] || {};
+                            const hasStatus = appBankStatus[selectedBank];
+                            return hasStatus ? (
+                                                              <button 
+                                  className="text-red-600 hover:text-red-800 p-1 rounded"
+                                  onClick={() => {
+                                    setConfirmationModal({
+                                      isOpen: true,
+                                      title: 'Delete Bank Status',
+                                      message: `Are you sure you want to delete the ${selectedBank.toUpperCase()} status for ${app.personal_details?.firstName} ${app.personal_details?.lastName}? This action cannot be undone.`,
+                                      onConfirm: () => handleDeleteBankStatus(app.id, selectedBank),
+                                      type: 'danger'
+                                    });
+                                  }}
+                                  title="Delete Bank Status"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                            ) : null;
+                          })()}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -2867,61 +2987,157 @@ const AdminDashboard: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {/* Basic Information */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {viewBankApp.fullData ? (
+                    // Show detailed information for KYC applications
                     <div>
-                      <h3 className="font-semibold text-lg mb-3 text-blue-700">Basic Information</h3>
-                      <div className="space-y-2">
-                        <div><span className="font-medium">Application No:</span> {viewBankApp.applicationNo || 'N/A'}</div>
-                        <div><span className="font-medium">Name:</span> {viewBankApp.personal_details?.firstName} {viewBankApp.personal_details?.lastName}</div>
-                        <div><span className="font-medium">Status:</span> 
-                          <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full ${
-                            (viewBankApp.status || '').toLowerCase().includes('approved') || (viewBankApp.status || '').toLowerCase().includes('cif') ? 'bg-green-100 text-green-800' :
-                            (viewBankApp.status || '').toLowerCase().includes('pending') ? 'bg-yellow-100 text-yellow-800' :
-                            (viewBankApp.status || '').toLowerCase().includes('rejected') ? 'bg-red-100 text-red-800' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>
-                            {viewBankApp.status}
-                          </span>
+                      
+                      {/* Personal Details */}
+                      <div className="mb-6">
+                        <h4 className="text-lg font-semibold mb-3 text-blue-700">Personal Details</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div><span className="font-medium">First Name:</span> {viewBankApp.fullData.first_name || 'N/A'}</div>
+                          <div><span className="font-medium">Last Name:</span> {viewBankApp.fullData.last_name || 'N/A'}</div>
+                          <div><span className="font-medium">Middle Name:</span> {viewBankApp.fullData.middle_name || 'N/A'}</div>
+                          <div><span className="font-medium">Suffix:</span> {viewBankApp.fullData.suffix || 'N/A'}</div>
+                          <div><span className="font-medium">Gender:</span> {viewBankApp.fullData.gender || 'N/A'}</div>
+                          <div><span className="font-medium">Date of Birth:</span> {viewBankApp.fullData.date_of_birth || 'N/A'}</div>
+                          <div><span className="font-medium">Place of Birth:</span> {viewBankApp.fullData.place_of_birth || 'N/A'}</div>
+                          <div><span className="font-medium">Civil Status:</span> {viewBankApp.fullData.civil_status || 'N/A'}</div>
+                          <div><span className="font-medium">Nationality:</span> {viewBankApp.fullData.nationality || 'N/A'}</div>
+                          <div><span className="font-medium">Mobile Number:</span> {viewBankApp.fullData.mobile_number || 'N/A'}</div>
+                          <div><span className="font-medium">Home Number:</span> {viewBankApp.fullData.home_number || 'N/A'}</div>
+                          <div><span className="font-medium">Email Address:</span> {viewBankApp.fullData.email_address || 'N/A'}</div>
+                          <div><span className="font-medium">SSS/GSIS/UMID:</span> {viewBankApp.fullData.sss_gsis_umid || 'N/A'}</div>
+                          <div><span className="font-medium">TIN:</span> {viewBankApp.fullData.tin || 'N/A'}</div>
                         </div>
-                        <div><span className="font-medium">Card Type:</span> {viewBankApp.cardType || 'N/A'}</div>
-                        <div><span className="font-medium">Agent:</span> {viewBankApp.agent || 'N/A'}</div>
-                        <div><span className="font-medium">Submitted:</span> {viewBankApp.submitted_at ? format(new Date(viewBankApp.submitted_at), 'MMM dd, yyyy') : 'N/A'}</div>
+                      </div>
+
+                      {/* Address Information */}
+                      <div className="mb-6">
+                        <h4 className="text-lg font-semibold mb-3 text-blue-700">Address Information</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div><span className="font-medium">Address:</span> {viewBankApp.fullData.address || 'N/A'}</div>
+                          <div><span className="font-medium">Years of Stay:</span> {viewBankApp.fullData.years_of_stay || 'N/A'}</div>
+                        </div>
+                      </div>
+
+                      {/* Work Details */}
+                      <div className="mb-6">
+                        <h4 className="text-lg font-semibold mb-3 text-blue-700">Work Details</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div><span className="font-medium">Business/Employer:</span> {viewBankApp.fullData.business || 'N/A'}</div>
+                          <div><span className="font-medium">Profession/Occupation:</span> {viewBankApp.fullData.profession || 'N/A'}</div>
+                          <div><span className="font-medium">Nature of Business:</span> {viewBankApp.fullData.nature_of_business || 'N/A'}</div>
+                          <div><span className="font-medium">Department:</span> {viewBankApp.fullData.department || 'N/A'}</div>
+                          <div><span className="font-medium">Contact Number:</span> {viewBankApp.fullData.contact_number || 'N/A'}</div>
+                          <div><span className="font-medium">Years in Business:</span> {viewBankApp.fullData.years_in_business || 'N/A'}</div>
+                          <div><span className="font-medium">Monthly Income:</span> {viewBankApp.fullData.monthly_income || 'N/A'}</div>
+                          <div><span className="font-medium">Annual Income:</span> {viewBankApp.fullData.annual_income || 'N/A'}</div>
+                        </div>
+                      </div>
+
+                      {/* Credit Card Details */}
+                      <div className="mb-6">
+                        <h4 className="text-lg font-semibold mb-3 text-blue-700">Credit Card Details</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div><span className="font-medium">Bank Institution:</span> {viewBankApp.fullData.bank_institution || 'N/A'}</div>
+                          <div><span className="font-medium">Card Number:</span> {viewBankApp.fullData.card_number || 'N/A'}</div>
+                          <div><span className="font-medium">Credit Limit:</span> {viewBankApp.fullData.credit_limit || 'N/A'}</div>
+                          <div><span className="font-medium">Member Since:</span> {viewBankApp.fullData.member_since || 'N/A'}</div>
+                          <div><span className="font-medium">Expiry Date:</span> {viewBankApp.fullData.expiry_date || 'N/A'}</div>
+                          <div><span className="font-medium">Deliver Card To:</span> {viewBankApp.fullData.deliver_card_to || 'N/A'}</div>
+                          <div><span className="font-medium">Best Time to Contact:</span> {viewBankApp.fullData.best_time_to_contact || 'N/A'}</div>
+                        </div>
+                      </div>
+
+                      {/* Family Information */}
+                      <div className="mb-6">
+                        <h4 className="text-lg font-semibold mb-3 text-blue-700">Family Information</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div><span className="font-medium">Mother's Name:</span> {viewBankApp.fullData.relative_name || 'N/A'}</div>
+                          <div><span className="font-medium">Spouse's Name:</span> {viewBankApp.fullData.relative2_name || 'N/A'}</div>
+                          <div><span className="font-medium">Personal Reference:</span> {viewBankApp.fullData.relative3_name || 'N/A'}</div>
+                        </div>
+                      </div>
+
+                      {/* Application Status */}
+                      <div className="mb-6">
+                        <h4 className="text-lg font-semibold mb-3 text-blue-700">Application Status</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div><span className="font-medium">Status:</span> 
+                            <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full ${
+                              (viewBankApp.status || '').toLowerCase().includes('approved') || (viewBankApp.status || '').toLowerCase().includes('cif') ? 'bg-green-100 text-green-800' :
+                              (viewBankApp.status || '').toLowerCase().includes('pending') ? 'bg-yellow-100 text-yellow-800' :
+                              (viewBankApp.status || '').toLowerCase().includes('rejected') ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {viewBankApp.status || '-'}
+                            </span>
+                          </div>
+                          <div><span className="font-medium">Agent:</span> {viewBankApp.agent || 'N/A'}</div>
+                          <div><span className="font-medium">Submitted:</span> {viewBankApp.submitted_at ? format(new Date(viewBankApp.submitted_at), 'MMM dd, yyyy') : 'N/A'}</div>
+                          <div><span className="font-medium">Bank Applied:</span> {viewBankApp.fullData.bank_applied || 'N/A'}</div>
+                        </div>
                       </div>
                     </div>
-                    
-                    {/* Additional Details */}
-                    <div>
-                      <h3 className="font-semibold text-lg mb-3 text-blue-700">Additional Details</h3>
-                      <div className="space-y-2">
-                        <div><span className="font-medium">Application Type:</span> {viewBankApp.applnType || 'N/A'}</div>
-                        <div><span className="font-medium">Source Code:</span> {viewBankApp.sourceCd || 'N/A'}</div>
-                        <div><span className="font-medium">Agency Branch:</span> {viewBankApp.agencyBrName || 'N/A'}</div>
-                        <div><span className="font-medium">Month:</span> {viewBankApp.month || 'N/A'}</div>
-                        <div><span className="font-medium">O Codes:</span> {viewBankApp.oCodes || 'N/A'}</div>
+                  ) : (
+                    // Show basic information for Maybank applications (fallback)
+                    <div className="space-y-6">
+                      {/* Basic Information */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <h3 className="font-semibold text-lg mb-3 text-blue-700">Basic Information</h3>
+                          <div className="space-y-2">
+                            <div><span className="font-medium">Application No:</span> {viewBankApp.applicationNo || 'N/A'}</div>
+                            <div><span className="font-medium">Name:</span> {viewBankApp.personal_details?.firstName} {viewBankApp.personal_details?.lastName}</div>
+                            <div><span className="font-medium">Status:</span> 
+                              <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full ${
+                                (viewBankApp.status || '').toLowerCase().includes('approved') || (viewBankApp.status || '').toLowerCase().includes('cif') ? 'bg-green-100 text-green-800' :
+                                (viewBankApp.status || '').toLowerCase().includes('pending') ? 'bg-yellow-100 text-yellow-800' :
+                                (viewBankApp.status || '').toLowerCase().includes('rejected') ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>
+                                {viewBankApp.status || '-'}
+                              </span>
+                            </div>
+                            <div><span className="font-medium">Card Type:</span> {viewBankApp.cardType || 'N/A'}</div>
+                            <div><span className="font-medium">Agent:</span> {viewBankApp.agent || 'N/A'}</div>
+                            <div><span className="font-medium">Submitted:</span> {viewBankApp.submitted_at ? format(new Date(viewBankApp.submitted_at), 'MMM dd, yyyy') : 'N/A'}</div>
+                          </div>
+                        </div>
+                        
+                        {/* Additional Details */}
+                        <div>
+                          <h3 className="font-semibold text-lg mb-3 text-blue-700">Additional Details</h3>
+                          <div className="space-y-2">
+                            <div><span className="font-medium">Application Type:</span> {viewBankApp.applnType || 'N/A'}</div>
+                            <div><span className="font-medium">Source Code:</span> {viewBankApp.sourceCd || 'N/A'}</div>
+                            <div><span className="font-medium">Agency Branch:</span> {viewBankApp.agencyBrName || 'N/A'}</div>
+                            <div><span className="font-medium">Month:</span> {viewBankApp.month || 'N/A'}</div>
+                            <div><span className="font-medium">O Codes:</span> {viewBankApp.oCodes || 'N/A'}</div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
 
+                      {/* Decline Reason if applicable */}
+                      {viewBankApp.declineReason && (
+                        <div>
+                          <h3 className="font-semibold text-lg mb-3 text-red-700">Decline Reason</h3>
+                          <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                            <p className="text-red-800">{viewBankApp.declineReason}</p>
+                          </div>
+                        </div>
+                      )}
 
-
-                  {/* Decline Reason if applicable */}
-                  {viewBankApp.declineReason && (
-                    <div>
-                      <h3 className="font-semibold text-lg mb-3 text-red-700">Decline Reason</h3>
-                      <div className="bg-red-50 p-4 rounded-lg border border-red-200">
-                        <p className="text-red-800">{viewBankApp.declineReason}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Remarks */}
-                  {viewBankApp.remarks && (
-                    <div>
-                      <h3 className="font-semibold text-lg mb-3 text-blue-700">Remarks</h3>
-                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                        <p className="text-blue-800">{viewBankApp.remarks}</p>
-                      </div>
+                      {/* Remarks */}
+                      {viewBankApp.remarks && (
+                        <div>
+                          <h3 className="font-semibold text-lg mb-3 text-blue-700">Remarks</h3>
+                          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                            <p className="text-blue-800">{viewBankApp.remarks}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2947,6 +3163,18 @@ const AdminDashboard: React.FC = () => {
         application={selectedApplicationForStatus}
         onUpdateStatus={handleUpdateBankStatus}
         banks={BANKS}
+      />
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmationModal.isOpen}
+        onClose={() => setConfirmationModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmationModal.onConfirm}
+        title={confirmationModal.title}
+        message={confirmationModal.message}
+        type={confirmationModal.type}
+        confirmText="Delete"
+        cancelText="Cancel"
       />
        </div>
       </>
