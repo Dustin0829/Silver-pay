@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
+import { normalizeStatus, getStatusColor } from '../utils/statusMapping';
 
 interface Bank {
   value: string;
@@ -61,6 +62,12 @@ const BankStatusModal: React.FC<BankStatusModalProps> = ({
             ? 'bg-yellow-600 text-white' 
             : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
         }`;
+      case 'cancelled':
+        return `px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+          isSelected 
+            ? 'bg-gray-600 text-white' 
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`;
       default:
         return 'px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200';
     }
@@ -118,7 +125,7 @@ const BankStatusModal: React.FC<BankStatusModalProps> = ({
                     </div>
                     <span className="font-medium text-gray-900">{bank.label}</span>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => handleStatusChange(bank.value, 'accepted')}
                       className={getStatusButtonClass(bank.value, 'accepted')}
@@ -136,6 +143,12 @@ const BankStatusModal: React.FC<BankStatusModalProps> = ({
                       className={getStatusButtonClass(bank.value, 'pending')}
                     >
                       Pending
+                    </button>
+                    <button
+                      onClick={() => handleStatusChange(bank.value, 'cancelled')}
+                      className={getStatusButtonClass(bank.value, 'cancelled')}
+                    >
+                      Cancelled
                     </button>
                   </div>
                 </div>

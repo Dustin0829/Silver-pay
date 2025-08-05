@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Check, X, Eye, Edit, LogOut, User, Clock, CheckCircle, List, History, Trash2, Download, Menu, Send, ArrowDownCircle, ThumbsUp, ThumbsDown, BarChart3, Users } from 'lucide-react';
+import { FileText, Check, X, Eye, Edit, LogOut, User, Clock, CheckCircle, List, History, Trash2, Download, Menu, Send, ArrowDownCircle, ThumbsUp, ThumbsDown, BarChart3, Users, FileUp } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { format } from 'date-fns';
 import Toast from './Toast';
@@ -11,15 +11,17 @@ import { supabase } from '../supabaseClient';
 import { useLoading } from '../hooks/useLoading';
 import BankStatusModal from './BankStatusModal';
 import ConfirmationModal from './ConfirmationModal';
+import { normalizeStatus, StandardStatus } from '../utils/statusMapping';
+import { fetchBankTableData, transformBankData, handleCSVUpload } from '../utils/bankDataUtils';
 
 // Bank configuration
 const BANKS = [
   { value: 'rcbc', label: 'RCBC', logo: '/banks/RCBC.jpg' },
   { value: 'metrobank', label: 'Metrobank', logo: '/banks/metrobank.jpeg' },
-  { value: 'eastWestBank', label: 'EastWest Bank', logo: '/banks/eastwest.webp' },
+  { value: 'eastwest', label: 'EastWest Bank', logo: '/banks/eastwest.webp' },
   { value: 'bpi', label: 'BPI', logo: '/banks/bpi.jpg' },
   { value: 'pnb', label: 'PNB', logo: '/banks/pnb.png' },
-  { value: 'robinsonBank', label: 'Robinson Bank', logo: '/banks/robinson.jpg' },
+  { value: 'robinsons', label: 'Robinson Bank', logo: '/banks/robinson.jpg' },
   { value: 'maybank', label: 'Maybank', logo: '/banks/maybank.png' },
   { value: 'aub', label: 'AUB', logo: '/banks/AUB.jpg' },
 ];
@@ -92,10 +94,10 @@ function mapFlatToNestedApp(data: any) {
   const bankPreferences = {
     rcbc: selectedBanks.includes('rcbc'),
     metrobank: selectedBanks.includes('metrobank'),
-    eastWestBank: selectedBanks.includes('eastwestbank') || selectedBanks.includes('eastwest'),
+    eastwest: selectedBanks.includes('eastwestbank') || selectedBanks.includes('eastwest'),
     bpi: selectedBanks.includes('bpi'),
     pnb: selectedBanks.includes('pnb'),
-    robinsonBank: selectedBanks.includes('robinsonbank') || selectedBanks.includes('robinson'),
+    robinsons: selectedBanks.includes('robinsonbank') || selectedBanks.includes('robinson'),
     maybank: selectedBanks.includes('maybank'),
     aub: selectedBanks.includes('aub'),
   };
@@ -193,7 +195,15 @@ const ModeratorDashboard: React.FC = () => {
   const [nameFilter, setNameFilter] = useState('');
   const [selectedBank, setSelectedBank] = useState<string>('');
   const [maybankApplications, setMaybankApplications] = useState<any[]>([]);
+  const [bpiApplications, setBpiApplications] = useState<any[]>([]);
+  const [rcbcApplications, setRcbcApplications] = useState<any[]>([]);
+  const [metrobankApplications, setMetrobankApplications] = useState<any[]>([]);
+  const [eastwestApplications, setEastwestApplications] = useState<any[]>([]);
+  const [pnbApplications, setPnbApplications] = useState<any[]>([]);
+  const [aubApplications, setAubApplications] = useState<any[]>([]);
+  const [robinsonsApplications, setRobinsonsApplications] = useState<any[]>([]);
   const [importingCSV, setImportingCSV] = useState(false);
+  const [importingBank, setImportingBank] = useState<string | null>(null);
   const [viewBankApp, setViewBankApp] = useState<any | null>(null);
   const [loadingBankApp, setLoadingBankApp] = useState(false);
   const [totalApplicationsCount, setTotalApplicationsCount] = useState(0);
@@ -531,65 +541,44 @@ const ModeratorDashboard: React.FC = () => {
       }
     };
     
-    // Fetch Maybank applications from maybank_applications table
-    const fetchMaybankApplications = async () => {
+    // Fetch bank-specific applications from their respective tables
+    const fetchBankApplications = async () => {
       try {
-        const { data, error } = await supabase
-          .from('maybank_applications')
-          .select('*')
-          .order('created_at', { ascending: false });
-          
-        if (error) {
-          console.error('Error fetching Maybank applications:', error);
-          return;
-        }
-        
-        if (data && data.length > 0) {
-          console.log('ModeratorDashboard: Fetched Maybank applications:', data.length);
-          
-          // Transform Maybank application data to match the standard application format
-          const normalizedMaybankApps = data.map((app: any) => ({
-            id: `maybank-${app.id}`,
-            personal_details: {
-              firstName: app.first_name || '',
-              lastName: app.last_name || '',
-              middleName: app.middle_name || '',
-              emailAddress: '', // Not available in your table structure
-              mobileNumber: '', // Not available in your table structure
-            },
-            status: app.status || '',
-            agent: app.agent_cd || '',
-            encoder: '', // Not available in your table structure
-            submitted_at: app.encoding_date || app.created_at || null,
-            // Add a flag to identify this as a Maybank application
-            isMaybankApplication: true,
-            // Include all original fields for reference
-            originalData: app,
-            // Set bank preference for filtering
-            bank_preferences: { maybank: true },
-            // Additional fields from your table structure
-            applicationNo: app.application_no,
-            cardType: app.card_type,
-            declineReason: app.decline_reason,
-            applnType: app.appln_type,
-            sourceCd: app.source_cd,
-            agencyBrName: app.agency_br_name,
-            month: app.month,
-            remarks: app.remarks,
-            oCodes: app.o_codes,
-          }));
-          
-          if (isMounted) {
-            setMaybankApplications(normalizedMaybankApps);
+        console.log('ModeratorDashboard: Fetching bank-specific applications from their tables...');
+        const bankTables = [
+          { name: 'maybank', setter: setMaybankApplications },
+          { name: 'bpi', setter: setBpiApplications },
+          { name: 'rcbc', setter: setRcbcApplications },
+          { name: 'metrobank', setter: setMetrobankApplications },
+          { name: 'eastwest', setter: setEastwestApplications },
+          { name: 'pnb', setter: setPnbApplications },
+          { name: 'aub', setter: setAubApplications },
+          { name: 'robinsons', setter: setRobinsonsApplications },
+        ];
+        const fetchPromises = bankTables.map(async ({ name, setter }) => {
+          const { data, error } = await fetchBankTableData(name);
+          if (error) {
+            console.error(`Error fetching ${name} data:`, error);
+            return;
           }
-        }
+          // Always update the state, even if there are no records
+          if (data) {
+            const transformedData = transformBankData(data, name);
+            setter(transformedData);
+            console.log(`ModeratorDashboard: Fetched ${name} applications:`, transformedData.length);
+          } else {
+            setter([]);
+            console.log(`ModeratorDashboard: No data found for ${name}`);
+          }
+        });
+        await Promise.all(fetchPromises);
       } catch (err) {
-        console.error('Unexpected error fetching Maybank applications:', err);
+        console.error('Unexpected error fetching bank applications:', err);
       }
     };
 
     fetchAllData();
-    fetchMaybankApplications();
+    fetchBankApplications();
     
     // Real-time subscription for KYC updates
     const kycChannel = supabase
@@ -617,15 +606,100 @@ const ModeratorDashboard: React.FC = () => {
       )
       .subscribe();
     
-    // Real-time subscription for Maybank applications
+    // Real-time subscriptions for bank-specific tables
     const maybankChannel = supabase
-      .channel('realtime:maybank_applications')
+      .channel('realtime:maybank')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'maybank_applications' },
+        { event: '*', schema: 'public', table: 'maybank' },
         () => {
           console.log('Maybank application data changed');
-          fetchMaybankApplications();
+          fetchBankApplications();
+        }
+      )
+      .subscribe();
+      
+    // Add similar subscriptions for other bank tables
+    const bpiChannel = supabase
+      .channel('realtime:bpi')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bpi' },
+        () => {
+          console.log('BPI application data changed');
+          fetchBankApplications();
+        }
+      )
+      .subscribe();
+      
+    const eastwestChannel = supabase
+      .channel('realtime:eastwest')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'eastwest' },
+        () => {
+          console.log('EastWest application data changed');
+          fetchBankApplications();
+        }
+      )
+      .subscribe();
+      
+    const rcbcChannel = supabase
+      .channel('realtime:rcbc')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'rcbc' },
+        () => {
+          console.log('RCBC application data changed');
+          fetchBankApplications();
+        }
+      )
+      .subscribe();
+      
+    const pnbChannel = supabase
+      .channel('realtime:pnb')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pnb' },
+        () => {
+          console.log('PNB application data changed');
+          fetchBankApplications();
+        }
+      )
+      .subscribe();
+      
+    const aubChannel = supabase
+      .channel('realtime:aub')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'aub' },
+        () => {
+          console.log('AUB application data changed');
+          fetchBankApplications();
+        }
+      )
+      .subscribe();
+      
+    const metrobankChannel = supabase
+      .channel('realtime:metrobank')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'metrobank' },
+        () => {
+          console.log('Metrobank application data changed');
+          fetchBankApplications();
+        }
+      )
+      .subscribe();
+      
+    const robinsonsChannel = supabase
+      .channel('realtime:robinsons')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'robinsons' },
+        () => {
+          console.log('Robinson Bank application data changed');
+          fetchBankApplications();
         }
       )
       .subscribe();
@@ -648,6 +722,13 @@ const ModeratorDashboard: React.FC = () => {
       supabase.removeChannel(kycChannel);
       supabase.removeChannel(userChannel);
       supabase.removeChannel(maybankChannel);
+      supabase.removeChannel(bpiChannel);
+      supabase.removeChannel(eastwestChannel);
+      supabase.removeChannel(rcbcChannel);
+      supabase.removeChannel(pnbChannel);
+      supabase.removeChannel(aubChannel);
+      supabase.removeChannel(metrobankChannel);
+      supabase.removeChannel(robinsonsChannel);
       supabase.removeChannel(bankStatusChannel);
     };
   }, [setLoading]);
@@ -1057,6 +1138,49 @@ const ModeratorDashboard: React.FC = () => {
     }
   };
 
+  // CSV Import handler for bank tables
+  const handleBankCSVImport = async (event: React.ChangeEvent<HTMLInputElement>, bankName: string) => {
+    try {
+      setImportingBank(bankName);
+      setLoading(true);
+      await handleCSVUpload(
+        event,
+        bankName,
+        (count) => {
+          const bankLabel = BANKS.find(b => b.value === bankName)?.label || bankName;
+          setToast({ 
+            show: true, 
+            message: `Successfully imported ${count} records to ${bankLabel}`, 
+            type: 'success' 
+          });
+          // Refresh the data after import
+          // Trigger a re-fetch by updating a state variable
+          setSelectedBank(selectedBank);
+          // Refresh bank applications data
+          fetchBankApplications();
+        },
+        (error) => {
+          const bankLabel = BANKS.find(b => b.value === bankName)?.label || bankName;
+          setToast({ 
+            show: true, 
+            message: `Error importing CSV to ${bankLabel}: ${error.message || error}`, 
+            type: 'error' 
+          });
+        }
+      );
+    } catch (error) {
+      const bankLabel = BANKS.find(b => b.value === bankName)?.label || bankName;
+      setToast({ 
+        show: true, 
+        message: `Error importing CSV to ${bankLabel}: ${error instanceof Error ? error.message : 'Unknown error'}`, 
+        type: 'error' 
+      });
+    } finally {
+      setLoading(false);
+      setImportingBank(null);
+    }
+  };
+
   const handleExportPDF = () => {
     exportHistoryToPDF();
     setShowExportPreview(false);
@@ -1068,16 +1192,26 @@ const ModeratorDashboard: React.FC = () => {
     setViewBankApp(app);
     
     try {
-      // If it's a Maybank application, fetch the full data from maybank_applications table
-      if (app.isMaybankApplication && app.originalData) {
+      // If it's a bank application with originalData, fetch the full data from the bank table
+      if (app.originalData) {
+        // Determine the table name based on the bank
+        const tableName = app.bankName || selectedBank;
+        const applicationNo = app.originalData.application_no || app.applicationNo || app.application_no;
+        
+        if (!applicationNo) {
+          console.error('No application number found for bank application');
+          setToast({ show: true, message: 'Could not identify application number', type: 'error' });
+          return;
+        }
+        
         const { data, error } = await supabase
-          .from('maybank_applications')
+          .from(tableName)
           .select('*')
-          .eq('id', app.originalData.id)
+          .eq('application_no', applicationNo)
           .single();
           
         if (error) {
-          console.error('Error fetching Maybank application details:', error);
+          console.error(`Error fetching ${tableName} application details:`, error);
           setToast({ show: true, message: 'Failed to fetch application details', type: 'error' });
         } else if (data) {
           setViewBankApp({ ...app, fullData: data });
@@ -1320,47 +1454,154 @@ const ModeratorDashboard: React.FC = () => {
     }
   };
 
+  const handleDeleteBankApplication = async (app: any, bankName: string) => {
+    try {
+      setLoading(true);
+      
+      // Determine the table name based on the bank
+      const tableName = bankName;
+      
+      // Get the application number from the application
+      const applicationNo = app.originalData?.application_no || app.applicationNo || app.application_no;
+      
+      if (!applicationNo) {
+        setToast({
+          show: true,
+          message: 'Could not identify the application to delete',
+          type: 'error'
+        });
+        return;
+      }
+      
+      // Delete from the bank table using application_no as primary key
+      const { error } = await supabase
+        .from(tableName)
+        .delete()
+        .eq('application_no', applicationNo);
+      
+      if (error) {
+        console.error(`Error deleting from ${tableName}:`, error);
+        setToast({
+          show: true,
+          message: `Failed to delete application from ${bankName}: ${error.message}`,
+          type: 'error'
+        });
+        return;
+      }
+      
+      // Success - show success message
+      setToast({
+        show: true,
+        message: `Application deleted successfully from ${bankName}`,
+        type: 'success'
+      });
+      
+    } catch (error) {
+      console.error('Unexpected error deleting bank application:', error);
+      setToast({
+        show: true,
+        message: 'Unexpected error while deleting application',
+        type: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+    
+    // Refresh the data after the operation is complete (outside try-catch)
+    try {
+      await fetchBankApplications();
+    } catch (refreshError) {
+      console.error('Error refreshing data after delete:', refreshError);
+      // Don't show error toast for refresh failure, just log it
+    }
+  };
+
   // Status Report functions
   const getBankApplications = (bankValue: string) => {
-    // Show applications that have been set to any status for this bank through the Bank Status modal
-    return applications.filter(app => {
-      const appBankStatus = applicationsBankStatus[app.id] || {};
-      // Check if this application has any status set for this bank
-      return appBankStatus[bankValue] !== undefined;
-    });
+    const bankApplicationsMap: Record<string, any[]> = {
+      maybank: maybankApplications,
+      bpi: bpiApplications,
+      rcbc: rcbcApplications,
+      metrobank: metrobankApplications,
+      eastwest: eastwestApplications,
+      pnb: pnbApplications,
+      aub: aubApplications,
+      robinsons: robinsonsApplications,
+    };
+    if (bankApplicationsMap[bankValue] && bankApplicationsMap[bankValue].length > 0) {
+      return bankApplicationsMap[bankValue];
+    } else {
+      return applications.filter(app => {
+        const appBankStatus = applicationsBankStatus[app.id] || {};
+        return appBankStatus[bankValue] !== undefined;
+      });
+    }
   };
 
   const getBankStats = (bankValue: string) => {
-    // Get applications that have been set to any status for this bank through the Bank Status modal
-    const bankApps = applications.filter(app => {
-      const appBankStatus = applicationsBankStatus[app.id] || {};
-      return appBankStatus[bankValue] !== undefined;
-    });
-
-    // Count by bank-specific status
-    const pendingApps = bankApps.filter(app => {
-      const appBankStatus = applicationsBankStatus[app.id] || {};
-      return appBankStatus[bankValue] === 'pending';
-    });
-
-    const approvedApps = bankApps.filter(app => {
-      const appBankStatus = applicationsBankStatus[app.id] || {};
-      return appBankStatus[bankValue] === 'accepted';
-    });
-
-    const rejectedApps = bankApps.filter(app => {
-      const appBankStatus = applicationsBankStatus[app.id] || {};
-      return appBankStatus[bankValue] === 'rejected';
-    });
-
-    return {
-      total: bankApps.length,
-      pending: pendingApps.length,
-      approved: approvedApps.length,
-      rejected: rejectedApps.length,
-      submitted: 0, // Not used in bank-specific status
-      turnIn: 0, // Not used in bank-specific status
+    const bankApplicationsMap: Record<string, any[]> = {
+      maybank: maybankApplications,
+      bpi: bpiApplications,
+      rcbc: rcbcApplications,
+      metrobank: metrobankApplications,
+      eastwest: eastwestApplications,
+      pnb: pnbApplications,
+      aub: aubApplications,
+      robinsons: robinsonsApplications,
     };
+    if (bankApplicationsMap[bankValue] && bankApplicationsMap[bankValue].length > 0) {
+      const bankApps = bankApplicationsMap[bankValue];
+      const pending = bankApps.filter(app => normalizeStatus(app.status) === 'pending').length;
+      const approved = bankApps.filter(app => normalizeStatus(app.status) === 'approved').length;
+      const rejected = bankApps.filter(app => normalizeStatus(app.status) === 'rejected').length;
+      const cancelled = bankApps.filter(app => normalizeStatus(app.status) === 'cancelled').length;
+      const unknown = bankApps.filter(app => normalizeStatus(app.status) === 'unknown').length;
+      return {
+        total: bankApps.length,
+        pending,
+        approved,
+        rejected,
+        cancelled,
+        unknown,
+        submitted: 0,
+        turnIn: 0
+      };
+    } else {
+      const bankApps = applications.filter(app => {
+        const appBankStatus = applicationsBankStatus[app.id] || {};
+        return appBankStatus[bankValue] !== undefined;
+      });
+      const pendingApps = bankApps.filter(app => {
+        const appBankStatus = applicationsBankStatus[app.id] || {};
+        return normalizeStatus(appBankStatus[bankValue]) === 'pending';
+      });
+      const approvedApps = bankApps.filter(app => {
+        const appBankStatus = applicationsBankStatus[app.id] || {};
+        return normalizeStatus(appBankStatus[bankValue]) === 'approved';
+      });
+      const rejectedApps = bankApps.filter(app => {
+        const appBankStatus = applicationsBankStatus[app.id] || {};
+        return normalizeStatus(appBankStatus[bankValue]) === 'rejected';
+      });
+      const cancelledApps = bankApps.filter(app => {
+        const appBankStatus = applicationsBankStatus[app.id] || {};
+        return normalizeStatus(appBankStatus[bankValue]) === 'cancelled';
+      });
+      const unknownApps = bankApps.filter(app => {
+        const appBankStatus = applicationsBankStatus[app.id] || {};
+        return normalizeStatus(appBankStatus[bankValue]) === 'unknown';
+      });
+      return {
+        total: bankApps.length,
+        pending: pendingApps.length,
+        approved: approvedApps.length,
+        rejected: rejectedApps.length,
+        cancelled: cancelledApps.length,
+        unknown: unknownApps.length,
+        submitted: 0,
+        turnIn: 0
+      };
+    }
   };
   
   // Add these functions for edit application modal
@@ -1600,38 +1841,38 @@ const ModeratorDashboard: React.FC = () => {
       <p className="text-gray-600 mb-6">Track application status by bank</p>
       
       {!selectedBank ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {BANKS.map((bank) => {
-                          const stats = getBankStats(bank.value);
-              return (
-                <button
-                  key={bank.value}
-                  onClick={() => setSelectedBank(bank.value)}
-                  className="bg-white rounded-xl p-6 shadow hover:shadow-lg transition-shadow"
-                >
-                  <div className="text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 mb-3">
-                      <img 
-                        src={bank.logo} 
-                        alt={`${bank.label} logo`} 
-                        className="w-full h-full object-contain"
-                        onError={(e) => {
-                          // Fallback to colored circle if image fails to load
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          const fallback = target.nextElementSibling as HTMLElement;
-                          if (fallback) fallback.style.display = 'flex';
-                        }}
-                      />
-                      <div 
-                        className={`hidden w-12 h-12 rounded-full bg-gray-200 items-center justify-center`}
-                        style={{ display: 'none' }}
-                      >
-                        <span className="font-bold text-lg text-gray-600">{bank.label.charAt(0)}</span>
-                      </div>
+            const stats = getBankStats(bank.value);
+            return (
+              <button
+                key={bank.value}
+                onClick={() => setSelectedBank(bank.value)}
+                className="bg-white rounded-xl p-4 sm:p-6 shadow hover:shadow-lg transition-shadow"
+              >
+                <div className="text-center">
+                  <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 mb-3">
+                    <img 
+                      src={bank.logo} 
+                      alt={`${bank.label} logo`} 
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        // Fallback to colored circle if image fails to load
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        const fallback = target.nextElementSibling as HTMLElement;
+                        if (fallback) fallback.style.display = 'flex';
+                      }}
+                    />
+                    <div 
+                      className={`hidden w-12 h-12 rounded-full bg-gray-200 items-center justify-center`}
+                      style={{ display: 'none' }}
+                    >
+                      <span className="font-bold text-lg text-gray-600">{bank.label.charAt(0)}</span>
                     </div>
-                    <h3 className="font-semibold text-gray-900 mb-2">{bank.label}</h3>
-                  <div className="space-y-1 text-sm">
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2 text-sm sm:text-base">{bank.label}</h3>
+                  <div className="space-y-1 text-xs sm:text-sm">
                     <div className="flex justify-between">
                       <span>Total:</span>
                       <span className="font-semibold">{stats.total}</span>
@@ -1648,6 +1889,28 @@ const ModeratorDashboard: React.FC = () => {
                       <span>Rejected:</span>
                       <span className="font-semibold text-red-600">{stats.rejected}</span>
                     </div>
+                    <div className="flex justify-between">
+                      <span>Cancelled:</span>
+                      <span className="font-semibold text-gray-600">{stats.cancelled || 0}</span>
+                    </div>
+                    {(stats.unknown > 0) && (
+                      <div className="flex justify-between">
+                        <span>Other:</span>
+                        <span className="font-semibold text-blue-600">{stats.unknown}</span>
+                      </div>
+                    )}
+                    {stats.submitted > 0 && (
+                      <div className="flex justify-between">
+                        <span>Submitted:</span>
+                        <span className="font-semibold text-blue-600">{stats.submitted}</span>
+                      </div>
+                    )}
+                    {stats.turnIn > 0 && (
+                      <div className="flex justify-between">
+                        <span>Turn-In:</span>
+                        <span className="font-semibold text-purple-600">{stats.turnIn}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </button>
@@ -1656,37 +1919,62 @@ const ModeratorDashboard: React.FC = () => {
         </div>
       ) : (
         <div>
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center">
-                <button
-                  onClick={() => setSelectedBank('')}
-                  className="mr-4 p-2 rounded-lg bg-gray-100 hover:bg-gray-200"
-                >
-                  ← Back to Banks
-                </button>
-                <h3 className="text-xl font-semibold">
-                  {BANKS.find(b => b.value === selectedBank)?.label} Applications
-                </h3>
-              </div>
-
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+            <div className="flex items-center">
+              <button
+                onClick={() => setSelectedBank('')}
+                className="mr-4 p-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm sm:text-base"
+              >
+                ← Back to Banks
+              </button>
+              <h3 className="text-lg sm:text-xl font-semibold">
+                {BANKS.find(b => b.value === selectedBank)?.label} Applications
+              </h3>
             </div>
           </div>
           
           <div className="bg-white rounded-xl shadow overflow-hidden">
-            <div className="p-6 border-b">
+            <div className="p-4 sm:p-6 border-b">
               <div className="flex flex-col sm:flex-row gap-4">
                 <input
-                  className="border rounded-lg px-3 py-2 flex-1"
+                  className="border rounded-lg px-3 py-2 flex-1 text-sm sm:text-base"
                   placeholder="Search by applicant name..."
                   value={nameFilter}
                   onChange={e => setNameFilter(e.target.value)}
                 />
-
+                <label className={`cursor-pointer ${importingBank === selectedBank ? 'pointer-events-none' : ''}`}>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    className="hidden"
+                    onChange={(e) => handleBankCSVImport(e, selectedBank)}
+                    disabled={importingBank === selectedBank}
+                  />
+                  <div className={`flex items-center justify-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-colors ${
+                    importingBank === selectedBank 
+                      ? 'text-gray-500 bg-gray-100 cursor-not-allowed' 
+                      : 'text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200'
+                  }`}>
+                    {importingBank === selectedBank ? (
+                      <>
+                        <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-blue-600 mr-2"></div>
+                        <span className="hidden sm:inline">Importing CSV...</span>
+                        <span className="sm:hidden">Importing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileUp className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                        <span className="hidden sm:inline">Import CSV</span>
+                        <span className="sm:hidden">Import</span>
+                      </>
+                    )}
+                  </div>
+                </label>
               </div>
             </div>
             
-            <div className="overflow-x-auto">
+            {/* Desktop Table */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
@@ -1715,37 +2003,55 @@ const ModeratorDashboard: React.FC = () => {
                       return matchesSearch;
                     })
                     .map((app) => (
-                      <tr key={app.id} className="hover:bg-gray-50">
+                      <tr key={app.id || app.applicationNo || app.application_no} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="font-medium text-gray-900">
-                            {`${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.trim()}
+                            {`${app.personal_details?.firstName || app.first_name || ''} ${app.personal_details?.lastName || app.last_name || ''}`.trim()}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {app.personal_details?.emailAddress || ''}
+                          {app.personal_details?.emailAddress || app.email_address || app.email || ''}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                             (() => {
-                              const appBankStatus = applicationsBankStatus[app.id] || {};
-                              const bankStatus = appBankStatus[selectedBank];
-                              if (bankStatus === 'pending') return 'bg-yellow-100 text-yellow-800';
-                              if (bankStatus === 'accepted') return 'bg-green-100 text-green-800';
-                              if (bankStatus === 'rejected') return 'bg-red-100 text-red-800';
-                              return 'bg-gray-100 text-gray-600';
+                              // For applications with direct status from bank tables (like Maybank)
+                              if (app.isMaybankApplication || app.originalData) {
+                                const status = app.status || 'pending';
+                                if (status === 'pending') return 'bg-yellow-100 text-yellow-800';
+                                if (status === 'accepted' || status === 'approved') return 'bg-green-100 text-green-800';
+                                if (status === 'rejected') return 'bg-red-100 text-red-800';
+                                if (status === 'submitted') return 'bg-blue-100 text-blue-800';
+                                if (status === 'turn-in') return 'bg-purple-100 text-purple-800';
+                                return 'bg-gray-100 text-gray-600';
+                              } else {
+                                // For applications with bank_status entries
+                                const appBankStatus = applicationsBankStatus[app.id] || {};
+                                const bankStatus = appBankStatus[selectedBank];
+                                if (bankStatus === 'pending') return 'bg-yellow-100 text-yellow-800';
+                                if (bankStatus === 'accepted') return 'bg-green-100 text-green-800';
+                                if (bankStatus === 'rejected') return 'bg-red-100 text-red-800';
+                                return 'bg-gray-100 text-gray-600';
+                              }
                             })()
                           }`}>
                             {(() => {
-                              const appBankStatus = applicationsBankStatus[app.id] || {};
-                              return appBankStatus[selectedBank] || '-';
+                              // For applications with direct status from bank tables (like Maybank)
+                              if (app.isMaybankApplication || app.originalData) {
+                                return app.status || 'pending';
+                              } else {
+                                // For applications with bank_status entries
+                                const appBankStatus = applicationsBankStatus[app.id] || {};
+                                return appBankStatus[selectedBank] || '-';
+                              }
                             })()}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {app.submitted_at ? format(new Date(app.submitted_at), 'MMM dd, yyyy') : ''}
+                          {app.submitted_at || app.encoding_date || app.appln_date ? format(new Date(app.submitted_at || app.encoding_date || app.appln_date), 'MMM dd, yyyy') : ''}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {app.submitted_by || app.agent || 'Direct'}
+                          {app.submitted_by || app.agent || app.agent_cd || 'Direct'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex space-x-2">
@@ -1756,7 +2062,37 @@ const ModeratorDashboard: React.FC = () => {
                             >
                               <Eye className="w-4 h-4" />
                             </button>
+                            {/* Delete button for bank applications */}
                             {(() => {
+                              // Only show delete button for applications with direct status from bank tables
+                              if (app.isMaybankApplication || app.originalData) {
+                                return (
+                                  <button 
+                                    className="text-red-600 hover:text-red-800 p-1 rounded"
+                                    onClick={() => {
+                                      setConfirmationModal({
+                                        isOpen: true,
+                                        title: 'Delete Application',
+                                        message: `Are you sure you want to delete the application for ${app.personal_details?.firstName || app.first_name} ${app.personal_details?.lastName || app.last_name}? This action cannot be undone.`,
+                                        onConfirm: () => handleDeleteBankApplication(app, selectedBank),
+                                        type: 'danger'
+                                      });
+                                    }}
+                                    title="Delete Application"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                );
+                              }
+                              return null;
+                            })()}
+                            {(() => {
+                              // For applications with direct status from bank tables
+                              if (app.isMaybankApplication || app.originalData) {
+                                return null; // These are managed directly in the bank table
+                              }
+                              
+                              // For applications with bank_status entries
                               const appBankStatus = applicationsBankStatus[app.id] || {};
                               const hasStatus = appBankStatus[selectedBank];
                               return hasStatus ? (
@@ -1766,7 +2102,7 @@ const ModeratorDashboard: React.FC = () => {
                                     setConfirmationModal({
                                       isOpen: true,
                                       title: 'Delete Bank Status',
-                                      message: `Are you sure you want to delete the ${selectedBank.toUpperCase()} status for ${app.personal_details?.firstName} ${app.personal_details?.lastName}? This action cannot be undone.`,
+                                      message: `Are you sure you want to delete the ${selectedBank.toUpperCase()} status for ${app.personal_details?.firstName || app.first_name} ${app.personal_details?.lastName || app.last_name}? This action cannot be undone.`,
                                       onConfirm: () => handleDeleteBankStatus(app.id, selectedBank),
                                       type: 'danger'
                                     });
@@ -1783,6 +2119,266 @@ const ModeratorDashboard: React.FC = () => {
                     ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Tablet Table */}
+            <div className="hidden md:block lg:hidden overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Applicant
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {getBankApplications(selectedBank)
+                    .filter(app => {
+                      const search = nameFilter.toLowerCase();
+                      const name = `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.toLowerCase();
+                      const email = (app.personal_details?.emailAddress ?? '').toLowerCase();
+                      
+                      const matchesSearch = !search || 
+                        name.includes(search) || 
+                        email.includes(search);
+                      return matchesSearch;
+                    })
+                    .map((app) => (
+                      <tr key={app.id || app.applicationNo || app.application_no} className="hover:bg-gray-50">
+                        <td className="px-4 py-4">
+                          <div className="font-medium text-gray-900 text-sm">
+                            {`${app.personal_details?.firstName || app.first_name || ''} ${app.personal_details?.lastName || app.last_name || ''}`.trim()}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {app.personal_details?.emailAddress || app.email_address || app.email || ''}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Agent: {app.submitted_by || app.agent || app.agent_cd || 'Direct'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4">
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            (() => {
+                              if (app.isMaybankApplication || app.originalData) {
+                                const status = app.status || 'pending';
+                                if (status === 'pending') return 'bg-yellow-100 text-yellow-800';
+                                if (status === 'accepted' || status === 'approved') return 'bg-green-100 text-green-800';
+                                if (status === 'rejected') return 'bg-red-100 text-red-800';
+                                if (status === 'submitted') return 'bg-blue-100 text-blue-800';
+                                if (status === 'turn-in') return 'bg-purple-100 text-purple-800';
+                                return 'bg-gray-100 text-gray-600';
+                              } else {
+                                const appBankStatus = applicationsBankStatus[app.id] || {};
+                                const bankStatus = appBankStatus[selectedBank];
+                                if (bankStatus === 'pending') return 'bg-yellow-100 text-yellow-800';
+                                if (bankStatus === 'accepted') return 'bg-green-100 text-green-800';
+                                if (bankStatus === 'rejected') return 'bg-red-100 text-red-800';
+                                return 'bg-gray-100 text-gray-600';
+                              }
+                            })()
+                          }`}>
+                            {(() => {
+                              if (app.isMaybankApplication || app.originalData) {
+                                return app.status || 'pending';
+                              } else {
+                                const appBankStatus = applicationsBankStatus[app.id] || {};
+                                return appBankStatus[selectedBank] || '-';
+                              }
+                            })()}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-500">
+                          {app.submitted_at || app.encoding_date || app.appln_date ? format(new Date(app.submitted_at || app.encoding_date || app.appln_date), 'MMM dd, yyyy') : ''}
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex space-x-2">
+                            <button 
+                              className="text-blue-600 hover:text-blue-800 p-1 rounded"
+                              onClick={() => handleViewBankApplication(app)}
+                              title="View Application Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            {(() => {
+                              if (app.isMaybankApplication || app.originalData) {
+                                return (
+                                  <button 
+                                    className="text-red-600 hover:text-red-800 p-1 rounded"
+                                    onClick={() => {
+                                      setConfirmationModal({
+                                        isOpen: true,
+                                        title: 'Delete Application',
+                                        message: `Are you sure you want to delete the application for ${app.personal_details?.firstName || app.first_name} ${app.personal_details?.lastName || app.last_name}? This action cannot be undone.`,
+                                        onConfirm: () => handleDeleteBankApplication(app, selectedBank),
+                                        type: 'danger'
+                                      });
+                                    }}
+                                    title="Delete Application"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                );
+                              }
+                              return null;
+                            })()}
+                            {(() => {
+                              if (app.isMaybankApplication || app.originalData) {
+                                return null;
+                              }
+                              const appBankStatus = applicationsBankStatus[app.id] || {};
+                              const hasStatus = appBankStatus[selectedBank];
+                              return hasStatus ? (
+                                <button 
+                                  className="text-red-600 hover:text-red-800 p-1 rounded"
+                                  onClick={() => {
+                                    setConfirmationModal({
+                                      isOpen: true,
+                                      title: 'Delete Bank Status',
+                                      message: `Are you sure you want to delete the ${selectedBank.toUpperCase()} status for ${app.personal_details?.firstName || app.first_name} ${app.personal_details?.lastName || app.last_name}? This action cannot be undone.`,
+                                      onConfirm: () => handleDeleteBankStatus(app.id, selectedBank),
+                                      type: 'danger'
+                                    });
+                                  }}
+                                  title="Delete Bank Status"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              ) : null;
+                            })()}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card Layout */}
+            <div className="block md:hidden">
+              {getBankApplications(selectedBank)
+                .filter(app => {
+                  const search = nameFilter.toLowerCase();
+                  const name = `${app.personal_details?.firstName ?? ''} ${app.personal_details?.lastName ?? ''}`.toLowerCase();
+                  const email = (app.personal_details?.emailAddress ?? '').toLowerCase();
+                  
+                  const matchesSearch = !search || 
+                    name.includes(search) || 
+                    email.includes(search);
+                  return matchesSearch;
+                })
+                .map((app) => (
+                  <div key={app.id || app.applicationNo || app.application_no} className="border-b border-gray-200 p-4 hover:bg-gray-50">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900 text-sm">
+                          {`${app.personal_details?.firstName || app.first_name || ''} ${app.personal_details?.lastName || app.last_name || ''}`.trim()}
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {app.personal_details?.emailAddress || app.email_address || app.email || ''}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ml-2 ${
+                        (() => {
+                          if (app.isMaybankApplication || app.originalData) {
+                            const status = app.status || 'pending';
+                            if (status === 'pending') return 'bg-yellow-100 text-yellow-800';
+                            if (status === 'accepted' || status === 'approved') return 'bg-green-100 text-green-800';
+                            if (status === 'rejected') return 'bg-red-100 text-red-800';
+                            if (status === 'submitted') return 'bg-blue-100 text-blue-800';
+                            if (status === 'turn-in') return 'bg-purple-100 text-purple-800';
+                            return 'bg-gray-100 text-gray-600';
+                          } else {
+                            const appBankStatus = applicationsBankStatus[app.id] || {};
+                            const bankStatus = appBankStatus[selectedBank];
+                            if (bankStatus === 'pending') return 'bg-yellow-100 text-yellow-800';
+                            if (bankStatus === 'accepted') return 'bg-green-100 text-green-800';
+                            if (bankStatus === 'rejected') return 'bg-red-100 text-red-800';
+                            return 'bg-gray-100 text-gray-600';
+                          }
+                        })()
+                      }`}>
+                        {(() => {
+                          if (app.isMaybankApplication || app.originalData) {
+                            return app.status || 'pending';
+                          } else {
+                            const appBankStatus = applicationsBankStatus[app.id] || {};
+                            return appBankStatus[selectedBank] || '-';
+                          }
+                        })()}
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 text-xs text-gray-600 mb-3">
+                      <div>
+                        <span className="font-medium">Submitted:</span>
+                        <div>{app.submitted_at || app.encoding_date || app.appln_date ? format(new Date(app.submitted_at || app.encoding_date || app.appln_date), 'MMM dd, yyyy') : ''}</div>
+                      </div>
+                      <div>
+                        <span className="font-medium">Agent:</span>
+                        <div>{app.submitted_by || app.agent || app.agent_cd || 'Direct'}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex space-x-3">
+                      <button 
+                        className="text-blue-600 hover:text-blue-800 p-2 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
+                        onClick={() => handleViewBankApplication(app)}
+                        title="View Application Details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      {(() => {
+                        if (app.isMaybankApplication || app.originalData) {
+                          return (
+                            <button 
+                              className="text-red-600 hover:text-red-800 p-2 rounded-lg bg-red-50 hover:bg-red-100 transition-colors"
+                              onClick={() => {
+                                setConfirmationModal({
+                                  isOpen: true,
+                                  title: 'Delete Application',
+                                  message: `Are you sure you want to delete the application for ${app.personal_details?.firstName || app.first_name} ${app.personal_details?.lastName || app.last_name}? This action cannot be undone.`,
+                                  onConfirm: () => handleDeleteBankApplication(app, selectedBank),
+                                  type: 'danger'
+                                });
+                              }}
+                              title="Delete Application"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
+                      {(() => {
+                        if (app.isMaybankApplication || app.originalData) {
+                          return null;
+                        }
+                        const appBankStatus = applicationsBankStatus[app.id] || {};
+                        const hasStatus = appBankStatus[selectedBank];
+                        return hasStatus ? (
+                          <button 
+                            className="text-red-600 hover:text-red-800 p-2 rounded-lg bg-red-50 hover:bg-red-100 transition-colors"
+                            onClick={() => {
+                              setConfirmationModal({
+                                isOpen: true,
+                                title: 'Delete Bank Status',
+                                message: `Are you sure you want to delete the ${selectedBank.toUpperCase()} status for ${app.personal_details?.firstName || app.first_name} ${app.personal_details?.lastName || app.last_name}? This action cannot be undone.`,
+                                onConfirm: () => handleDeleteBankStatus(app.id, selectedBank),
+                                type: 'danger'
+                              });
+                            }}
+                            title="Delete Bank Status"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+                ))}
             </div>
           </div>
         </div>
