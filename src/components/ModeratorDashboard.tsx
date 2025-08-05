@@ -1528,14 +1528,8 @@ const ModeratorDashboard: React.FC = () => {
       aub: aubApplications,
       robinsons: robinsonsApplications,
     };
-    if (bankApplicationsMap[bankValue] && bankApplicationsMap[bankValue].length > 0) {
-      return bankApplicationsMap[bankValue];
-    } else {
-      return applications.filter(app => {
-        const appBankStatus = applicationsBankStatus[app.id] || {};
-        return appBankStatus[bankValue] !== undefined;
-      });
-    }
+    // Only return data from bank-specific tables, not from general applications
+    return bankApplicationsMap[bankValue] || [];
   };
 
   const getBankStats = (bankValue: string) => {
@@ -1549,59 +1543,23 @@ const ModeratorDashboard: React.FC = () => {
       aub: aubApplications,
       robinsons: robinsonsApplications,
     };
-    if (bankApplicationsMap[bankValue] && bankApplicationsMap[bankValue].length > 0) {
-      const bankApps = bankApplicationsMap[bankValue];
-      const pending = bankApps.filter(app => normalizeStatus(app.status) === 'pending').length;
-      const approved = bankApps.filter(app => normalizeStatus(app.status) === 'approved').length;
-      const rejected = bankApps.filter(app => normalizeStatus(app.status) === 'rejected').length;
-      const cancelled = bankApps.filter(app => normalizeStatus(app.status) === 'cancelled').length;
-      const unknown = bankApps.filter(app => normalizeStatus(app.status) === 'unknown').length;
-      return {
-        total: bankApps.length,
-        pending,
-        approved,
-        rejected,
-        cancelled,
-        unknown,
-        submitted: 0,
-        turnIn: 0
-      };
-    } else {
-      const bankApps = applications.filter(app => {
-        const appBankStatus = applicationsBankStatus[app.id] || {};
-        return appBankStatus[bankValue] !== undefined;
-      });
-      const pendingApps = bankApps.filter(app => {
-        const appBankStatus = applicationsBankStatus[app.id] || {};
-        return normalizeStatus(appBankStatus[bankValue]) === 'pending';
-      });
-      const approvedApps = bankApps.filter(app => {
-        const appBankStatus = applicationsBankStatus[app.id] || {};
-        return normalizeStatus(appBankStatus[bankValue]) === 'approved';
-      });
-      const rejectedApps = bankApps.filter(app => {
-        const appBankStatus = applicationsBankStatus[app.id] || {};
-        return normalizeStatus(appBankStatus[bankValue]) === 'rejected';
-      });
-      const cancelledApps = bankApps.filter(app => {
-        const appBankStatus = applicationsBankStatus[app.id] || {};
-        return normalizeStatus(appBankStatus[bankValue]) === 'cancelled';
-      });
-      const unknownApps = bankApps.filter(app => {
-        const appBankStatus = applicationsBankStatus[app.id] || {};
-        return normalizeStatus(appBankStatus[bankValue]) === 'unknown';
-      });
-      return {
-        total: bankApps.length,
-        pending: pendingApps.length,
-        approved: approvedApps.length,
-        rejected: rejectedApps.length,
-        cancelled: cancelledApps.length,
-        unknown: unknownApps.length,
-        submitted: 0,
-        turnIn: 0
-      };
-    }
+    // Only use data from bank-specific tables
+    const bankApps = bankApplicationsMap[bankValue] || [];
+    const pending = bankApps.filter(app => normalizeStatus(app.status) === 'pending').length;
+    const approved = bankApps.filter(app => normalizeStatus(app.status) === 'approved').length;
+    const rejected = bankApps.filter(app => normalizeStatus(app.status) === 'rejected').length;
+    const cancelled = bankApps.filter(app => normalizeStatus(app.status) === 'cancelled').length;
+    const unknown = bankApps.filter(app => normalizeStatus(app.status) === 'unknown').length;
+    return {
+      total: bankApps.length,
+      pending,
+      approved,
+      rejected,
+      cancelled,
+      unknown,
+      submitted: 0,
+      turnIn: 0
+    };
   };
   
   // Add these functions for edit application modal
@@ -3757,96 +3715,29 @@ const ModeratorDashboard: React.FC = () => {
               ) : (
                 <div className="space-y-6">
                   {viewBankApp.fullData ? (
-                    // Show detailed information for KYC applications
+                    // Show detailed information for bank applications
                     <div>
-                      
-                      {/* Personal Details */}
-                      <div className="mb-6">
-                        <h4 className="text-lg font-semibold mb-3 text-blue-700">Personal Details</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div><span className="font-medium">First Name:</span> {viewBankApp.fullData.first_name || 'N/A'}</div>
-                          <div><span className="font-medium">Last Name:</span> {viewBankApp.fullData.last_name || 'N/A'}</div>
-                          <div><span className="font-medium">Middle Name:</span> {viewBankApp.fullData.middle_name || 'N/A'}</div>
-                          <div><span className="font-medium">Suffix:</span> {viewBankApp.fullData.suffix || 'N/A'}</div>
-                          <div><span className="font-medium">Gender:</span> {viewBankApp.fullData.gender || 'N/A'}</div>
-                          <div><span className="font-medium">Date of Birth:</span> {viewBankApp.fullData.date_of_birth || 'N/A'}</div>
-                          <div><span className="font-medium">Place of Birth:</span> {viewBankApp.fullData.place_of_birth || 'N/A'}</div>
-                          <div><span className="font-medium">Civil Status:</span> {viewBankApp.fullData.civil_status || 'N/A'}</div>
-                          <div><span className="font-medium">Nationality:</span> {viewBankApp.fullData.nationality || 'N/A'}</div>
-                          <div><span className="font-medium">Mobile Number:</span> {viewBankApp.fullData.mobile_number || 'N/A'}</div>
-                          <div><span className="font-medium">Home Number:</span> {viewBankApp.fullData.home_number || 'N/A'}</div>
-                          <div><span className="font-medium">Email Address:</span> {viewBankApp.fullData.email_address || 'N/A'}</div>
-                          <div><span className="font-medium">SSS/GSIS/UMID:</span> {viewBankApp.fullData.sss_gsis_umid || 'N/A'}</div>
-                          <div><span className="font-medium">TIN:</span> {viewBankApp.fullData.tin || 'N/A'}</div>
-                        </div>
-                      </div>
-
-                      {/* Address Information */}
-                      <div className="mb-6">
-                        <h4 className="text-lg font-semibold mb-3 text-blue-700">Address Information</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div><span className="font-medium">Address:</span> {viewBankApp.fullData.address || 'N/A'}</div>
-                          <div><span className="font-medium">Years of Stay:</span> {viewBankApp.fullData.years_of_stay || 'N/A'}</div>
-                        </div>
-                      </div>
-
-                      {/* Work Details */}
-                      <div className="mb-6">
-                        <h4 className="text-lg font-semibold mb-3 text-blue-700">Work Details</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div><span className="font-medium">Business/Employer:</span> {viewBankApp.fullData.business || 'N/A'}</div>
-                          <div><span className="font-medium">Profession/Occupation:</span> {viewBankApp.fullData.profession || 'N/A'}</div>
-                          <div><span className="font-medium">Nature of Business:</span> {viewBankApp.fullData.nature_of_business || 'N/A'}</div>
-                          <div><span className="font-medium">Department:</span> {viewBankApp.fullData.department || 'N/A'}</div>
-                          <div><span className="font-medium">Contact Number:</span> {viewBankApp.fullData.contact_number || 'N/A'}</div>
-                          <div><span className="font-medium">Years in Business:</span> {viewBankApp.fullData.years_in_business || 'N/A'}</div>
-                          <div><span className="font-medium">Monthly Income:</span> {viewBankApp.fullData.monthly_income || 'N/A'}</div>
-                          <div><span className="font-medium">Annual Income:</span> {viewBankApp.fullData.annual_income || 'N/A'}</div>
-                        </div>
-                      </div>
-
-                      {/* Credit Card Details */}
-                      <div className="mb-6">
-                        <h4 className="text-lg font-semibold mb-3 text-blue-700">Credit Card Details</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div><span className="font-medium">Bank Institution:</span> {viewBankApp.fullData.bank_institution || 'N/A'}</div>
-                          <div><span className="font-medium">Card Number:</span> {viewBankApp.fullData.card_number || 'N/A'}</div>
-                          <div><span className="font-medium">Credit Limit:</span> {viewBankApp.fullData.credit_limit || 'N/A'}</div>
-                          <div><span className="font-medium">Member Since:</span> {viewBankApp.fullData.member_since || 'N/A'}</div>
-                          <div><span className="font-medium">Expiry Date:</span> {viewBankApp.fullData.expiry_date || 'N/A'}</div>
-                          <div><span className="font-medium">Deliver Card To:</span> {viewBankApp.fullData.deliver_card_to || 'N/A'}</div>
-                          <div><span className="font-medium">Best Time to Contact:</span> {viewBankApp.fullData.best_time_to_contact || 'N/A'}</div>
-                        </div>
-                      </div>
-
-                      {/* Family Information */}
-                      <div className="mb-6">
-                        <h4 className="text-lg font-semibold mb-3 text-blue-700">Family Information</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div><span className="font-medium">Mother's Name:</span> {viewBankApp.fullData.relative_name || 'N/A'}</div>
-                          <div><span className="font-medium">Spouse's Name:</span> {viewBankApp.fullData.relative2_name || 'N/A'}</div>
-                          <div><span className="font-medium">Personal Reference:</span> {viewBankApp.fullData.relative3_name || 'N/A'}</div>
-                        </div>
-                      </div>
-
-                      {/* Application Status */}
-                      <div className="mb-6">
-                        <h4 className="text-lg font-semibold mb-3 text-blue-700">Application Status</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div><span className="font-medium">Status:</span> 
-                            <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full ${
-                              (viewBankApp.status || '').toLowerCase().includes('approved') || (viewBankApp.status || '').toLowerCase().includes('cif') ? 'bg-green-100 text-green-800' :
-                              (viewBankApp.status || '').toLowerCase().includes('pending') ? 'bg-yellow-100 text-yellow-800' :
-                              (viewBankApp.status || '').toLowerCase().includes('rejected') ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-600'
-                            }`}>
-                              {viewBankApp.status || '-'}
-                            </span>
-                          </div>
-                          <div><span className="font-medium">Agent:</span> {viewBankApp.agent || 'N/A'}</div>
-                          <div><span className="font-medium">Submitted:</span> {viewBankApp.submitted_at ? format(new Date(viewBankApp.submitted_at), 'MMM dd, yyyy') : 'N/A'}</div>
-                          <div><span className="font-medium">Bank Applied:</span> {viewBankApp.fullData.bank_applied || 'N/A'}</div>
-                        </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><span className="font-medium">Application No:</span> {viewBankApp.fullData.application_no || 'N/A'}</div>
+                        <div><span className="font-medium">Status:</span> {viewBankApp.fullData.status || 'N/A'}</div>
+                        <div><span className="font-medium">Card Type:</span> {viewBankApp.fullData.card_type || 'N/A'}</div>
+                        <div><span className="font-medium">Application Type:</span> {viewBankApp.fullData.appln_type || 'N/A'}</div>
+                        <div><span className="font-medium">Source Code:</span> {viewBankApp.fullData.source_cd || 'N/A'}</div>
+                        <div><span className="font-medium">Agent Code:</span> {viewBankApp.fullData.agent_cd || 'N/A'}</div>
+                        <div><span className="font-medium">Agent:</span> {viewBankApp.fullData.agent || 'N/A'}</div>
+                        <div><span className="font-medium">Agency Branch:</span> {viewBankApp.fullData.agency_br_name || 'N/A'}</div>
+                        <div><span className="font-medium">Month:</span> {viewBankApp.fullData.month || 'N/A'}</div>
+                        <div><span className="font-medium">O Codes:</span> {viewBankApp.fullData.o_codes || 'N/A'}</div>
+                        <div><span className="font-medium">First Name:</span> {viewBankApp.fullData.first_name || 'N/A'}</div>
+                        <div><span className="font-medium">Last Name:</span> {viewBankApp.fullData.last_name || 'N/A'}</div>
+                        <div><span className="font-medium">Middle Name:</span> {viewBankApp.fullData.middle_name || 'N/A'}</div>
+                        <div><span className="font-medium">Encoding Date:</span> {viewBankApp.fullData.encoding_date ? format(new Date(viewBankApp.fullData.encoding_date), 'MMM dd, yyyy') : 'N/A'}</div>
+                        <div><span className="font-medium">Application Date:</span> {viewBankApp.fullData.appln_date ? format(new Date(viewBankApp.fullData.appln_date), 'MMM dd, yyyy') : 'N/A'}</div>
+                        <div><span className="font-medium">Report Date:</span> {viewBankApp.fullData.report_date ? format(new Date(viewBankApp.fullData.report_date), 'MMM dd, yyyy') : 'N/A'}</div>
+                        <div><span className="font-medium">Decline Reason:</span> {viewBankApp.fullData.decline_reason || 'N/A'}</div>
+                        <div><span className="font-medium">Remarks:</span> {viewBankApp.fullData.remarks || 'N/A'}</div>
+                        <div><span className="font-medium">Column 1:</span> {viewBankApp.fullData.column_1 || 'N/A'}</div>
+                        <div><span className="font-medium">Column 2:</span> {viewBankApp.fullData.column_2 || 'N/A'}</div>
                       </div>
                     </div>
                   ) : (
