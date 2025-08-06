@@ -1192,30 +1192,10 @@ const ModeratorDashboard: React.FC = () => {
     setViewBankApp(app);
     
     try {
-      // If it's a bank application with originalData, fetch the full data from the bank table
+      // If it's a bank application with originalData, we already have all the data we need
       if (app.originalData) {
-        // Determine the table name based on the bank
-        const tableName = app.bankName || selectedBank;
-        const applicationNo = app.originalData.application_no || app.applicationNo || app.application_no;
-        
-        if (!applicationNo) {
-          console.error('No application number found for bank application');
-          setToast({ show: true, message: 'Could not identify application number', type: 'error' });
-          return;
-        }
-        
-        const { data, error } = await supabase
-          .from(tableName)
-          .select('*')
-          .eq('application_no', applicationNo)
-          .single();
-          
-        if (error) {
-          console.error(`Error fetching ${tableName} application details:`, error);
-          setToast({ show: true, message: 'Failed to fetch application details', type: 'error' });
-        } else if (data) {
-          setViewBankApp({ ...app, fullData: data });
-        }
+        // No need to fetch additional data - we already have it in originalData
+        console.log('Bank application data already available:', app.originalData);
       } else {
         // For regular KYC applications, fetch the full data from kyc_details table
         const id = app.id.startsWith('kyc-') ? app.id.replace('kyc-', '') : app.id;
@@ -1461,10 +1441,10 @@ const ModeratorDashboard: React.FC = () => {
       // Determine the table name based on the bank
       const tableName = bankName;
       
-      // Get the application number from the application
-      const applicationNo = app.originalData?.application_no || app.applicationNo || app.application_no;
+      // Get the ID from the application's original data
+      const recordId = app.originalData?.id;
       
-      if (!applicationNo) {
+      if (!recordId) {
         setToast({
           show: true,
           message: 'Could not identify the application to delete',
@@ -1473,11 +1453,11 @@ const ModeratorDashboard: React.FC = () => {
         return;
       }
       
-      // Delete from the bank table using application_no as primary key
+      // Delete from the bank table using id as primary key
       const { error } = await supabase
         .from(tableName)
         .delete()
-        .eq('application_no', applicationNo);
+        .eq('id', recordId);
       
       if (error) {
         console.error(`Error deleting from ${tableName}:`, error);
@@ -1545,18 +1525,24 @@ const ModeratorDashboard: React.FC = () => {
     };
     // Only use data from bank-specific tables
     const bankApps = bankApplicationsMap[bankValue] || [];
-    const pending = bankApps.filter(app => normalizeStatus(app.status) === 'pending').length;
-    const approved = bankApps.filter(app => normalizeStatus(app.status) === 'approved').length;
-    const rejected = bankApps.filter(app => normalizeStatus(app.status) === 'rejected').length;
-    const cancelled = bankApps.filter(app => normalizeStatus(app.status) === 'cancelled').length;
-    const unknown = bankApps.filter(app => normalizeStatus(app.status) === 'unknown').length;
+    const pending = bankApps.filter(app => app.status === 'pending').length;
+    const approved = bankApps.filter(app => app.status === 'approved').length;
+    const rejected = bankApps.filter(app => app.status === 'rejected').length;
+    const cancelled = bankApps.filter(app => app.status === 'cancelled').length;
+    const incomplete = bankApps.filter(app => app.status === 'incomplete').length;
+    const inProcess = bankApps.filter(app => app.status === 'in_process').length;
+    const existing = bankApps.filter(app => app.status === 'existing').length;
+    
     return {
       total: bankApps.length,
       pending,
       approved,
       rejected,
       cancelled,
-      unknown,
+      incomplete,
+      inProcess,
+      existing,
+      unknown: 0,
       submitted: 0,
       turnIn: 0
     };
@@ -1851,6 +1837,24 @@ const ModeratorDashboard: React.FC = () => {
                       <span>Cancelled:</span>
                       <span className="font-semibold text-gray-600">{stats.cancelled || 0}</span>
                     </div>
+                    {stats.incomplete > 0 && (
+                      <div className="flex justify-between">
+                        <span>Incomplete:</span>
+                        <span className="font-semibold text-orange-600">{stats.incomplete}</span>
+                      </div>
+                    )}
+                    {stats.inProcess > 0 && (
+                      <div className="flex justify-between">
+                        <span>In Process:</span>
+                        <span className="font-semibold text-blue-600">{stats.inProcess}</span>
+                      </div>
+                    )}
+                    {stats.existing > 0 && (
+                      <div className="flex justify-between">
+                        <span>Existing:</span>
+                        <span className="font-semibold text-purple-600">{stats.existing}</span>
+                      </div>
+                    )}
                     {(stats.unknown > 0) && (
                       <div className="flex justify-between">
                         <span>Other:</span>
@@ -1973,36 +1977,18 @@ const ModeratorDashboard: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                             (() => {
-                              // For applications with direct status from bank tables (like Maybank)
-                              if (app.isMaybankApplication || app.originalData) {
-                                const status = app.status || 'pending';
-                                if (status === 'pending') return 'bg-yellow-100 text-yellow-800';
-                                if (status === 'accepted' || status === 'approved') return 'bg-green-100 text-green-800';
-                                if (status === 'rejected') return 'bg-red-100 text-red-800';
-                                if (status === 'submitted') return 'bg-blue-100 text-blue-800';
-                                if (status === 'turn-in') return 'bg-purple-100 text-purple-800';
-                                return 'bg-gray-100 text-gray-600';
-                              } else {
-                                // For applications with bank_status entries
-                                const appBankStatus = applicationsBankStatus[app.id] || {};
-                                const bankStatus = appBankStatus[selectedBank];
-                                if (bankStatus === 'pending') return 'bg-yellow-100 text-yellow-800';
-                                if (bankStatus === 'accepted') return 'bg-green-100 text-green-800';
-                                if (bankStatus === 'rejected') return 'bg-red-100 text-red-800';
-                                return 'bg-gray-100 text-gray-600';
-                              }
+                              const status = app.status || 'pending';
+                              if (status === 'pending') return 'bg-yellow-100 text-yellow-800';
+                              if (status === 'approved') return 'bg-green-100 text-green-800';
+                              if (status === 'rejected') return 'bg-red-100 text-red-800';
+                              if (status === 'cancelled') return 'bg-gray-100 text-gray-800';
+                              if (status === 'incomplete') return 'bg-orange-100 text-orange-800';
+                              if (status === 'in_process') return 'bg-blue-100 text-blue-800';
+                              if (status === 'existing') return 'bg-purple-100 text-purple-800';
+                              return 'bg-gray-100 text-gray-600';
                             })()
                           }`}>
-                            {(() => {
-                              // For applications with direct status from bank tables (like Maybank)
-                              if (app.isMaybankApplication || app.originalData) {
-                                return app.status || 'pending';
-                              } else {
-                                // For applications with bank_status entries
-                                const appBankStatus = applicationsBankStatus[app.id] || {};
-                                return appBankStatus[selectedBank] || '-';
-                              }
-                            })()}
+                            {app.status || 'pending'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -3714,31 +3700,125 @@ const ModeratorDashboard: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {viewBankApp.fullData ? (
-                    // Show detailed information for bank applications
-                    <div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><span className="font-medium">Application No:</span> {viewBankApp.fullData.application_no || 'N/A'}</div>
-                        <div><span className="font-medium">Status:</span> {viewBankApp.fullData.status || 'N/A'}</div>
-                        <div><span className="font-medium">Card Type:</span> {viewBankApp.fullData.card_type || 'N/A'}</div>
-                        <div><span className="font-medium">Application Type:</span> {viewBankApp.fullData.appln_type || 'N/A'}</div>
-                        <div><span className="font-medium">Source Code:</span> {viewBankApp.fullData.source_cd || 'N/A'}</div>
-                        <div><span className="font-medium">Agent Code:</span> {viewBankApp.fullData.agent_cd || 'N/A'}</div>
-                        <div><span className="font-medium">Agent:</span> {viewBankApp.fullData.agent || 'N/A'}</div>
-                        <div><span className="font-medium">Agency Branch:</span> {viewBankApp.fullData.agency_br_name || 'N/A'}</div>
-                        <div><span className="font-medium">Month:</span> {viewBankApp.fullData.month || 'N/A'}</div>
-                        <div><span className="font-medium">O Codes:</span> {viewBankApp.fullData.o_codes || 'N/A'}</div>
-                        <div><span className="font-medium">First Name:</span> {viewBankApp.fullData.first_name || 'N/A'}</div>
-                        <div><span className="font-medium">Last Name:</span> {viewBankApp.fullData.last_name || 'N/A'}</div>
-                        <div><span className="font-medium">Middle Name:</span> {viewBankApp.fullData.middle_name || 'N/A'}</div>
-                        <div><span className="font-medium">Encoding Date:</span> {viewBankApp.fullData.encoding_date ? format(new Date(viewBankApp.fullData.encoding_date), 'MMM dd, yyyy') : 'N/A'}</div>
-                        <div><span className="font-medium">Application Date:</span> {viewBankApp.fullData.appln_date ? format(new Date(viewBankApp.fullData.appln_date), 'MMM dd, yyyy') : 'N/A'}</div>
-                        <div><span className="font-medium">Report Date:</span> {viewBankApp.fullData.report_date ? format(new Date(viewBankApp.fullData.report_date), 'MMM dd, yyyy') : 'N/A'}</div>
-                        <div><span className="font-medium">Decline Reason:</span> {viewBankApp.fullData.decline_reason || 'N/A'}</div>
-                        <div><span className="font-medium">Remarks:</span> {viewBankApp.fullData.remarks || 'N/A'}</div>
-                        <div><span className="font-medium">Column 1:</span> {viewBankApp.fullData.column_1 || 'N/A'}</div>
-                        <div><span className="font-medium">Column 2:</span> {viewBankApp.fullData.column_2 || 'N/A'}</div>
+                  {viewBankApp.originalData ? (
+                    // Show detailed information for bank applications from individual tables
+                    <div className="space-y-6">
+                      {/* Basic Information */}
+                      <div>
+                        <h3 className="font-semibold text-lg mb-3 text-blue-700">Basic Information</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div><span className="font-medium">ID:</span> {viewBankApp.originalData.id || 'N/A'}</div>
+                          <div><span className="font-medium">Client Name:</span> {viewBankApp.originalData.client_name || 'N/A'}</div>
+                          <div><span className="font-medium">Bank Code:</span> {viewBankApp.originalData.bank_code || 'N/A'}</div>
+                          <div><span className="font-medium">Agent Name:</span> {viewBankApp.originalData.agent_name || 'N/A'}</div>
+                          <div><span className="font-medium">Status:</span> 
+                            <span className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full ${
+                              viewBankApp.status === 'approved' ? 'bg-green-100 text-green-800' :
+                              viewBankApp.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                              viewBankApp.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              viewBankApp.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
+                              viewBankApp.status === 'incomplete' ? 'bg-orange-100 text-orange-800' :
+                              viewBankApp.status === 'in_process' ? 'bg-blue-100 text-blue-800' :
+                              viewBankApp.status === 'existing' ? 'bg-purple-100 text-purple-800' :
+                              'bg-gray-100 text-gray-600'
+                            }`}>
+                              {viewBankApp.status || 'pending'}
+                            </span>
+                          </div>
+                          <div><span className="font-medium">Created At:</span> {viewBankApp.originalData.created_at ? format(new Date(viewBankApp.originalData.created_at), 'MMM dd, yyyy HH:mm') : 'N/A'}</div>
+                        </div>
                       </div>
+
+                      {/* Status Details */}
+                      <div>
+                        <h3 className="font-semibold text-lg mb-3 text-blue-700">Status Details</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {viewBankApp.bankName === 'aub' && (
+                            <>
+                              <div><span className="font-medium">Approved:</span> <span className={viewBankApp.originalData.approved ? 'text-green-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.approved ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Declined:</span> <span className={viewBankApp.originalData.declined ? 'text-red-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.declined ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Incomplete:</span> <span className={viewBankApp.originalData.incomplete ? 'text-orange-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.incomplete ? 'Yes' : 'No'}</span></div>
+                            </>
+                          )}
+                          {viewBankApp.bankName === 'bpi' && (
+                            <>
+                              <div><span className="font-medium">Approved:</span> <span className={viewBankApp.originalData.approved ? 'text-green-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.approved ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Existing BPI:</span> <span className={viewBankApp.originalData.existing_bpi ? 'text-blue-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.existing_bpi ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Existing RBank:</span> <span className={viewBankApp.originalData.existing_rbank ? 'text-blue-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.existing_rbank ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">In Process:</span> <span className={viewBankApp.originalData.in_process ? 'text-yellow-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.in_process ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Cancelled:</span> <span className={viewBankApp.originalData.cancelled ? 'text-gray-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.cancelled ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Denied:</span> <span className={viewBankApp.originalData.denied ? 'text-red-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.denied ? 'Yes' : 'No'}</span></div>
+                            </>
+                          )}
+                          {viewBankApp.bankName === 'eastwest' && (
+                            <>
+                              <div><span className="font-medium">Approved:</span> <span className={viewBankApp.originalData.approved ? 'text-green-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.approved ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Cancelled:</span> <span className={viewBankApp.originalData.cancelled ? 'text-gray-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.cancelled ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Declined:</span> <span className={viewBankApp.originalData.declined ? 'text-red-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.declined ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Pending:</span> <span className={viewBankApp.originalData.pending ? 'text-yellow-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.pending ? 'Yes' : 'No'}</span></div>
+                            </>
+                          )}
+                          {viewBankApp.bankName === 'maybank' && (
+                            <>
+                              <div><span className="font-medium">Approved:</span> <span className={viewBankApp.originalData.approved ? 'text-green-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.approved ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">In Process:</span> <span className={viewBankApp.originalData.in_process ? 'text-yellow-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.in_process ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Declined:</span> <span className={viewBankApp.originalData.declined ? 'text-red-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.declined ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Cancelled:</span> <span className={viewBankApp.originalData.cancelled ? 'text-gray-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.cancelled ? 'Yes' : 'No'}</span></div>
+                            </>
+                          )}
+                          {viewBankApp.bankName === 'metrobank' && (
+                            <>
+                              <div><span className="font-medium">Approved:</span> <span className={viewBankApp.originalData.approved ? 'text-green-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.approved ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Declined:</span> <span className={viewBankApp.originalData.declined ? 'text-red-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.declined ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Incomplete:</span> <span className={viewBankApp.originalData.incomplete ? 'text-orange-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.incomplete ? 'Yes' : 'No'}</span></div>
+                            </>
+                          )}
+                          {viewBankApp.bankName === 'pnb' && (
+                            <>
+                              <div><span className="font-medium">Approved:</span> <span className={viewBankApp.originalData.approved ? 'text-green-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.approved ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Product:</span> {viewBankApp.originalData.product || 'N/A'}</div>
+                            </>
+                          )}
+                          {viewBankApp.bankName === 'robinsons' && (
+                            <>
+                              <div><span className="font-medium">Approved:</span> <span className={viewBankApp.originalData.approved ? 'text-green-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.approved ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Existing BPI:</span> <span className={viewBankApp.originalData.existing_bpi ? 'text-blue-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.existing_bpi ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Existing RBank:</span> <span className={viewBankApp.originalData.existing_rbank ? 'text-blue-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.existing_rbank ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">In Process:</span> <span className={viewBankApp.originalData.in_process ? 'text-yellow-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.in_process ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Cancelled:</span> <span className={viewBankApp.originalData.cancelled ? 'text-gray-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.cancelled ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Denied:</span> <span className={viewBankApp.originalData.denied ? 'text-red-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.denied ? 'Yes' : 'No'}</span></div>
+                            </>
+                          )}
+                          {viewBankApp.bankName === 'rcbc' && (
+                            <>
+                              <div><span className="font-medium">Approved:</span> <span className={viewBankApp.originalData.approved ? 'text-green-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.approved ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Incomplete:</span> <span className={viewBankApp.originalData.incomplete ? 'text-orange-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.incomplete ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">In Process:</span> <span className={viewBankApp.originalData.in_process ? 'text-yellow-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.in_process ? 'Yes' : 'No'}</span></div>
+                              <div><span className="font-medium">Rejected:</span> <span className={viewBankApp.originalData.rejected ? 'text-red-600 font-semibold' : 'text-gray-500'}>{viewBankApp.originalData.rejected ? 'Yes' : 'No'}</span></div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Additional Information */}
+                      {(viewBankApp.originalData.reasons || viewBankApp.originalData.product) && (
+                        <div>
+                          <h3 className="font-semibold text-lg mb-3 text-blue-700">Additional Information</h3>
+                          <div className="space-y-2">
+                            {viewBankApp.originalData.reasons && (
+                              <div>
+                                <span className="font-medium">Reasons:</span>
+                                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 mt-1">
+                                  <p className="text-blue-800">{viewBankApp.originalData.reasons}</p>
+                                </div>
+                              </div>
+                            )}
+                            {viewBankApp.originalData.product && (
+                              <div><span className="font-medium">Product:</span> {viewBankApp.originalData.product}</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     // Show basic information for Maybank applications (fallback)
