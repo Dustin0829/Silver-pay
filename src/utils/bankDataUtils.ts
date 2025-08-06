@@ -14,60 +14,67 @@ export const BANK_TABLES = {
 
 export type BankTableName = keyof typeof BANK_TABLES;
 
-// Status mapping for each bank based on their boolean fields
+// Status mapping for each bank based on their text fields
 export function getBankStatus(app: any, bankName: string): string {
+  // Helper function to check if a text value indicates "true"
+  const isTrue = (value: any): boolean => {
+    if (!value) return false;
+    const str = String(value).toLowerCase().trim();
+    return ['true', '1', 'yes', 'y', 'approved', 'complete', 'active', 'on'].includes(str);
+  };
+
   switch (bankName) {
     case 'aub':
-      if (app.approved) return 'approved';
-      if (app.declined) return 'rejected';
-      if (app.incomplete) return 'incomplete';
+      if (isTrue(app.approved)) return 'approved';
+      if (isTrue(app.declined)) return 'rejected';
+      if (isTrue(app.incomplete)) return 'incomplete';
       return 'pending';
     
     case 'bpi':
-      if (app.approved) return 'approved';
-      if (app.existing_bpi || app.existing_rbank) return 'existing';
-      if (app.in_process) return 'in_process';
-      if (app.cancelled) return 'cancelled';
-      if (app.denied) return 'rejected';
+      if (isTrue(app.approved)) return 'approved';
+      if (isTrue(app.existing_bpi) || isTrue(app.existing_rbank)) return 'existing';
+      if (isTrue(app.in_process)) return 'in_process';
+      if (isTrue(app.cancelled)) return 'cancelled';
+      if (isTrue(app.denied)) return 'rejected';
       return 'pending';
     
     case 'eastwest':
-      if (app.approved) return 'approved';
-      if (app.cancelled) return 'cancelled';
-      if (app.declined) return 'rejected';
-      if (app.pending) return 'pending';
+      if (isTrue(app.approved)) return 'approved';
+      if (isTrue(app.cancelled)) return 'cancelled';
+      if (isTrue(app.declined)) return 'rejected';
+      if (isTrue(app.pending)) return 'pending';
       return 'pending';
     
     case 'maybank':
-      if (app.approved) return 'approved';
-      if (app.in_process) return 'in_process';
-      if (app.declined) return 'rejected';
-      if (app.cancelled) return 'cancelled';
+      if (isTrue(app.approved)) return 'approved';
+      if (isTrue(app.in_process)) return 'in_process';
+      if (isTrue(app.declined)) return 'rejected';
+      if (isTrue(app.cancelled)) return 'cancelled';
       return 'pending';
     
     case 'metrobank':
-      if (app.approved) return 'approved';
-      if (app.declined) return 'rejected';
-      if (app.incomplete) return 'incomplete';
+      if (isTrue(app.approved)) return 'approved';
+      if (isTrue(app.declined)) return 'rejected';
+      if (isTrue(app.incomplete)) return 'incomplete';
       return 'pending';
     
     case 'pnb':
-      if (app.approved) return 'approved';
+      if (isTrue(app.approved)) return 'approved';
       return 'pending';
     
     case 'robinsons':
-      if (app.approved) return 'approved';
-      if (app.existing_bpi || app.existing_rbank) return 'existing';
-      if (app.in_process) return 'in_process';
-      if (app.cancelled) return 'cancelled';
-      if (app.denied) return 'rejected';
+      if (isTrue(app.approved)) return 'approved';
+      if (isTrue(app.existing_bpi) || isTrue(app.existing_rbank)) return 'existing';
+      if (isTrue(app.in_process)) return 'in_process';
+      if (isTrue(app.cancelled)) return 'cancelled';
+      if (isTrue(app.denied)) return 'rejected';
       return 'pending';
     
     case 'rcbc':
-      if (app.approved) return 'approved';
-      if (app.incomplete) return 'incomplete';
-      if (app.in_process) return 'in_process';
-      if (app.rejected) return 'rejected';
+      if (isTrue(app.approved)) return 'approved';
+      if (isTrue(app.incomplete)) return 'incomplete';
+      if (isTrue(app.in_process)) return 'in_process';
+      if (isTrue(app.rejected)) return 'rejected';
       return 'pending';
     
     default:
@@ -166,7 +173,7 @@ export function transformBankData(bankData: any[], bankName: string) {
   });
 }
 
-// CSV Import functionality
+// CSV Import functionality - No boolean conversion needed
 export async function importCSVToBankTable(file: File, tableName: string) {
   try {
     console.log(`Importing CSV to ${tableName} table...`);
@@ -193,14 +200,8 @@ export async function importCSVToBankTable(file: File, tableName: string) {
         const values = parseCSVLine(lines[i]);
         const record: any = {};
         headers.forEach((header, index) => {
-          let value = values[index] || '';
-          
-          // Convert boolean fields based on the table
-          if (isBooleanField(header, tableName)) {
-            record[header] = convertToBoolean(value);
-          } else {
-            record[header] = value;
-          }
+          // No conversion needed - just use the raw text value
+          record[header] = values[index] || '';
         });
         records.push(record);
       }
@@ -238,49 +239,6 @@ export async function importCSVToBankTable(file: File, tableName: string) {
     console.error(`Error importing CSV to ${tableName}:`, error);
     throw error;
   }
-}
-
-// Helper function to check if a field should be boolean
-function isBooleanField(header: string, tableName: string): boolean {
-  const booleanFields = {
-    aub: ['approved', 'declined', 'incomplete'],
-    bpi: ['approved', 'existing_bpi', 'existing_rbank', 'in_process', 'cancelled', 'denied'],
-    eastwest: ['approved', 'cancelled', 'declined', 'pending'],
-    maybank: ['approved', 'in_process', 'declined', 'cancelled'],
-    metrobank: ['approved', 'declined', 'incomplete'],
-    pnb: ['approved'],
-    robinsons: ['approved', 'existing_bpi', 'existing_rbank', 'in_process', 'cancelled', 'denied'],
-    rcbc: ['approved', 'incomplete', 'in_process', 'rejected']
-  };
-  
-  return booleanFields[tableName as keyof typeof booleanFields]?.includes(header) || false;
-}
-
-// Helper function to convert string values to boolean
-function convertToBoolean(value: string): boolean {
-  if (typeof value === 'boolean') return value;
-  
-  const stringValue = String(value).toLowerCase().trim();
-  
-  // Values that should be converted to true
-  if (['true', '1', 'yes', 'y', 'approved', 'complete', 'active', 'on'].includes(stringValue)) {
-    return true;
-  }
-  
-  // Values that should be converted to false
-  if (['false', '0', 'no', 'n', 'declined', 'rejected', 'incomplete', 'cancelled', 'denied', 'pending', 'off', ''].includes(stringValue)) {
-    return false;
-  }
-  
-  // For any other value, try to parse it as a number or default to false
-  const numValue = parseFloat(stringValue);
-  if (!isNaN(numValue)) {
-    return numValue !== 0;
-  }
-  
-  // Default to false for unrecognized values
-  console.warn(`Unknown boolean value: "${value}", defaulting to false`);
-  return false;
 }
 
 // Helper function to parse CSV line with proper quote handling
