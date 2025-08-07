@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Check, X, Eye, Edit, LogOut, User, Clock, CheckCircle, List, History, Trash2, Download, Menu, Send, ArrowDownCircle, ThumbsUp, ThumbsDown, BarChart3, Users, FileUp } from 'lucide-react';
+import { FileText, Check, X, Eye, Edit, LogOut, User, Clock, CheckCircle, List, History, Trash2, Download, Menu, Send, ArrowDownCircle, ThumbsUp, ThumbsDown, BarChart3, Users, FileUp, RefreshCw } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { format } from 'date-fns';
 import Toast from './Toast';
@@ -13,6 +13,7 @@ import BankStatusModal from './BankStatusModal';
 import ConfirmationModal from './ConfirmationModal';
 import { normalizeStatus, StandardStatus } from '../utils/statusMapping';
 import { fetchBankTableData, transformBankData, handleCSVUpload } from '../utils/bankDataUtils';
+import { API_ENDPOINTS } from '../config/api';
 
 // Bank configuration
 const BANKS = [
@@ -183,7 +184,7 @@ function mapFlatToNestedApp(data: any) {
 const initialToastState = { show: false, message: '', type: undefined as 'success' | 'error' | undefined };
 
 const ModeratorDashboard: React.FC = () => {
-  const { logout, user } = useAuth();
+  const { logout, user, createUser } = useAuth();
   const [activeSection, setActiveSection] = useState('dashboard');
   const [applications, setApplications] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -213,6 +214,62 @@ const ModeratorDashboard: React.FC = () => {
   const PAGE_SIZE = 15;
   const { setLoading } = useLoading();
 
+  // Function to fetch bank applications - moved outside useEffect for accessibility
+  const fetchBankApplications = async () => {
+    try {
+      console.log('ModeratorDashboard: Fetching bank-specific applications from their tables...');
+      const bankTables = [
+        { name: 'maybank', setter: setMaybankApplications },
+        { name: 'bpi', setter: setBpiApplications },
+        { name: 'rcbc', setter: setRcbcApplications },
+        { name: 'metrobank', setter: setMetrobankApplications },
+        { name: 'eastwest', setter: setEastwestApplications },
+        { name: 'pnb', setter: setPnbApplications },
+        { name: 'aub', setter: setAubApplications },
+        { name: 'robinsons', setter: setRobinsonsApplications },
+      ];
+      
+      const results = await Promise.allSettled(
+        bankTables.map(async ({ name, setter }) => {
+          try {
+            console.log(`ModeratorDashboard: Fetching ${name} data...`);
+            const { data, error } = await fetchBankTableData(name);
+            
+            if (error) {
+              console.error(`Error fetching ${name} data:`, error);
+              setter([]); // Set empty array on error
+              return { name, success: false, error };
+            }
+            
+            // Always update the state, even if there are no records
+            if (data) {
+              const transformedData = transformBankData(data, name);
+              setter(transformedData);
+              console.log(`ModeratorDashboard: Successfully fetched ${name} applications:`, transformedData.length);
+              return { name, success: true, count: transformedData.length };
+            } else {
+              setter([]);
+              console.log(`ModeratorDashboard: No data found for ${name}`);
+              return { name, success: true, count: 0 };
+            }
+          } catch (err) {
+            console.error(`Unexpected error fetching ${name}:`, err);
+            setter([]); // Set empty array on error
+            return { name, success: false, error: err };
+          }
+        })
+      );
+      
+      // Log summary of results
+      const successful = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+      const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value?.success)).length;
+      console.log(`ModeratorDashboard: Bank data fetch completed. Successful: ${successful}, Failed: ${failed}`);
+      
+    } catch (err) {
+      console.error('Unexpected error in fetchBankApplications:', err);
+    }
+  };
+
   // Additional states for application management
   const [loadingApp, setLoadingApp] = useState(false);
   const [fetchedApp, setFetchedApp] = useState<any | null>(null);
@@ -229,6 +286,7 @@ const ModeratorDashboard: React.FC = () => {
   const [editUserIdx, setEditUserIdx] = useState<number | null>(null);
   const [editUser, setEditUser] = useState({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState<number | null>(null);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   // Bank Status Modal state
   const [bankStatusModalOpen, setBankStatusModalOpen] = useState(false);
@@ -247,6 +305,9 @@ const ModeratorDashboard: React.FC = () => {
   // User management functions
   const handleAddUser = async () => {
     try {
+      // Prevent multiple submissions
+      if (isCreatingUser) return;
+      
       // Validate inputs
       if (!newUser.name.trim()) {
         setToast({ show: true, message: 'Name is required', type: 'error' });
@@ -270,73 +331,69 @@ const ModeratorDashboard: React.FC = () => {
         }
       }
       
-      // Create user directly in Supabase
+      setIsCreatingUser(true);
+      
+      console.log('Creating user with auth:', {
+        email: newUser.email,
+        password: newUser.password,
+        name: newUser.name,
+        role: newUser.role
+      });
+      
       try {
-        // Since we can't create auth users directly from the client,
-        // we'll just create a user profile without linking to an auth user
-        // This is a workaround for demonstration purposes only
+        // Get the current user's session token
+        const { data: { session } } = await supabase.auth.getSession();
         
-        // Create user profile in the database - without user_id
-        const newUserProfile = {
-          name: newUser.name,
-          email: newUser.email,
-          role: newUser.role,
-          bank_codes: newUser.role === 'agent' ? newUser.bankCodes : []
-        };
-        
-        console.log('Creating user profile:', newUserProfile);
-        
-        // First check if a user with this email already exists
-        const { data: existingUser, error: checkError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('email', newUser.email)
-          .single();
-          
-        if (existingUser) {
-          setToast({ show: true, message: 'A user with this email already exists', type: 'error' });
+        if (!session?.access_token) {
+          setToast({ show: true, message: 'You must be logged in to create users', type: 'error' });
           return;
         }
         
-        // Create a new user profile directly
-        // This assumes you've removed the foreign key constraint or made user_id nullable
-        const newUserData = {
-          name: newUser.name,
-          email: newUser.email,
-          role: newUser.role,
-          bank_codes: newUser.role === 'agent' ? newUser.bankCodes : [],
-          // Either provide null for user_id or omit it if it's nullable
-          user_id: null
-        };
+        // Call the API route to create user
+        const response = await fetch(API_ENDPOINTS.CREATE_USER, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            name: newUser.name,
+            email: newUser.email,
+            password: newUser.password,
+            role: newUser.role,
+            bankCodes: newUser.bankCodes
+          })
+        });
         
-        const { data, error } = await supabase
-          .from('user_profiles')
-          .insert(newUserData)
-          .select();
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+          setToast({ 
+            show: true, 
+            message: result.message || 'User created successfully and can log in immediately!', 
+            type: 'success' 
+          });
+          setShowAddUser(false);
+          setNewUser({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
           
-        if (error) {
-          console.error('Error creating user profile:', error);
-          setToast({ show: true, message: 'Failed to create user: ' + error.message, type: 'error' });
-          return;
+          // Refresh the users list
+          fetchAllData();
+        } else {
+          setToast({ 
+            show: true, 
+            message: result.error || 'Failed to create user. Please try again.', 
+            type: 'error' 
+          });
         }
-        
-        console.log('User profile created successfully:', data);
-        
-        // Update local state
-        setUsers([...users, newUserProfile]);
-        
-        // Reset form and close modal
-        setNewUser({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
-        setShowAddUser(false);
-        
-        setToast({ show: true, message: 'User created successfully!', type: 'success' });
-      } catch (err) {
-        console.error('Error in user creation:', err);
-        setToast({ show: true, message: 'Failed to create user: ' + (err instanceof Error ? err.message : String(err)), type: 'error' });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to create user. Please try again.';
+        setToast({ show: true, message: errorMessage, type: 'error' });
       }
     } catch (error) {
       console.error('Unexpected error creating user:', error);
       setToast({ show: true, message: 'Failed to create user: ' + (error instanceof Error ? error.message : 'Unknown error'), type: 'error' });
+    } finally {
+      setIsCreatingUser(false);
     }
   };
   
@@ -538,42 +595,6 @@ const ModeratorDashboard: React.FC = () => {
         setToast({ show: true, message: 'Unexpected error while fetching data', type: 'error' });
       } finally {
         setLoading(false);
-      }
-    };
-    
-    // Fetch bank-specific applications from their respective tables
-    const fetchBankApplications = async () => {
-      try {
-        console.log('ModeratorDashboard: Fetching bank-specific applications from their tables...');
-        const bankTables = [
-          { name: 'maybank', setter: setMaybankApplications },
-          { name: 'bpi', setter: setBpiApplications },
-          { name: 'rcbc', setter: setRcbcApplications },
-          { name: 'metrobank', setter: setMetrobankApplications },
-          { name: 'eastwest', setter: setEastwestApplications },
-          { name: 'pnb', setter: setPnbApplications },
-          { name: 'aub', setter: setAubApplications },
-          { name: 'robinsons', setter: setRobinsonsApplications },
-        ];
-        const fetchPromises = bankTables.map(async ({ name, setter }) => {
-          const { data, error } = await fetchBankTableData(name);
-          if (error) {
-            console.error(`Error fetching ${name} data:`, error);
-            return;
-          }
-          // Always update the state, even if there are no records
-          if (data) {
-            const transformedData = transformBankData(data, name);
-            setter(transformedData);
-            console.log(`ModeratorDashboard: Fetched ${name} applications:`, transformedData.length);
-          } else {
-            setter([]);
-            console.log(`ModeratorDashboard: No data found for ${name}`);
-          }
-        });
-        await Promise.all(fetchPromises);
-      } catch (err) {
-        console.error('Unexpected error fetching bank applications:', err);
       }
     };
 
@@ -1547,6 +1568,18 @@ const ModeratorDashboard: React.FC = () => {
       turnIn: 0
     };
   };
+
+  // Function to refresh status report data
+  const refreshStatusReport = async () => {
+    try {
+      console.log('Refreshing status report data...');
+      await fetchBankApplications();
+      setToast({ show: true, message: 'Status report refreshed successfully', type: 'success' });
+    } catch (error) {
+      console.error('Error refreshing status report:', error);
+      setToast({ show: true, message: 'Failed to refresh status report', type: 'error' });
+    }
+  };
   
   // Add these functions for edit application modal
   const renderEditStepIndicator = () => (
@@ -1781,8 +1814,19 @@ const ModeratorDashboard: React.FC = () => {
 
   const renderStatusReport = () => (
     <div>
-      <h2 className="text-2xl font-bold mb-2">Status Report</h2>
-      <p className="text-gray-600 mb-6">Track application status by bank</p>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Status Report</h2>
+          <p className="text-gray-600">Track application status by bank</p>
+        </div>
+        <button
+          onClick={refreshStatusReport}
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </button>
+      </div>
       
       {!selectedBank ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -2725,22 +2769,40 @@ const ModeratorDashboard: React.FC = () => {
                       try {
                         console.log('Deleting user:', u);
                         
-                        // Delete user directly from Supabase
-                        const { error } = await supabase
-                          .from('user_profiles')
-                          .delete()
-                          .eq('id', u.id);
-                          
-                        if (error) {
-                          console.error('Error deleting user:', error);
-                          setToast({ show: true, message: 'Failed to delete user: ' + error.message, type: 'error' });
+                        // Get the current user's session token
+                        const { data: { session } } = await supabase.auth.getSession();
+                        
+                        if (!session?.access_token) {
+                          setToast({ show: true, message: 'You must be logged in to delete users', type: 'error' });
                           return;
                         }
                         
-                        // Update local state
-                        setUsers(prev => prev.filter((_, idx) => idx !== i));
-                        setPendingDeleteIdx(null);
-                        setToast({ show: true, message: 'User deleted successfully!', type: 'success' });
+                                // Call the API route to delete user
+                        const response = await fetch(API_ENDPOINTS.DELETE_USER, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session.access_token}`
+                          },
+                          body: JSON.stringify({
+                            email: u.email
+                          })
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (response.ok && result.success) {
+                          // Update local state
+                          setUsers(prev => prev.filter((_, idx) => idx !== i));
+                          setPendingDeleteIdx(null);
+                          setToast({ show: true, message: result.message || 'User deleted successfully!', type: 'success' });
+                        } else {
+                          setToast({ 
+                            show: true, 
+                            message: result.error || 'Failed to delete user. Please try again.', 
+                            type: 'error' 
+                          });
+                        }
                       } catch (err) {
                         let errorMsg = 'Unknown error';
                         if (err instanceof Error) {
@@ -3526,9 +3588,10 @@ const ModeratorDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleAddUser}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  disabled={isCreatingUser}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Add User
+                  {isCreatingUser ? 'Creating...' : 'Add User'}
                 </button>
               </div>
             </div>

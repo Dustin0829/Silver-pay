@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { NextApiRequest, NextApiResponse } from 'next';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 import crypto from 'crypto';
 
 // Initialize Supabase client with service role key to bypass RLS
@@ -9,8 +9,8 @@ const supabase = createClient(
 );
 
 export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
+  req: VercelRequest,
+  res: VercelResponse
 ) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -25,9 +25,9 @@ export default async function handler(
     }
     
     // Verify the user is authenticated and has proper role
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: userAuthError } = await supabase.auth.getUser(token);
     
-    if (authError || !user) {
+    if (userAuthError || !user) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     
@@ -54,16 +54,40 @@ export default async function handler(
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
-    // Create a direct entry in the user_profiles table
-    // For a real application, you would use proper auth flow
-    // This is a simplified approach for demonstration purposes
-    // Generate a UUID for the user_id
-    const userId = crypto.randomUUID();
+    // First, check if user already exists
+    const { data: existingUser } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('email', email)
+      .single();
+      
+    if (existingUser) {
+      return res.status(400).json({ error: 'A user with this email already exists' });
+    }
+    
+    // Create the auth user using admin functions
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true, // Auto-confirm email
+      user_metadata: {
+        name,
+        role
+      }
+    });
+    
+    if (authError) {
+      console.error('Error creating auth user:', authError);
+      return res.status(400).json({ error: authError.message });
+    }
+    
+    if (!authData.user) {
+      return res.status(400).json({ error: 'Failed to create authentication user' });
+    }
     
     // Create user profile in the database
     const newUserProfile = {
-      id: crypto.randomUUID(),
-      user_id: userId,
+      user_id: authData.user.id,
       name,
       email,
       role,
@@ -78,13 +102,18 @@ export default async function handler(
       
     if (insertError) {
       console.error('Error inserting user profile:', insertError);
+      // Clean up the auth user if profile creation fails
+      await supabase.auth.admin.deleteUser(authData.user.id);
       return res.status(400).json({ error: insertError.message });
     }
     
-    // For a real application, you would create the auth user here
-    console.log('User profile created successfully:', newUserProfile);
+    console.log('User created successfully:', authData.user.id);
     
-    return res.status(200).json({ success: true, user: newUserProfile });
+    return res.status(200).json({ 
+      success: true, 
+      user: { ...newUserProfile, id: authData.user.id },
+      message: 'User created successfully and can log in immediately'
+    });
   } catch (error) {
     console.error('Unexpected error in create-user:', error);
     return res.status(500).json({ error: 'Internal server error' });

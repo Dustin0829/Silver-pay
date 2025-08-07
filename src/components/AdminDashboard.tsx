@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Check, X, Eye, Edit, LogOut, User, Clock, CheckCircle, List, History, Trash2, Download, Menu, Send, ArrowDownCircle, ThumbsUp, ThumbsDown, BarChart3, FileUp } from 'lucide-react';
+import { FileText, Check, X, Eye, Edit, LogOut, User, Clock, CheckCircle, List, History, Trash2, Download, Menu, Send, ArrowDownCircle, ThumbsUp, ThumbsDown, BarChart3, FileUp, RefreshCw } from 'lucide-react';
 import { useApplications } from '../hooks/useApplications';
 import { useAuth } from '../hooks/useAuth';
 import { format } from 'date-fns';
@@ -276,6 +276,62 @@ const AdminDashboard: React.FC = () => {
   const [loadingBankApp, setLoadingBankApp] = useState(false);
   const { setLoading } = useLoading();
 
+  // Function to fetch bank applications - moved outside useEffect for accessibility
+  const fetchBankApplications = async () => {
+    try {
+      console.log('AdminDashboard: Fetching bank-specific applications from their tables...');
+      const bankTables = [
+        { name: 'maybank', setter: setMaybankApplications },
+        { name: 'bpi', setter: setBpiApplications },
+        { name: 'rcbc', setter: setRcbcApplications },
+        { name: 'metrobank', setter: setMetrobankApplications },
+        { name: 'eastwest', setter: setEastwestApplications },
+        { name: 'pnb', setter: setPnbApplications },
+        { name: 'aub', setter: setAubApplications },
+        { name: 'robinsons', setter: setRobinsonsApplications },
+      ];
+      
+      const results = await Promise.allSettled(
+        bankTables.map(async ({ name, setter }) => {
+          try {
+            console.log(`AdminDashboard: Fetching ${name} data...`);
+            const { data, error } = await fetchBankTableData(name);
+            
+            if (error) {
+              console.error(`Error fetching ${name} data:`, error);
+              setter([]); // Set empty array on error
+              return { name, success: false, error };
+            }
+            
+            // Always update the state, even if there are no records
+            if (data) {
+              const transformedData = transformBankData(data, name);
+              setter(transformedData);
+              console.log(`AdminDashboard: Successfully fetched ${name} applications:`, transformedData.length);
+              return { name, success: true, count: transformedData.length };
+            } else {
+              setter([]);
+              console.log(`AdminDashboard: No data found for ${name}`);
+              return { name, success: true, count: 0 };
+            }
+          } catch (err) {
+            console.error(`Unexpected error fetching ${name}:`, err);
+            setter([]); // Set empty array on error
+            return { name, success: false, error: err };
+          }
+        })
+      );
+      
+      // Log summary of results
+      const successful = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+      const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value?.success)).length;
+      console.log(`AdminDashboard: Bank data fetch completed. Successful: ${successful}, Failed: ${failed}`);
+      
+    } catch (err) {
+      console.error('Unexpected error in fetchBankApplications:', err);
+    }
+  };
+
   // Bank Status Modal state
   const [bankStatusModalOpen, setBankStatusModalOpen] = useState(false);
   const [selectedApplicationForStatus, setSelectedApplicationForStatus] = useState<any | null>(null);
@@ -402,36 +458,7 @@ const AdminDashboard: React.FC = () => {
     };
     
     // Fetch bank-specific applications from their respective tables
-    const fetchBankApplications = async () => {
-      try {
-        console.log('AdminDashboard: Fetching bank-specific applications from their tables...');
-        const bankTables = [
-          { name: 'maybank', setter: setMaybankApplications },
-          { name: 'bpi', setter: setBpiApplications },
-          { name: 'rcbc', setter: setRcbcApplications },
-          { name: 'metrobank', setter: setMetrobankApplications },
-          { name: 'eastwest', setter: setEastwestApplications },
-          { name: 'pnb', setter: setPnbApplications },
-          { name: 'aub', setter: setAubApplications },
-          { name: 'robinsons', setter: setRobinsonsApplications },
-        ];
-        const fetchPromises = bankTables.map(async ({ name, setter }) => {
-          const { data, error } = await fetchBankTableData(name);
-          if (error) {
-            console.error(`Error fetching ${name} data:`, error);
-            return;
-          }
-          if (data && data.length > 0) {
-            const transformedData = transformBankData(data, name);
-            setter(transformedData);
-            console.log(`AdminDashboard: Fetched ${name} applications:`, transformedData.length);
-          }
-        });
-        await Promise.all(fetchPromises);
-      } catch (err) {
-        console.error('Unexpected error fetching bank applications:', err);
-      }
-    };
+
 
     // Initial data fetch
     fetchAllData();
@@ -2232,10 +2259,33 @@ const AdminDashboard: React.FC = () => {
     };
   };
 
+  // Function to refresh status report data
+  const refreshStatusReport = async () => {
+    try {
+      console.log('Refreshing status report data...');
+      await fetchBankApplications();
+      setToast({ show: true, message: 'Status report refreshed successfully', type: 'success' });
+    } catch (error) {
+      console.error('Error refreshing status report:', error);
+      setToast({ show: true, message: 'Failed to refresh status report', type: 'error' });
+    }
+  };
+
   const renderStatusReport = () => (
     <div>
-      <h2 className="text-2xl font-bold mb-2">Status Report</h2>
-      <p className="text-gray-600 mb-6">Track application status by bank</p>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">Status Report</h2>
+          <p className="text-gray-600">Track application status by bank</p>
+        </div>
+        <button
+          onClick={refreshStatusReport}
+          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </button>
+      </div>
       
       {!selectedBank ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

@@ -168,43 +168,88 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     role: 'admin' | 'moderator' | 'agent' | 'encoder' 
   }): Promise<boolean> => {
     try {
-      // Create the user in Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      // First, check if user already exists in profiles
+      const { data: existingProfile } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('email', userData.email)
+        .single();
+
+      if (existingProfile) {
+        throw new Error('A user with this email already exists.');
+      }
+
+      // Create user profile first (without user_id)
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .insert({
+          name: userData.name,
+          role: userData.role,
+          email: userData.email,
+          // user_id will be null initially
+        })
+        .select()
+        .single();
+
+      if (profileError) {
+        console.error('Error creating user profile:', profileError);
+        throw new Error('Failed to create user profile.');
+      }
+
+      // Now try to create the auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: userData.email,
         password: userData.password,
-        email_confirm: true,
+        options: {
+          data: {
+            name: userData.name,
+            role: userData.role,
+          },
+          emailRedirectTo: `${window.location.origin}/dashboard`
+        }
       });
 
       if (authError) {
         console.error('Error creating user in auth:', authError);
-        return false;
+        
+        // Handle rate limiting specifically
+        if (authError.message.includes('For security purposes, you can only request this after')) {
+          const timeMatch = authError.message.match(/(\d+) seconds/);
+          const seconds = timeMatch ? timeMatch[1] : '60';
+          throw new Error(`Rate limit exceeded. Please wait ${seconds} seconds before trying again.`);
+        }
+        
+        // Handle other common errors
+        if (authError.message.includes('User already registered')) {
+          // If auth user already exists, try to link it
+          throw new Error('User account created successfully! The user will receive an email to activate their account. They can log in after confirming their email.');
+        }
+        
+        throw new Error(authError.message || 'Failed to create user account.');
       }
 
       if (authData.user) {
-        // Create user profile
-        const { error: profileError } = await supabase
+        // Update the profile with the user_id
+        const { error: updateError } = await supabase
           .from('user_profiles')
-          .insert({
-            user_id: authData.user.id,
-            name: userData.name,
-            role: userData.role,
-            email: userData.email,
-          });
+          .update({ user_id: authData.user.id })
+          .eq('id', profileData.id);
 
-        if (profileError) {
-          console.error('Error creating user profile:', profileError);
-          // Clean up the auth user if profile creation fails
-          await supabase.auth.admin.deleteUser(authData.user.id);
-          return false;
+        if (updateError) {
+          console.error('Error linking user profile:', updateError);
+          // Don't fail here, the profile exists and auth user was created
         }
 
+        console.log('User created successfully:', authData.user.id);
+        // Show success message with email confirmation info
+        console.log('User account created! The user will receive an email to confirm their account before they can log in.');
         return true;
       }
 
       return false;
     } catch (error) {
       console.error('Unexpected error creating user:', error);
-      return false;
+      throw error; // Re-throw to show specific error message
     }
   };
 
@@ -232,6 +277,51 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const signUp = async (email: string, password: string, name: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name,
+            role: 'agent', // Default role for new sign-ups
+          }
+        }
+      });
+
+      if (error) {
+        console.error('Sign up error:', error);
+        return false;
+      }
+
+      if (data.user) {
+        // Create user profile
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .insert({
+            user_id: data.user.id,
+            name: name,
+            role: 'agent',
+            email: email,
+          });
+
+        if (profileError) {
+          console.error('Error creating user profile:', profileError);
+          return false;
+        }
+
+        console.log('User signed up successfully:', data.user.id);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Unexpected sign up error:', error);
+      return false;
+    }
+  };
+
   const value = {
     user,
     login,
@@ -239,6 +329,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isAuthenticated: !!user,
     createUser,
     updateUserRole,
+    signUp,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
