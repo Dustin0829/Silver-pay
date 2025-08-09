@@ -142,8 +142,8 @@ const Header: React.FC = () => {
               
               {/* Footer */}
               <div className="p-4 border-t border-gray-200">
-              <div className="text-sm text-gray-500 text-center">
-                  CardConnectPH
+                <div className="text-sm text-gray-500 text-center">
+                  Silver Card Solutions
                 </div>
               </div>
             </div>
