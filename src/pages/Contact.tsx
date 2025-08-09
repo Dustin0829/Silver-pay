@@ -50,7 +50,7 @@ const Contact: React.FC = () => {
     try {
       // Create email content
       const emailContent = `
-        New Feedback Submission from SilverCard Website
+        New Feedback Submission from CardConnectPH Website
         
         Name: ${formData.name}
         Email: ${formData.email}
@@ -61,11 +61,11 @@ const Contact: React.FC = () => {
         ${formData.message}
         
         ---
-        This message was sent from the SilverCard contact form.
+        This message was sent from the CardConnectPH contact form.
       `;
 
       // Create mailto link with the specified email
-      const mailtoLink = `mailto:hr.admin@teamscsolutions.com?subject=SilverCard Feedback: ${encodeURIComponent(formData.subject)}&body=${encodeURIComponent(emailContent)}`;
+      const mailtoLink = `mailto:cardconnectph@gmail.com?subject=CardConnectPH Feedback: ${encodeURIComponent(formData.subject)}&body=${encodeURIComponent(emailContent)}`;
       
       // Open default email client
       window.location.href = mailtoLink;
@@ -106,7 +106,7 @@ const Contact: React.FC = () => {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Contact Us</h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            We value your feedback! Help us improve SilverCard by sharing your thoughts, 
+            We value your feedback! Help us improve CardConnectPH by sharing your thoughts, 
             suggestions, and ideas for what we can do better.
           </p>
         </div>
@@ -143,8 +143,8 @@ const Contact: React.FC = () => {
                      <Mail className="h-6 w-6 text-blue-600" />
                    </div>
                    <div className="ml-4">
-                     <h3 className="text-lg font-semibold text-gray-900">Email</h3>
-                    <p className="text-gray-600">silvercard.202504@gmail.com</p>
+                    <h3 className="text-lg font-semibold text-gray-900">Email</h3>
+                    <p className="text-gray-600">cardconnectph@gmail.com</p>
                     <p className="text-gray-500 text-sm">For general inquiries and feedback</p>
                   </div>
                 </div>

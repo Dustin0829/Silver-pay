@@ -43,7 +43,7 @@ const Login: React.FC = () => {
       <div className="max-w-md w-full bg-white rounded-xl shadow-2xl p-4 sm:p-6">
         <div className="text-center mb-8">
           <LogIn className="h-12 w-12 text-blue-700 mx-auto mb-4" />
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">SilverCard Login</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">CardConnectPH Login</h2>
           <p className="text-gray-600 mt-2">Access your dashboard</p>
         </div>
 

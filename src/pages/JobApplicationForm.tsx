@@ -8,7 +8,7 @@ const jobPositions = [
   {
     id: 1,
     title: 'Credit Card Sales Officer',
-    company: 'SilverCard',
+    company: 'CardConnectPH',
     location: 'Quezon City, Philippines',
     type: 'Full-time',
     description: 'We are looking for a dynamic Credit Card Sales Officer to join our team and help expand our customer base.',
@@ -41,7 +41,7 @@ const jobPositions = [
   {
     id: 2,
     title: 'Bank Application Processor',
-    company: 'SilverCard',
+    company: 'CardConnectPH',
     location: 'Quezon City, Philippines',
     type: 'Part-time',
     description: 'Join our processing team to handle credit card applications and ensure smooth operations.',
@@ -74,7 +74,7 @@ const jobPositions = [
   {
     id: 3,
     title: 'Admin Staff',
-    company: 'SilverCard',
+    company: 'CardConnectPH',
     location: 'Quezon City, Philippines',
     type: 'Full-time',
     description: 'Support our operations team with administrative tasks and ensure smooth day-to-day operations.',
@@ -107,7 +107,7 @@ const jobPositions = [
   {
     id: 4,
     title: 'Data Encoder',
-    company: 'SilverCard',
+    company: 'CardConnectPH',
     location: 'Quezon City, Philippines',
     type: 'Full-time',
     description: 'Join our data management team to ensure accurate and timely data entry for our operations.',
@@ -229,7 +229,7 @@ const JobApplicationForm: React.FC = () => {
       try {
         // Create email content with resume attachment info
         const emailContent = `
-          New Job Application from SilverCard Website
+          New Job Application from CardConnectPH Website
           
           Position Applied: ${selectedJob?.title}
           
@@ -270,7 +270,7 @@ const JobApplicationForm: React.FC = () => {
           Resume filename: ${resume.name} (${(resume.size / 1024 / 1024).toFixed(2)} MB)
           
           ---
-          This application was sent from the SilverCard careers page.
+          This application was sent from the CardConnectPH careers page.
         `;
 
         // Create Gmail compose link with both recipients

@@ -25,7 +25,7 @@ const Footer: React.FC<FooterProps> = ({ onShowTerms, onShowPrivacy }) => {
   return (
     <footer className="bg-gray-900 text-gray-200 py-8">
       <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row md:justify-between md:items-start gap-6 text-left font-inherit">
-        <div className="text-sm md:mb-0 mb-4 md:text-left text-center w-full md:w-auto">&copy; {new Date().getFullYear()} SilverCard. All rights reserved.</div>
+        <div className="text-sm md:mb-0 mb-4 md:text-left text-center w-full md:w-auto">&copy; {new Date().getFullYear()} CardConnectPH. All rights reserved.</div>
         <div className="flex flex-col md:flex-row gap-12 w-full md:w-auto md:items-start md:text-left">
           <div className="flex flex-row gap-12 md:gap-12 w-full md:w-auto justify-start">
             <div className="flex flex-col gap-2 text-sm min-w-[150px] items-start text-left">

@@ -25,7 +25,7 @@ const Header: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-24">
           <Link to="/" className="flex items-center space-x-2">
-            <img src="/company/Logo.png" alt="SilverCard Company Logo" className="h-36 w-auto" />
+            <img src="/company/new-logo.jpeg" alt="CardConnectPH Logo" className="h-40 w-auto" />
           </Link>
 
           <nav className="flex items-center space-x-6">
@@ -142,8 +142,8 @@ const Header: React.FC = () => {
               
               {/* Footer */}
               <div className="p-4 border-t border-gray-200">
-                <div className="text-sm text-gray-500 text-center">
-                  Silver Card Solutions
+              <div className="text-sm text-gray-500 text-center">
+                  CardConnectPH
                 </div>
               </div>
             </div>

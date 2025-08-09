@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { FileText, Eye, List, History, LogOut, Menu } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../hooks/useAuth';
 import { format } from 'date-fns';
 import { useLoading } from '../hooks/useLoading';
 // import Logo from '../assets/Company/Logo.png';
+import { Pie } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+
+ChartJS.register(ArcElement, Tooltip, Legend);
 
 const AgentDashboard: React.FC = () => {
   console.log('Input rendered!');
@@ -206,6 +210,68 @@ const AgentDashboard: React.FC = () => {
 
   // PDF export functionality removed
 
+  // Compute status distribution for pie chart
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      submitted: 0,
+      'turn-in': 0,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+    };
+    for (const app of applications) {
+      const status = (app.status || '').toLowerCase();
+      if (status in counts) {
+        counts[status] += 1;
+      }
+    }
+    return counts;
+  }, [applications]);
+
+  const pieChartData = useMemo(() => {
+    const labels = ['Submitted', 'Turn-in', 'Pending', 'Approved', 'Rejected'];
+    const dataValues = [
+      statusCounts['submitted'],
+      statusCounts['turn-in'],
+      statusCounts['pending'],
+      statusCounts['approved'],
+      statusCounts['rejected'],
+    ];
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Applications',
+          data: dataValues,
+          backgroundColor: [
+            'rgba(59, 130, 246, 0.65)', // blue
+            'rgba(139, 92, 246, 0.65)', // purple
+            'rgba(234, 179, 8, 0.65)', // yellow
+            'rgba(34, 197, 94, 0.65)', // green
+            'rgba(239, 68, 68, 0.65)', // red
+          ],
+          borderColor: [
+            'rgba(59, 130, 246, 1)',
+            'rgba(139, 92, 246, 1)',
+            'rgba(234, 179, 8, 1)',
+            'rgba(34, 197, 94, 1)',
+            'rgba(239, 68, 68, 1)',
+          ],
+          borderWidth: 1,
+        },
+      ],
+    };
+  }, [statusCounts]);
+
+  const pieChartOptions = useMemo(() => ({
+    responsive: true,
+    plugins: {
+      legend: { position: 'bottom' as const },
+      tooltip: { enabled: true },
+    },
+    maintainAspectRatio: false,
+  }), []);
+
   // 1. Sidebar navigation (match AdminDashboard)
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: <List className="w-5 h-5 mr-2" /> },
@@ -230,6 +296,18 @@ const AgentDashboard: React.FC = () => {
         <div className="bg-white rounded-xl p-6 flex flex-col items-start shadow">
           <div className="flex items-center mb-2"><FileText className="w-6 h-6 text-blue-500 mr-2" /> <span className="font-semibold">Total Applications</span></div>
           <div className="text-2xl font-bold">{totalApplicationsCount}</div>
+        </div>
+        <div className="bg-white rounded-xl p-6 shadow">
+          <div className="flex items-center mb-4">
+            <span className="font-semibold">Applications by Status</span>
+          </div>
+          <div className="h-64">
+            {totalApplicationsCount > 0 ? (
+              <Pie data={pieChartData} options={pieChartOptions} />
+            ) : (
+              <div className="h-full flex items-center justify-center text-gray-500 text-sm">No applications yet</div>
+            )}
+          </div>
         </div>
       </div>
       {/* Quick Actions for Agent */}
@@ -731,10 +809,9 @@ const AgentDashboard: React.FC = () => {
           {/* Logo and Title Section */}
           <div className="flex flex-col items-center mb-10 px-2">
             <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
-              <img src="/company/Logo.png" alt="Logo" className="h-16 w-16 object-contain" />
+              <img src="/company/new-logo.jpeg" alt="Logo" className="h-16 w-16 object-contain" />
             </div>
-            <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>SILVER CARD</span>
-            <span className="text-xs uppercase text-gray-400 tracking-widest text-center mb-1">SOLUTIONS</span>
+            <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>CardConnectPH</span>
             <span className="text-sm text-gray-300 text-center">Agent Portal</span>
           </div>
           {/* Navigation */}
@@ -766,10 +843,9 @@ const AgentDashboard: React.FC = () => {
               <button className="absolute top-4 right-4 text-gray-400 hover:text-red-600 text-2xl" onClick={() => setSidebarOpen(false)}>&times;</button>
               <div className="flex flex-col items-center mb-10 px-2 mt-8">
                 <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
-                  <img src="/company/Logo.png" alt="Logo" className="h-16 w-16 object-contain" />
+                  <img src="/company/new-logo.jpeg" alt="Logo" className="h-16 w-16 object-contain" />
                 </div>
-                <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>SILVER CARD</span>
-                <span className="text-xs uppercase text-gray-400 tracking-widest text-center mb-1">SOLUTIONS</span>
+                <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>CardConnectPH</span>
                 <span className="text-sm text-gray-300 text-center">Agent Portal</span>
               </div>
               <nav className="flex flex-col gap-3 flex-1 items-center">
@@ -807,7 +883,7 @@ const AgentDashboard: React.FC = () => {
             </button>
             {/* Centered Title */}
             <div className="flex-1 flex flex-col items-center">
-              <div className="text-xl font-bold text-gray-900">Silver Card</div>
+              <div className="text-xl font-bold text-gray-900">CardConnectPH</div>
               <div className="text-xs text-gray-500">Credit Card Management System</div>
             </div>
             {/* User info only (no avatar, no background, no logout) */}

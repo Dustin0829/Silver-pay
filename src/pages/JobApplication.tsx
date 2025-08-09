@@ -7,11 +7,11 @@ const jobPositions = [
   {
     id: 1,
     title: 'Credit Card Sales Officer',
-    company: 'SilverCard',
+    company: 'CardConnectPH',
     location: 'Quezon City, Philippines',
     type: 'Full-time',
     description: 'We are looking for a dynamic Credit Card Sales Officer to join our team and help expand our customer base.',
-    detailedDescription: 'As a Credit Card Sales Officer at SilverCard, you will play a crucial role in our growth strategy by acquiring new customers and promoting our credit card products. You will work with a dynamic team of sales professionals to achieve targets and provide exceptional service to potential clients.',
+    detailedDescription: 'As a Credit Card Sales Officer at CardConnectPH, you will play a crucial role in our growth strategy by acquiring new customers and promoting our credit card products. You will work with a dynamic team of sales professionals to achieve targets and provide exceptional service to potential clients.',
     requirements: [
       'High school graduate or equivalent',
       'Minimum 2 years of sales experience, preferably in financial services',
@@ -41,7 +41,7 @@ const jobPositions = [
   {
     id: 2,
     title: 'Bank Application Processor',
-    company: 'SilverCard',
+    company: 'CardConnectPH',
     location: 'Quezon City, Philippines',
     type: 'Part-time',
     description: 'Join our processing team to handle credit card applications and ensure smooth operations.',
@@ -74,7 +74,7 @@ const jobPositions = [
   {
     id: 3,
     title: 'Admin Staff',
-    company: 'SilverCard',
+    company: 'CardConnectPH',
     location: 'Quezon City, Philippines',
     type: 'Full-time',
     description: 'Support our operations team with administrative tasks and ensure smooth day-to-day operations.',
@@ -106,7 +106,7 @@ const jobPositions = [
   {
     id: 4,
     title: 'Data Encoder',
-    company: 'SilverCard',
+    company: 'CardConnectPH',
     location: 'Quezon City, Philippines',
     type: 'Full-time',
     description: 'Join our data management team to ensure accurate and timely data entry for our operations.',
@@ -159,7 +159,7 @@ const JobApplication: React.FC = () => {
     <div className="max-w-6xl mx-auto py-16 px-4">
       <BackButton />
       <h1 className="text-3xl font-bold mb-6">Career Opportunities</h1>
-      <p className="text-gray-700 mb-8">Join our team and be part of SilverCard's mission to provide exceptional financial services. Explore our current openings below.</p>
+      <p className="text-gray-700 mb-8">Join our team and be part of CardConnectPH's mission to provide exceptional financial services. Explore our current openings below.</p>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {jobPositions.map((job) => (

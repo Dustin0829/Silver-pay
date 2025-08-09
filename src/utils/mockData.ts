@@ -83,7 +83,7 @@ export const MOCK_APPLICATIONS = [
       aub: false,
     },
     status: 'pending',
-    submitted_by: 'agent@silvercard.com',
+   submitted_by: 'agent@cardconnectph.com',
     submitted_at: '2024-01-15T10:30:00Z',
   },
   {
@@ -168,7 +168,7 @@ export const MOCK_APPLICATIONS = [
       aub: false,
     },
     status: 'approved',
-    submitted_by: 'agent@silvercard.com',
+   submitted_by: 'agent@cardconnectph.com',
     submitted_at: '2024-01-10T14:15:00Z',
   },
   {
@@ -253,7 +253,7 @@ export const MOCK_APPLICATIONS = [
       aub: false,
     },
     status: 'submitted',
-    submitted_by: 'agent@silvercard.com',
+   submitted_by: 'agent@cardconnectph.com',
     submitted_at: '2024-01-20T09:45:00Z',
   },
 ];
@@ -262,7 +262,7 @@ export const MOCK_USERS = [
   {
     id: 'admin-1',
     name: 'Admin User',
-    email: 'admin@silvercard.com',
+    email: 'admin@cardconnectph.com',
     role: 'admin',
     bank_codes: [],
     created_at: '2024-01-01T00:00:00Z',
@@ -270,7 +270,7 @@ export const MOCK_USERS = [
   {
     id: 'agent-1',
     name: 'Agent User',
-    email: 'agent@silvercard.com',
+    email: 'agent@cardconnectph.com',
     role: 'agent',
     bank_codes: [
       { bank: 'rcbc', code: 'RC001' },

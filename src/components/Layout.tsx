@@ -52,9 +52,9 @@ const Layout: React.FC = () => {
             </button>
             <h2 className="text-2xl font-bold mb-4 text-center">Terms and Conditions</h2>
             <div className="prose text-base mb-4 max-w-none">
-              <p className="text-gray-700 mb-2 font-semibold">Silver Card Solutions Terms and Conditions</p>
+              <p className="text-gray-700 mb-2 font-semibold">CardConnectPH Terms and Conditions</p>
               <p className="text-gray-600 mb-4"><strong>Date of Last Revision:</strong> July 2025</p>
-              <p className="text-gray-700 mb-4">Silver Card Solutions (“Silver Card,” “we,” “our,” or “us”) provides financial assistance, comparison, and support services through our website and affiliated channels (collectively, the “Services”). These Terms and Conditions apply to anyone who uses our Services (“you” or “your”).</p>
+              <p className="text-gray-700 mb-4">CardConnectPH (“CardConnectPH,” “we,” “our,” or “us”) provides financial assistance, comparison, and support services through our website and affiliated channels (collectively, the “Services”). These Terms and Conditions apply to anyone who uses our Services (“you” or “your”).</p>
               <p className="text-gray-700 mb-4">By using our Services, you agree to be bound by these Terms and Conditions and our Privacy Policy. If you do not agree, please discontinue use immediately.</p>
               <ol className="list-decimal list-inside space-y-4 text-gray-700">
                 <li>
@@ -64,7 +64,7 @@ const Layout: React.FC = () => {
                 </li>
                 <li>
                   <span className="font-semibold">Our Service</span>
-                  <p className="ml-4">Silver Card Solutions provides an independent platform for comparing and applying for credit cards, loan products, insurance, and other financial offerings from third-party providers. We may also assist you offline (e.g., via phone consultations) at no cost to you.</p>
+                  <p className="ml-4">CardConnectPH provides an independent platform for comparing and applying for credit cards, loan products, insurance, and other financial offerings from third-party providers. We may also assist you offline (e.g., via phone consultations) at no cost to you.</p>
                   <ul className="list-disc ml-8">
                     <li>We are not a financial institution or insurer.</li>
                     <li>We do not provide financial advice.</li>
@@ -73,8 +73,8 @@ const Layout: React.FC = () => {
                   </ul>
                 </li>
                 <li>
-                  <span className="font-semibold">About Silver Card Solutions</span>
-                  <p className="ml-4">Silver Card Solutions is a comparison platform and marketing service. We work with licensed providers but are not directly involved in underwriting, insuring, or issuing financial products. All financial and insurance services presented on our platform are provided by licensed third parties.</p>
+                  <span className="font-semibold">About CardConnectPH</span>
+                  <p className="ml-4">CardConnectPH is a comparison platform and marketing service. We work with licensed providers but are not directly involved in underwriting, insuring, or issuing financial products. All financial and insurance services presented on our platform are provided by licensed third parties.</p>
                   <p className="ml-4">We may receive commissions from these providers, and by using our Services, you agree to such arrangements.</p>
                 </li>
                 <li>
@@ -110,11 +110,11 @@ const Layout: React.FC = () => {
                 </li>
                 <li>
                   <span className="font-semibold">Intellectual Property</span>
-                  <p className="ml-4">All content on the Services is the intellectual property of Silver Card Solutions or its licensors. You may not copy, distribute, or use any content for commercial purposes without permission.</p>
+                  <p className="ml-4">All content on the Services is the intellectual property of CardConnectPH or its licensors. You may not copy, distribute, or use any content for commercial purposes without permission.</p>
                 </li>
                 <li>
                   <span className="font-semibold">License to Use Your Submissions</span>
-                  <p className="ml-4">By submitting content, feedback, or suggestions to Silver Card Solutions, you grant us a royalty-free, irrevocable license to use them in any way, excluding personal data which is governed by our Privacy Policy.</p>
+                  <p className="ml-4">By submitting content, feedback, or suggestions to CardConnectPH, you grant us a royalty-free, irrevocable license to use them in any way, excluding personal data which is governed by our Privacy Policy.</p>
                 </li>
                 <li>
                   <span className="font-semibold">Exclusion of Liability</span>
@@ -151,9 +151,9 @@ const Layout: React.FC = () => {
             </button>
             <h2 className="text-2xl font-bold mb-4 text-center">Privacy Policy</h2>
             <div className="prose text-base mb-4 max-w-none">
-              <p className="text-gray-700 mb-2 font-semibold">Silver Card Solutions Inc. – Privacy Policy</p>
+              <p className="text-gray-700 mb-2 font-semibold">CardConnectPH – Privacy Policy</p>
               <p className="text-gray-600 mb-4">Date of Last Revision: <span className="font-medium">[July 2025]</span></p>
-              <p className="text-gray-700 mb-4">Silver Card Solutions Inc. (“Silver Card”, “we”, “us”, or “our”) is committed to protecting your privacy and ensuring that your personal data is handled securely and in compliance with the Data Privacy Act of 2012 and all relevant data protection laws in the Philippines.</p>
+              <p className="text-gray-700 mb-4">CardConnectPH (“we”, “us”, or “our”) is committed to protecting your privacy and ensuring that your personal data is handled securely and in compliance with the Data Privacy Act of 2012 and all relevant data protection laws in the Philippines.</p>
               <p className="text-gray-700 mb-4">This Privacy Policy outlines how we collect, use, disclose, and safeguard your Personal Data when you visit our website, mobile applications, or interact with any of our services (collectively, the “Services”). By using our Services, you agree to the terms of this Privacy Policy.</p>
               <ol className="list-decimal list-inside space-y-4 text-gray-700">
                 <li>
@@ -292,7 +292,7 @@ const Layout: React.FC = () => {
                 </li>
                 <li>
                   <span className="font-semibold">Changes to this Privacy Policy</span>
-                  <p className="ml-4">Silver Card Solutions Inc. reserves the right to update this Privacy Policy to reflect changes in our operations or legal requirements. The “last revised” date will always be indicated. Continued use of our Services constitutes your acceptance of the updated Privacy Policy.</p>
+                  <p className="ml-4">CardConnectPH reserves the right to update this Privacy Policy to reflect changes in our operations or legal requirements. The “last revised” date will always be indicated. Continued use of our Services constitutes your acceptance of the updated Privacy Policy.</p>
                 </li>
                 <li>
                   <span className="font-semibold">Contact Us</span>
@@ -300,7 +300,7 @@ const Layout: React.FC = () => {
                   <ul className="list-none ml-8">
                     <li>📞 <span className="font-semibold">Phone:</span> 0285518750</li>
                     <li>🏢 <span className="font-semibold">Address:</span> 2/F Unit 3, PBE Building, 14 Balete Drive, Quezon City, Philippines</li>
-                    <li>📩 <span className="font-semibold">Email:</span> silvercard.202504@gmail.com</li>
+                    <li>📩 <span className="font-semibold">Email:</span> cardconnectph@gmail.com</li>
                     <li>🛠️ <span className="font-semibold">Help Center:</span> support@teamscsolutions.com</li>
                   </ul>
                 </li>

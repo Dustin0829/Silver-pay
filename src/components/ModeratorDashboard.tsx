@@ -2916,10 +2916,9 @@ const ModeratorDashboard: React.FC = () => {
           {/* Logo and Title Section */}
           <div className="flex flex-col items-center mb-10 px-2">
             <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
-              <img src="/company/Logo.png" alt="Logo" className="h-16 w-16 object-contain" />
+              <img src="/company/new-logo.jpeg" alt="Logo" className="h-16 w-16 object-contain" />
             </div>
-            <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>SILVER CARD</span>
-            <span className="text-xs uppercase text-gray-400 tracking-widest text-center mb-1">SOLUTIONS</span>
+            <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>CardConnectPH</span>
             <span className="text-sm text-gray-300 text-center">Moderator Portal</span>
           </div>
           {/* Navigation */}
@@ -2952,10 +2951,9 @@ const ModeratorDashboard: React.FC = () => {
               <button className="absolute top-4 right-4 text-gray-400 hover:text-red-600 text-2xl" onClick={() => setSidebarOpen(false)}>&times;</button>
               <div className="flex flex-col items-center mb-10 px-2 mt-8">
                 <div className="bg-white rounded-full flex items-center justify-center w-24 h-24 mb-4">
-                  <img src="/company/Logo.png" alt="Logo" className="h-16 w-16 object-contain" />
+                  <img src="/company/new-logo.jpeg" alt="Logo" className="h-16 w-16 object-contain" />
                 </div>
-                <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>SILVER CARD</span>
-                <span className="text-xs uppercase text-gray-400 tracking-widest text-center mb-1">SOLUTIONS</span>
+                <span className="text-2xl font-extrabold tracking-wide text-center mb-1" style={{letterSpacing: '0.08em'}}>CardConnectPH</span>
                 <span className="text-sm text-gray-300 text-center">Moderator Portal</span>
               </div>
               <nav className="flex flex-col gap-3 flex-1 items-center">
@@ -2992,7 +2990,7 @@ const ModeratorDashboard: React.FC = () => {
               <Menu className="h-7 w-7" />
             </button>
             <div className="flex-1 flex flex-col items-center">
-              <div className="text-xl font-bold text-gray-900">Silver Card</div>
+              <div className="text-xl font-bold text-gray-900">CardConnectPH</div>
               <div className="text-xs text-gray-500">Credit Card Management System</div>
             </div>
             <div className="flex items-center gap-2 ml-4">
