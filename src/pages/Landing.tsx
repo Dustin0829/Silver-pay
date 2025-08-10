@@ -329,7 +329,7 @@ const Landing: React.FC = () => {
               </div>
               <p className="text-gray-600 mb-6 leading-relaxed">
                 "CardConnectPH made getting my first credit card incredibly easy! The process was smooth, 
-                transparent, and I got approved within 2 days. Their team was very professional and helpful."
+                transparent, and I got approved within 3 weeks. Their team was very professional and helpful."
               </p>
               <div className="flex items-center">
                 <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center mr-4">
