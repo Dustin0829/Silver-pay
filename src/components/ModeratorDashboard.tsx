@@ -426,34 +426,29 @@ const ModeratorDashboard: React.FC = () => {
       // 0) Preserve current admin session to avoid being switched to the newly created user
       const { data: { session: adminSession } } = await supabase.auth.getSession();
 
-      // 1) Create auth user via serverless API (service role) to avoid client session changes
+      // 1) Create auth user on client (no server API), but suppress session flip
       try { localStorage.setItem('suppressNextSignIn', 'true'); } catch {}
-      const resp = await fetch('/api/admin-users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: newUser.email,
-          password: newUser.password,
-          name: newUser.name,
-          role: newUser.role,
-          bank_codes: newUser.role === 'agent' ? (newUser.bankCodes || []) : [],
-        }),
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newUser.email,
+        password: newUser.password,
+        options: { data: { name: newUser.name, role: newUser.role } }
       });
-      let apiResult: any = null;
-      try { apiResult = await resp.json(); } catch { apiResult = {}; }
-      if (!resp.ok) {
-        const msg = apiResult?.error || 'Failed to create user';
-        setToast({ show: true, message: msg, type: 'error' });
+      if (authError) {
+        const msg = authError.message || '';
+        if (msg.includes('User already registered') || msg.includes('Database error saving new user')) {
+          setToast({ show: true, message: 'Email already registered. Use a different email or reset password.', type: 'error' });
+        } else if (msg.includes('For security purposes')) {
+          setToast({ show: true, message: 'Rate limit exceeded. Please wait a minute before trying again.', type: 'error' });
+        } else {
+          setToast({ show: true, message: 'Failed to create user: ' + msg, type: 'error' });
+        }
         return;
       }
-      const authData = { user: apiResult?.user } as any;
-
       if (!authData?.user) {
         setToast({ show: true, message: 'Failed to create user account', type: 'error' });
         return;
       }
-
-      // Early session restore to prevent UI switching
+      // Restore admin session immediately if signUp switched it
       try {
         if (adminSession?.access_token && adminSession?.refresh_token) {
           await supabase.auth.setSession({
