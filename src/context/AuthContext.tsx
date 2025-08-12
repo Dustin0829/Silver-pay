@@ -33,6 +33,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         try {
+          const suppressNextSignIn = typeof window !== 'undefined' && localStorage.getItem('suppressNextSignIn') === 'true';
+          if (suppressNextSignIn && event === 'SIGNED_IN' && session?.user) {
+            console.warn('AuthContext: Suppressing SIGNED_IN event triggered by user creation.');
+            localStorage.removeItem('suppressNextSignIn');
+            return; // Ignore this transient sign-in
+          }
           if (event === 'SIGNED_IN' && session?.user) {
             await fetchUserProfile(session.user);
           } else if (event === 'SIGNED_OUT') {
@@ -54,16 +60,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setTimeout(() => reject(new Error('Profile fetch timeout')), 8000)
       );
 
+      // Use maybeSingle() instead of single() to handle cases where there might be multiple rows
       const profilePromise = supabase
         .from('user_profiles')
         .select('*')
         .eq('user_id', supabaseUser.id)
-        .single();
+        .maybeSingle();
 
       const { data: profile, error } = await Promise.race([profilePromise, timeoutPromise]) as any;
 
       if (error) {
         console.error('Error fetching user profile:', error);
+        
+        // If we get a multiple rows error, try to get the first one
+        if (error.code === 'PGRST116' && error.message.includes('multiple')) {
+          console.log('Multiple profiles found, getting first one...');
+          const { data: profiles, error: multiError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', supabaseUser.id)
+            .limit(1);
+          
+          if (multiError) {
+            console.error('Error fetching first profile:', multiError);
+            return;
+          }
+          
+          if (profiles && profiles.length > 0) {
+            const firstProfile = profiles[0];
+            console.log('Using first profile:', firstProfile);
+            
+            const userData: User = {
+              id: supabaseUser.id,
+              email: supabaseUser.email!,
+              name: firstProfile.name,
+              role: firstProfile.role,
+              createdAt: new Date(supabaseUser.created_at),
+            };
+            
+            setUser(userData);
+          }
+        }
         return;
       }
 

@@ -300,6 +300,96 @@ const ModeratorDashboard: React.FC = () => {
     onConfirm: () => {},
     type: 'danger' as 'danger' | 'warning' | 'info'
   });
+
+  // Helper: perform actual delete of a user
+  const performDeleteUser = async (u: any, i: number) => {
+    try {
+      console.log('Deleting user:', u);
+      console.log('Deleting user directly with Supabase:', u.email);
+
+      // Find the user's auth ID from the profile without assuming a single row
+      const { data: profiles, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('user_id')
+        .eq('email', u.email)
+        .order('created_at', { ascending: true })
+        .limit(5);
+
+      if (profileError) {
+        console.error('Error finding user profile:', profileError);
+        setToast({ show: true, message: 'Failed to find user: ' + profileError.message, type: 'error' });
+        return;
+      }
+
+      // Pick the first non-null user_id if available
+      const userIdFromProfiles = (profiles || []).find(p => !!p.user_id)?.user_id;
+
+      if (!userIdFromProfiles) {
+        console.warn('No auth user_id found for email, deleting profiles only:', u.email);
+        // Delete all profiles for this email
+        const { error: deleteProfileError } = await supabase
+          .from('user_profiles')
+          .delete()
+          .eq('email', u.email);
+
+        if (deleteProfileError) {
+          setToast({ show: true, message: 'Failed to delete user profile: ' + deleteProfileError.message, type: 'error' });
+          return;
+        }
+
+        // Update local state
+        setUsers(prev => prev.filter((_, idx) => idx !== i));
+        setToast({ show: true, message: 'User profile(s) deleted successfully!', type: 'success' });
+        return;
+      }
+
+      // Delete from auth (requires admin privileges - might fail)
+      try {
+        const { error: authError } = await supabase.auth.admin.deleteUser(userIdFromProfiles);
+        if (authError) {
+          console.error('Error deleting auth user:', authError);
+          // Continue to delete the profile even if auth deletion fails
+        }
+      } catch (authErr) {
+        console.error('Failed to delete auth user (might need admin rights):', authErr);
+        // Continue anyway
+      }
+
+      // Delete all profiles for this email (handles duplicates)
+      const { error: deleteError } = await supabase
+        .from('user_profiles')
+        .delete()
+        .eq('email', u.email);
+
+      if (deleteError) {
+        setToast({ show: true, message: 'Failed to delete user profile: ' + deleteError.message, type: 'error' });
+        return;
+      }
+
+      // Update local state
+      setUsers(prev => prev.filter((_, idx) => idx !== i));
+      setToast({ show: true, message: 'User deleted successfully!', type: 'success' });
+    } catch (err) {
+      let errorMsg = 'Unknown error';
+      if (err instanceof Error) {
+        errorMsg = err.message;
+      } else if (typeof err === 'string') {
+        errorMsg = err;
+      }
+      console.error('Error in delete user:', err);
+      setToast({ show: true, message: 'Failed to delete user: ' + errorMsg, type: 'error' });
+    }
+  };
+
+  const requestDeleteUser = (u: any, i: number) => {
+    setConfirmationModal({
+      isOpen: true,
+      title: 'Delete User',
+      message: `Are you sure you want to delete ${u.name} (${u.email})? This action cannot be undone.`,
+      type: 'danger',
+      onConfirm: () => { void performDeleteUser(u, i); }
+    });
+  };
   
   // User management functions
   const handleAddUser = async () => {
@@ -321,119 +411,126 @@ const ModeratorDashboard: React.FC = () => {
         return;
       }
       
-      // For agent role, validate bank codes
+      // For agent role, bank codes are optional. If provided, validate entries but allow empty list.
       if (newUser.role === 'agent') {
-        const invalidBankCode = newUser.bankCodes.some(bc => !bc.bank || !bc.code);
-        if (invalidBankCode) {
-          setToast({ show: true, message: 'All bank codes must have both bank and code values', type: 'error' });
-          return;
-        }
+        const filtered = Array.isArray(newUser.bankCodes)
+          ? newUser.bankCodes.filter(bc => bc.bank && bc.code)
+          : [];
+        newUser.bankCodes = filtered;
       }
       
       setIsCreatingUser(true);
-      
-      console.log('Creating user directly with Supabase:', {
-        email: newUser.email,
-        name: newUser.name,
-        role: newUser.role
-      });
-      
-      try {
-        // DIRECT APPROACH: Create user profile first
-        const { data: profileData, error: profileError } = await supabase
-          .from('user_profiles')
-          .insert({
-            name: newUser.name,
-            email: newUser.email,
-            role: newUser.role,
-            bank_codes: newUser.role === 'agent' ? newUser.bankCodes : [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-          
-        if (profileError) {
-          console.error('Error creating user profile:', profileError);
-          if (profileError.message.includes('duplicate')) {
-            setToast({ show: true, message: 'A user with this email already exists', type: 'error' });
-          } else {
-            setToast({ show: true, message: 'Failed to create user profile: ' + profileError.message, type: 'error' });
-          }
-          return;
-        }
-        
-        // Now create the auth user
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+
+      console.log('Creating user via auth first, then profile:', { email: newUser.email, name: newUser.name, role: newUser.role });
+
+      // 0) Preserve current admin session to avoid being switched to the newly created user
+      const { data: { session: adminSession } } = await supabase.auth.getSession();
+
+      // 1) Create auth user via serverless API (service role) to avoid client session changes
+      try { localStorage.setItem('suppressNextSignIn', 'true'); } catch {}
+      const resp = await fetch('/api/admin-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           email: newUser.email,
           password: newUser.password,
-          options: {
-            data: {
+          name: newUser.name,
+          role: newUser.role,
+          bank_codes: newUser.role === 'agent' ? (newUser.bankCodes || []) : [],
+        }),
+      });
+      let apiResult: any = null;
+      try { apiResult = await resp.json(); } catch { apiResult = {}; }
+      if (!resp.ok) {
+        const msg = apiResult?.error || 'Failed to create user';
+        setToast({ show: true, message: msg, type: 'error' });
+        return;
+      }
+      const authData = { user: apiResult?.user } as any;
+
+      if (!authData?.user) {
+        setToast({ show: true, message: 'Failed to create user account', type: 'error' });
+        return;
+      }
+
+      // Early session restore to prevent UI switching
+      try {
+        if (adminSession?.access_token && adminSession?.refresh_token) {
+          await supabase.auth.setSession({
+            access_token: adminSession.access_token,
+            refresh_token: adminSession.refresh_token,
+          });
+        }
+      } catch (e) {
+        console.warn('Early session restore failed:', e);
+      }
+
+      // 2) Save/update profile (idempotent on email) – safety net if API skipped it
+      let savedProfile: any | null = null;
+      const { data: upserted, error: upsertError } = await supabase
+        .from('user_profiles')
+        .upsert({
+          user_id: authData.user.id,
+          name: newUser.name,
+          email: newUser.email,
+          role: newUser.role,
+          bank_codes: newUser.role === 'agent' ? (newUser.bankCodes || []) : [],
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'email' })
+        .select()
+        .maybeSingle();
+
+      if (!upsertError && upserted) {
+        savedProfile = upserted;
+      } else {
+        const { data: existing } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('email', newUser.email)
+          .maybeSingle();
+        if (existing) {
+          const { data: updated } = await supabase
+            .from('user_profiles')
+            .update({
+              user_id: authData.user.id,
               name: newUser.name,
               role: newUser.role,
-            }
-          }
-        });
-        
-        if (authError) {
-          console.error('Error creating auth user:', authError);
-          
-          // Clean up the profile we already created
-          await supabase
-            .from('user_profiles')
-            .delete()
-            .eq('id', profileData.id);
-            
-          if (authError.message.includes('User already registered')) {
-            setToast({ 
-              show: true, 
-              message: 'This email is already registered. User must confirm their email before logging in.', 
-              type: 'error' 
-            });
-          } else if (authError.message.includes('For security purposes')) {
-            setToast({ 
-              show: true, 
-              message: 'Rate limit exceeded. Please wait a minute before trying again.', 
-              type: 'error' 
-            });
-          } else {
-            setToast({ show: true, message: 'Failed to create user: ' + authError.message, type: 'error' });
-          }
-          return;
-        }
-        
-        if (authData.user) {
-          // Update the profile with the user_id
-          await supabase
-            .from('user_profiles')
-            .update({ user_id: authData.user.id })
-            .eq('id', profileData.id);
-            
-          setToast({ 
-            show: true, 
-            message: 'User created successfully! They will need to confirm their email before logging in.', 
-            type: 'success' 
-          });
-          setShowAddUser(false);
-          setNewUser({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
-          
-          // Refresh the users list - will be defined later
-          setTimeout(() => {
-            if (typeof fetchAllData === 'function') {
-              fetchAllData();
-            }
-          }, 500);
+              bank_codes: newUser.role === 'agent' ? (newUser.bankCodes || []) : [],
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existing.id)
+            .select()
+            .single();
+          savedProfile = updated;
         } else {
-          setToast({ 
-            show: true, 
-            message: 'Failed to create user account. Please try again.', 
-            type: 'error' 
-          });
+          const { data: inserted } = await supabase
+            .from('user_profiles')
+            .insert({
+              user_id: authData.user.id,
+              name: newUser.name,
+              email: newUser.email,
+              role: newUser.role,
+              bank_codes: newUser.role === 'agent' ? (newUser.bankCodes || []) : [],
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+          savedProfile = inserted;
         }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to create user. Please try again.';
-        setToast({ show: true, message: errorMessage, type: 'error' });
       }
+
+      if (!savedProfile) {
+        setToast({ show: true, message: 'User created in auth, but failed to save profile.', type: 'error' });
+        return;
+      }
+
+      // 3) Session is unaffected because creation used service role API
+
+      setUsers(prev => [savedProfile, ...prev.filter(u => u.email !== savedProfile.email)]);
+      setShowAddUser(false);
+      setNewUser({ name: '', email: '', password: '', role: 'agent', bankCodes: [{ bank: '', code: '' }] });
+      setToast({ show: true, message: 'User created successfully!', type: 'success' });
     } catch (error) {
       console.error('Unexpected error creating user:', error);
       setToast({ show: true, message: 'Failed to create user: ' + (error instanceof Error ? error.message : 'Unknown error'), type: 'error' });
@@ -2809,93 +2906,7 @@ const ModeratorDashboard: React.FC = () => {
                       bankCodes: Array.isArray(u.bank_codes) && u.bank_codes.length > 0 ? u.bank_codes : (u.role === 'agent' ? [{ bank: '', code: '' }] : []),
                     });
                   }}><Edit className="w-4 h-4" /></button>
-                  <button className="text-red-600 hover:text-red-800" onClick={async () => {
-                    if (pendingDeleteIdx === i) {
-                      try {
-                        console.log('Deleting user:', u);
-                        
-                        console.log('Deleting user directly with Supabase:', u.email);
-                        
-                        // First find the user's auth ID from the profile
-                        const { data: userProfile, error: profileError } = await supabase
-                          .from('user_profiles')
-                          .select('user_id')
-                          .eq('email', u.email)
-                          .single();
-                          
-                        if (profileError) {
-                          console.error('Error finding user profile:', profileError);
-                          setToast({ show: true, message: 'Failed to find user: ' + profileError.message, type: 'error' });
-                          return;
-                        }
-                        
-                        if (!userProfile?.user_id) {
-                          console.error('User has no auth ID:', u);
-                          
-                          // Just delete the profile if there's no auth ID
-                          const { error: deleteProfileError } = await supabase
-                            .from('user_profiles')
-                            .delete()
-                            .eq('email', u.email);
-                            
-                          if (deleteProfileError) {
-                            setToast({ show: true, message: 'Failed to delete user profile: ' + deleteProfileError.message, type: 'error' });
-                            return;
-                          }
-                          
-                          // Update local state
-                          setUsers(prev => prev.filter((_, idx) => idx !== i));
-                          setPendingDeleteIdx(null);
-                          setToast({ show: true, message: 'User profile deleted successfully!', type: 'success' });
-                          return;
-                        }
-                        
-                        // Delete from auth (requires admin privileges - might fail)
-                        try {
-                          const { error: authError } = await supabase.auth.admin.deleteUser(
-                            userProfile.user_id
-                          );
-                          
-                          if (authError) {
-                            console.error('Error deleting auth user:', authError);
-                            // Continue to delete the profile even if auth deletion fails
-                          }
-                        } catch (authErr) {
-                          console.error('Failed to delete auth user (might need admin rights):', authErr);
-                          // Continue anyway
-                        }
-                        
-                        // Delete the profile
-                        const { error: deleteError } = await supabase
-                          .from('user_profiles')
-                          .delete()
-                          .eq('email', u.email);
-                          
-                        if (deleteError) {
-                          setToast({ show: true, message: 'Failed to delete user profile: ' + deleteError.message, type: 'error' });
-                          return;
-                        }
-                        
-                        // Update local state
-                        setUsers(prev => prev.filter((_, idx) => idx !== i));
-                        setPendingDeleteIdx(null);
-                        setToast({ show: true, message: 'User deleted successfully!', type: 'success' });
-                      } catch (err) {
-                        let errorMsg = 'Unknown error';
-                        if (err instanceof Error) {
-                          errorMsg = err.message;
-                        } else if (typeof err === 'string') {
-                          errorMsg = err;
-                        }
-                        console.error('Error in delete user:', err);
-                        setToast({ show: true, message: 'Failed to delete user: ' + errorMsg, type: 'error' });
-                      }
-                    } else {
-                      setPendingDeleteIdx(i);
-                      setToast({ show: true, message: 'Click again to confirm delete.', type: 'error' });
-                      setTimeout(() => setPendingDeleteIdx(null), 3000);
-                    }
-                  }}><Trash2 className="w-4 h-4" /></button>
+                  <button className="text-red-600 hover:text-red-800" onClick={() => requestDeleteUser(u, i)}><Trash2 className="w-4 h-4" /></button>
                 </td>
               </tr>
             ))

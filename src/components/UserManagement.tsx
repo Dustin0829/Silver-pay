@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { usePermissions } from './RoleBasedAccess';
 import { supabase } from '../supabaseClient';
 import Toast from './Toast';
+import ConfirmationModal from './ConfirmationModal';
 
 interface UserProfile {
   id: string;
@@ -40,6 +41,8 @@ const UserManagement: React.FC = () => {
     role: 'agent' as 'admin' | 'moderator' | 'agent' | 'encoder'
   });
 
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean; userId: string | null; name?: string; email?: string }>({ open: false, userId: null });
+
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -55,6 +58,19 @@ const UserManagement: React.FC = () => {
         console.error('Error fetching users:', error);
         setToast({ show: true, message: 'Failed to fetch users', type: 'error' });
         return;
+      }
+
+      // Check for and log any duplicate user_ids
+      if (data) {
+        const userCounts = data.reduce((acc: { [key: string]: number }, user) => {
+          acc[user.user_id] = (acc[user.user_id] || 0) + 1;
+          return acc;
+        }, {});
+        
+        const duplicates = Object.entries(userCounts).filter(([_, count]) => count > 1);
+        if (duplicates.length > 0) {
+          console.warn('Found duplicate user profiles:', duplicates);
+        }
       }
 
       setUsers(data || []);
@@ -122,15 +138,62 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      return;
-    }
+  const cleanupDuplicateProfiles = async (userId: string) => {
+    try {
+      // Get all profiles for this user
+      const { data: profiles, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
 
+      if (error) {
+        console.error('Error fetching profiles for cleanup:', error);
+        return;
+      }
+
+      if (profiles && profiles.length > 1) {
+        console.log(`Found ${profiles.length} profiles for user ${userId}, keeping the oldest one`);
+        
+        // Keep the first (oldest) profile, delete the rest
+        const profilesToDelete = profiles.slice(1);
+        
+        for (const profile of profilesToDelete) {
+          const { error: deleteError } = await supabase
+            .from('user_profiles')
+            .delete()
+            .eq('id', profile.id);
+          
+          if (deleteError) {
+            console.error('Error deleting duplicate profile:', deleteError);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error cleaning up duplicate profiles:', error);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
     setLoading(true);
 
     try {
-      // Delete from user_profiles first
+      console.log('Deleting user:', userId);
+      
+      // First, clean up any duplicate profiles for this user
+      await cleanupDuplicateProfiles(userId);
+      
+      // Get the user's email for logging
+      const { data: userData } = await supabase
+        .from('user_profiles')
+        .select('email')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      const userEmail = userData?.email || 'unknown';
+      console.log('Deleting user directly with Supabase:', userEmail);
+
+      // Delete ALL matching entries from user_profiles (in case of duplicates)
       const { error: profileError } = await supabase
         .from('user_profiles')
         .delete()
@@ -138,21 +201,28 @@ const UserManagement: React.FC = () => {
 
       if (profileError) {
         console.error('Error deleting user profile:', profileError);
-        setToast({ show: true, message: 'Failed to delete user', type: 'error' });
+        setToast({ show: true, message: 'Failed to delete user profile', type: 'error' });
         return;
       }
 
-      // Delete from auth.users (this requires admin privileges)
-      const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-
-      if (authError) {
-        console.error('Error deleting auth user:', authError);
-        setToast({ show: true, message: 'User profile deleted but auth user deletion failed', type: 'error' });
-      } else {
-        setToast({ show: true, message: 'User deleted successfully!', type: 'success' });
+      // Try to delete from auth.users (this requires admin privileges)
+      try {
+        const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+        
+        if (authError) {
+          console.error('Error deleting auth user:', authError);
+          // Don't fail here - the profile is already deleted
+          setToast({ show: true, message: 'User profile deleted successfully. Auth user deletion may require admin privileges.', type: 'success' });
+        } else {
+          setToast({ show: true, message: 'User deleted successfully!', type: 'success' });
+        }
+      } catch (authError) {
+        console.error('Auth deletion error (may be permission issue):', authError);
+        setToast({ show: true, message: 'User profile deleted successfully. Auth user deletion may require admin privileges.', type: 'success' });
       }
 
-      fetchUsers();
+      // Refresh the users list
+      await fetchUsers();
     } catch (error) {
       console.error('Error deleting user:', error);
       setToast({ show: true, message: 'Error deleting user', type: 'error' });
@@ -359,7 +429,7 @@ const UserManagement: React.FC = () => {
                       </button>
                       {canDeleteUsers() && userProfile.user_id !== user?.id && (
                         <button
-                          onClick={() => handleDeleteUser(userProfile.user_id)}
+                          onClick={() => setDeleteModal({ open: true, userId: userProfile.user_id, name: userProfile.name, email: userProfile.email })}
                           className="text-red-600 hover:text-red-900"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -383,6 +453,17 @@ const UserManagement: React.FC = () => {
           onClose={() => setToast({ show: false, message: '', type: 'success' })}
         />
       )}
+
+      <ConfirmationModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, userId: null })}
+        onConfirm={() => deleteModal.userId && handleDeleteUser(deleteModal.userId)}
+        title="Delete User"
+        message={`Are you sure you want to delete ${deleteModal.name || ''} ${deleteModal.email ? `(${deleteModal.email})` : ''}? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
     </div>
   );
 };
