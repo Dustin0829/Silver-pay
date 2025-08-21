@@ -63,12 +63,14 @@ const PHILIPPINE_PROVINCES: RegionToProvincesMap = {
   'Bangsamoro Autonomous Region in Muslim Mindanao (BARMM)': ['Basilan', 'Lanao del Sur', 'Maguindanao', 'Sulu', 'Tawi-Tawi']
 };
 
-// Sample cities for some provinces (you can expand this)
+// Cities/municipalities per province (legacy fallback; full list is loaded from JSON)
 const PHILIPPINE_CITIES: ProvinceToMunicipalitiesMap = {
   'Metro Manila': ['Manila', 'Quezon City', 'Caloocan', 'Las Piñas', 'Makati', 'Malabon', 'Mandaluyong', 'Marikina', 'Muntinlupa', 'Navotas', 'Parañaque', 'Pasay', 'Pasig', 'San Juan', 'Taguig', 'Valenzuela', 'Pateros'],
   'Pampanga': ['Angeles', 'Apalit', 'Arayat', 'Bacolor', 'Candaba', 'Floridablanca', 'Guagua', 'Lubao', 'Mabalacat', 'Macabebe', 'Magalang', 'Masantol', 'Mexico', 'Minalin', 'Porac', 'San Fernando', 'San Luis', 'San Simon', 'Santa Ana', 'Santa Rita', 'Santo Tomas', 'Sasmuan'],
   'Bulacan': ['Angat', 'Balagtas', 'Baliuag', 'Bocaue', 'Bulakan', 'Bustos', 'Calumpit', 'Doña Remedios Trinidad', 'Guiguinto', 'Hagonoy', 'Malolos', 'Marilao', 'Meycauayan', 'Norzagaray', 'Obando', 'Pandi', 'Paombong', 'Plaridel', 'Pulilan', 'San Ildefonso', 'San Jose del Monte', 'San Miguel', 'San Rafael', 'San Simon', 'Santa Maria'],
-  'Cebu': ['Alcantara', 'Alcoy', 'Alegria', 'Aloguinsan', 'Argao', 'Asturias', 'Badian', 'Balamban', 'Bantayan', 'Barili', 'Bogo', 'Boljoon', 'Borbon', 'Carcar', 'Carmen', 'Catmon', 'Cebu', 'Compostela', 'Consolacion', 'Cordova', 'Daanbantayan', 'Dalaguete', 'Danao', 'Dumanjug', 'Ginatilan', 'Lapu-Lapu', 'Liloan', 'Madridejos', 'Malabuyoc', 'Mandaue', 'Medellin', 'Minglanilla', 'Moalboal', 'Naga', 'Oslob', 'Pilar', 'Pinamungajan', 'Poro', 'Ronda', 'Samboan', 'San Fernando', 'San Francisco', 'San Remigio', 'Santa Fe', 'Santander', 'Sibonga', 'Sogod', 'Tabogon', 'Tabuelan', 'Talisay', 'Toledo', 'Tuburan', 'Tudela']
+  'Cebu': ['Alcantara', 'Alcoy', 'Alegria', 'Aloguinsan', 'Argao', 'Asturias', 'Badian', 'Balamban', 'Bantayan', 'Barili', 'Bogo', 'Boljoon', 'Borbon', 'Carcar', 'Carmen', 'Catmon', 'Cebu', 'Compostela', 'Consolacion', 'Cordova', 'Daanbantayan', 'Dalaguete', 'Danao', 'Dumanjug', 'Ginatilan', 'Lapu-Lapu', 'Liloan', 'Madridejos', 'Malabuyoc', 'Mandaue', 'Medellin', 'Minglanilla', 'Moalboal', 'Naga', 'Oslob', 'Pilar', 'Pinamungajan', 'Poro', 'Ronda', 'Samboan', 'San Fernando', 'San Francisco', 'San Remigio', 'Santa Fe', 'Santander', 'Sibonga', 'Sogod', 'Tabogon', 'Tabuelan', 'Talisay', 'Toledo', 'Tuburan', 'Tudela'],
+  // Palawan list (reference: Wikipedia list of cities and municipalities in the Philippines)
+  'Palawan': ['Aborlan', 'Agutaya', 'Araceli', 'Balabac', "Brooke's Point", 'Bataraza', 'Busuanga', 'Cagayancillo', 'Coron', 'Culion', 'Cuyo', 'Dumaran', 'El Nido', 'Kalayaan', 'Linapacan', 'Magsaysay', 'Narra', 'Quezon', 'Rizal', 'Roxas', 'San Vicente', 'Sofronio Española', 'Taytay', 'Puerto Princesa']
 };
 
 // Sample barangays for some cities (you can expand this)
@@ -145,6 +147,9 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectA
     };
   });
   const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | undefined }>({ show: false, message: '', type: undefined });
+  // Dynamic locations loaded from JSON (overrides fallback maps)
+  const [regionToProvincesMap, setRegionToProvincesMap] = useState<RegionToProvincesMap | null>(null);
+  const [provinceToMunicipalitiesMap, setProvinceToMunicipalitiesMap] = useState<ProvinceToMunicipalitiesMap | null>(null);
   const [idPhoto, setIdPhoto] = useState<File | null>(null);
   const [eSignature, setESignature] = useState<File | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string>('');
@@ -154,6 +159,22 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectA
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(formData));
   }, [formData]);
+
+  // Load comprehensive locations JSON (region->provinces, province->municipalities)
+  useEffect(() => {
+    const loadLocations = async () => {
+      try {
+        const res = await fetch('/data/philippine_locations.json');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.regions && data?.provinces) {
+          setRegionToProvincesMap(data.regions as RegionToProvincesMap);
+          setProvinceToMunicipalitiesMap(data.provinces as ProvinceToMunicipalitiesMap);
+        }
+      } catch {}
+    };
+    loadLocations();
+  }, []);
 
   // Fetch real agents from Supabase for encoder form
   useEffect(() => {
@@ -548,7 +569,7 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectA
                 required
               >
                 <option value="">Select Region</option>
-                {PHILIPPINE_REGIONS.map((region, index) => (
+                {(regionToProvincesMap ? Object.keys(regionToProvincesMap) : PHILIPPINE_REGIONS).map((region, index) => (
                   <option key={index} value={region}>{region}</option>
                 ))}
               </select>
@@ -571,7 +592,7 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectA
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Municipality <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Municipality/City <span className="text-red-500">*</span></label>
               <select
                 value={formData.personalDetails.birthMunicipality}
                 onChange={(e) => handleBirthMunicipalityChange(e.target.value)}
@@ -579,7 +600,7 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectA
                 disabled={!formData.personalDetails.birthProvince}
                 required
               >
-                <option value="">Select Municipality</option>
+                <option value="">Select Municipality/City</option>
                 {formData.personalDetails.birthProvince && getMunicipalities(formData.personalDetails.birthProvince).map((municipality, index) => (
                   <option key={index} value={municipality}>{municipality}</option>
                 ))}
@@ -704,11 +725,17 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectA
 
   // Get municipalities for a province
   const getMunicipalities = (province: string): string[] => {
+    if (provinceToMunicipalitiesMap && provinceToMunicipalitiesMap[province]) {
+      return provinceToMunicipalitiesMap[province];
+    }
     return PHILIPPINE_CITIES[province as keyof typeof PHILIPPINE_CITIES] || [];
   };
 
   // Get provinces for a region
   const getProvinces = (region: string): string[] => {
+    if (regionToProvincesMap && regionToProvincesMap[region]) {
+      return regionToProvincesMap[region];
+    }
     return PHILIPPINE_PROVINCES[region as keyof typeof PHILIPPINE_PROVINCES] || [];
   };
 
