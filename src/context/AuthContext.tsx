@@ -314,6 +314,45 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const updateUserPassword = async (userId: string, newPassword: string): Promise<boolean> => {
+    try {
+      // Get the current session to verify the user is logged in
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        console.error('No active session found');
+        return false;
+      }
+
+      // Call the deployed Supabase Edge Function to update the password
+      const supabaseUrl = 'https://dywstsoqrnqyihlntndl.supabase.co';
+      const response = await fetch(`${supabaseUrl}/functions/v1/update-user-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          new_password: newPassword
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error('Error updating password:', result.error);
+        return false;
+      }
+
+      console.log('Password updated successfully:', result);
+      return true;
+    } catch (error) {
+      console.error('Unexpected error updating user password:', error);
+      return false;
+    }
+  };
+
   const signUp = async (email: string, password: string, name: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -366,6 +405,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     isAuthenticated: !!user,
     createUser,
     updateUserRole,
+    updateUserPassword,
     signUp,
   };
 

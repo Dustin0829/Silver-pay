@@ -184,7 +184,7 @@ function mapFlatToNestedApp(data: any) {
 const initialToastState = { show: false, message: '', type: undefined as 'success' | 'error' | undefined };
 
 const ModeratorDashboard: React.FC = () => {
-  const { logout, user, createUser } = useAuth();
+  const { logout, user, createUser, updateUserPassword } = useAuth();
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('dashboard');
   const [applications, setApplications] = useState<any[]>([]);
@@ -580,6 +580,17 @@ const ModeratorDashboard: React.FC = () => {
         }
         
         console.log('User profile updated successfully:', data);
+        
+        // Update password if provided
+        if (editUser.password && editUser.password.trim()) {
+          const passwordUpdated = await updateUserPassword(user.user_id, editUser.password);
+          if (!passwordUpdated) {
+            setToast({ show: true, message: 'Profile updated but password change failed', type: 'error' });
+            return;
+          }
+          // Show success message for password change
+          setToast({ show: true, message: 'Profile updated successfully! Password has been changed for the user.', type: 'success' });
+        }
         
         // Update local state
         const updatedUser = { ...user, ...updateData };
@@ -3727,6 +3738,7 @@ const ModeratorDashboard: React.FC = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="New Password"
                 />
+                <p className="text-xs text-gray-500 mt-1">Password will be updated immediately for the selected user.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>

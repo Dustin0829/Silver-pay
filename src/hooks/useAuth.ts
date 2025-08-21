@@ -1,13 +1,15 @@
 import React, { useContext } from 'react';
 
 // Define the context type
-interface AuthContextType {
-  user: any;
+export interface AuthContextType {
+  user: User | null;
   login: (email: string, password: string) => Promise<boolean>;
-  logout: () => Promise<void>;
+  logout: () => void;
   isAuthenticated: boolean;
-  createUser: (userData: any) => Promise<boolean>;
+  createUser: (userData: CreateUserData) => Promise<boolean>;
   updateUserRole: (userId: string, role: any) => Promise<boolean>;
+  updateUserPassword: (userId: string, newPassword: string) => Promise<boolean>;
+  signUp: (email: string, password: string, name: string) => Promise<boolean>;
 }
 
 // Create the context
