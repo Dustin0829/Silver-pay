@@ -63,6 +63,14 @@ const AppContent: React.FC = () => {
               } 
             />
             <Route 
+              path="admin/apply" 
+              element={
+                <ProtectedRoute role="admin">
+                  <ApplicationForm isEncoderForm={true} redirectAfterSubmitPath="/admin" />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="agent/apply" 
               element={
                 <ProtectedRoute role="agent">
@@ -91,6 +99,14 @@ const AppContent: React.FC = () => {
               element={
                 <ProtectedRoute role="encoder">
                   <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="moderator/apply" 
+              element={
+                <ProtectedRoute role="moderator">
+                  <ApplicationForm isEncoderForm={true} redirectAfterSubmitPath="/moderator" />
                 </ProtectedRoute>
               } 
             />

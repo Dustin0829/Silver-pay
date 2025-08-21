@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Check, X, Eye, Edit, LogOut, User, Clock, CheckCircle, List, History, Trash2, Download, Menu, Send, ArrowDownCircle, ThumbsUp, ThumbsDown, BarChart3, Users, FileUp, RefreshCw } from 'lucide-react';
+import { FileText, Check, X, Eye, Edit, LogOut, User, Clock, CheckCircle, List, History, Trash2, Download, Menu, Send, ArrowDownCircle, ThumbsUp, ThumbsDown, BarChart3, Users, FileUp, RefreshCw, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { format } from 'date-fns';
 import Toast from './Toast';
@@ -184,6 +185,7 @@ const initialToastState = { show: false, message: '', type: undefined as 'succes
 
 const ModeratorDashboard: React.FC = () => {
   const { logout, user, createUser } = useAuth();
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('dashboard');
   const [applications, setApplications] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -600,6 +602,7 @@ const ModeratorDashboard: React.FC = () => {
   // Sidebar navigation
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: <List className="w-5 h-5 mr-2" /> },
+    { key: 'apply', label: 'Apply', icon: <Plus className="w-5 h-5 mr-2" /> },
     { key: 'applications', label: 'Client Applications', icon: <FileText className="w-5 h-5 mr-2" /> },
     { key: 'statusReport', label: 'Status Report', icon: <BarChart3 className="w-5 h-5 mr-2" /> },
     { key: 'history', label: 'Application History', icon: <History className="w-5 h-5 mr-2" /> },
@@ -607,9 +610,16 @@ const ModeratorDashboard: React.FC = () => {
   ];
 
   // Fetch data from Supabase
+  // Navigate to apply form when selecting Apply section
+  useEffect(() => {
+    if (activeSection === 'apply') {
+      navigate('/moderator/apply');
+    }
+  }, [activeSection, navigate]);
+
   useEffect(() => {
     let isMounted = true;
-    
+
     const fetchAllData = async () => {
       setLoading(true);
       try {

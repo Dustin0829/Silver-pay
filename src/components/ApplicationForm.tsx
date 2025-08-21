@@ -121,9 +121,9 @@ type FormDataType = {
 
 const LOCAL_STORAGE_KEY = 'applicationFormData';
 
-const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false }) => {
+const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectAfterSubmitPath }: { isAgentForm?: boolean; isEncoderForm?: boolean; redirectAfterSubmitPath?: string }) => {
   const navigate = useNavigate();
-  const { user } = isAgentForm ? useAuth() : { user: null };
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormDataType>(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -307,7 +307,7 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false }) => {
       best_time_to_contact: formData.creditCardDetails.bestTimeToContact,
       location: '',
       agent: isAgentForm && user ? user.name : (isEncoderForm ? selectedAgent : 'direct'),
-      encoder: isEncoderForm && user ? user.name : null,
+      encoder: isEncoderForm && user ? (user.name || user.email) : null,
       relative3_name: formData.personalReference.lastName ? `${formData.personalReference.lastName}, ${formData.personalReference.firstName} ${formData.personalReference.middleName} ${formData.personalReference.suffix} (${formData.personalReference.relationship}) ${formData.personalReference.mobileNumber}`.trim() : null,
       remarks: '',
       bank_applied: Object.keys(formData.bankPreferences).filter(k => formData.bankPreferences[k as keyof BankPreferences]).join(', '),
@@ -348,7 +348,7 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false }) => {
       
       setTimeout(() => {
         setLoading(false);
-        navigate('/encoder/history');
+        navigate(redirectAfterSubmitPath || '/encoder/history');
       }, 2000);
       
       return;
