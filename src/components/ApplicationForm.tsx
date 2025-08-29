@@ -86,6 +86,21 @@ const PHILIPPINE_BARANGAYS = {
   'San Jose del Monte': ['Barangay 1', 'Barangay 2', 'Barangay 3', 'Barangay 4', 'Barangay 5', 'Barangay 6', 'Barangay 7', 'Barangay 8', 'Barangay 9', 'Barangay 10', 'Barangay 11', 'Barangay 12', 'Barangay 13', 'Barangay 14', 'Barangay 15', 'Barangay 16', 'Barangay 17', 'Barangay 18', 'Barangay 19', 'Barangay 20', 'Barangay 21', 'Barangay 22', 'Barangay 23', 'Barangay 24', 'Barangay 25', 'Barangay 26', 'Barangay 27', 'Barangay 28', 'Barangay 29', 'Barangay 30', 'Barangay 31', 'Barangay 32', 'Barangay 33', 'Barangay 34', 'Barangay 35']
 };
 
+// Phone number formatting function
+const formatPhoneNumber = (value: string): string => {
+  // Remove all non-digits
+  const digits = value.replace(/\D/g, '');
+  
+  // Apply format: XX XXXX XXXX
+  if (digits.length <= 2) {
+    return digits;
+  } else if (digits.length <= 6) {
+    return `${digits.slice(0, 2)} ${digits.slice(2)}`;
+  } else {
+    return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
+  }
+};
+
 // Banking preferences
 const bankTypes = [
   'rcbc', 'metrobank', 'eastWestBank', 'bpi', 'pnb', 'robinsonBank', 'maybank', 'aub',
@@ -155,6 +170,10 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectA
   const [selectedAgent, setSelectedAgent] = useState<string>('');
   const [agents, setAgents] = useState<any[]>([]);
   const { setLoading } = useLoading();
+  const [provinceInput, setProvinceInput] = useState<string>('');
+  const [municipalityInput, setMunicipalityInput] = useState<string>('');
+  const [showProvinceDropdown, setShowProvinceDropdown] = useState<boolean>(false);
+  const [showMunicipalityDropdown, setShowMunicipalityDropdown] = useState<boolean>(false);
 
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(formData));
@@ -417,7 +436,6 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectA
       if (!pd.dateOfBirth) missing.push('Date of Birth');
       
       // Check for birth location fields
-      if (!pd.birthRegion) missing.push('Birth Region');
       if (!pd.birthProvince) missing.push('Birth Province');
       if (!pd.birthMunicipality) missing.push('Birth Municipality');
       
@@ -556,55 +574,59 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectA
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Suffix</label><input type="text" value={formData.personalDetails.suffix} onChange={(e) => handleInputChange('personalDetails', 'suffix', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Date of Birth <span className="text-red-500">*</span></label><input type="date" value={formData.personalDetails.dateOfBirth} onChange={(e) => handleInputChange('personalDetails', 'dateOfBirth', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
         
-        {/* Place of Birth Region dropdown */}
+        {/* Place of Birth - Province and Municipality (Region removed) */}
         <div className="md:col-span-2">
           <h4 className="block text-sm font-medium text-gray-700 mb-4">Place of Birth <span className="text-red-500">*</span></h4>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Region <span className="text-red-500">*</span></label>
-              <select
-                value={formData.personalDetails.birthRegion}
-                onChange={(e) => handleBirthRegionChange(e.target.value)}
-                className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
-                required
-              >
-                <option value="">Select Region</option>
-                {(regionToProvincesMap ? Object.keys(regionToProvincesMap) : PHILIPPINE_REGIONS).map((region, index) => (
-                  <option key={index} value={region}>{region}</option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-2">Province <span className="text-red-500">*</span></label>
-              <select
-                value={formData.personalDetails.birthProvince}
-                onChange={(e) => handleBirthProvinceChange(e.target.value)}
+              <input
+                type="text"
+                value={provinceInput || formData.personalDetails.birthProvince}
+                onChange={(e) => { setProvinceInput(e.target.value); setShowProvinceDropdown(true); }}
+                onFocus={() => setShowProvinceDropdown(true)}
+                onBlur={() => setTimeout(() => setShowProvinceDropdown(false), 150)}
                 className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
-                disabled={!formData.personalDetails.birthRegion}
+                placeholder="Type to search province"
                 required
-              >
-                <option value="">Select Province</option>
-                {formData.personalDetails.birthRegion && getProvinces(formData.personalDetails.birthRegion).map((province, index) => (
-                  <option key={index} value={province}>{province}</option>
-                ))}
-              </select>
+              />
+              {showProvinceDropdown && (
+                <div className="absolute z-20 mt-1 w-full max-h-56 overflow-auto bg-white border border-gray-300 rounded-md shadow">
+                  {filterOptions(getAllProvinces(), provinceInput || formData.personalDetails.birthProvince).map((p) => (
+                    <div
+                      key={p}
+                      className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                      onMouseDown={() => { setProvinceInput(p); handleBirthProvinceChange(p); setMunicipalityInput(''); setShowProvinceDropdown(false); }}
+                    >{p}</div>
+                  ))}
+                </div>
+              )}
             </div>
-            
-            <div>
+
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-2">Municipality/City <span className="text-red-500">*</span></label>
-              <select
-                value={formData.personalDetails.birthMunicipality}
-                onChange={(e) => handleBirthMunicipalityChange(e.target.value)}
+              <input
+                type="text"
+                value={municipalityInput || formData.personalDetails.birthMunicipality}
+                onChange={(e) => { setMunicipalityInput(e.target.value); setShowMunicipalityDropdown(true); }}
+                onFocus={() => setShowMunicipalityDropdown(true)}
+                onBlur={() => setTimeout(() => setShowMunicipalityDropdown(false), 150)}
                 className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
-                disabled={!formData.personalDetails.birthProvince}
+                placeholder="Type to search municipality/city"
                 required
-              >
-                <option value="">Select Municipality/City</option>
-                {formData.personalDetails.birthProvince && getMunicipalities(formData.personalDetails.birthProvince).map((municipality, index) => (
-                  <option key={index} value={municipality}>{municipality}</option>
-                ))}
-              </select>
+                disabled={!formData.personalDetails.birthProvince}
+              />
+              {showMunicipalityDropdown && formData.personalDetails.birthProvince && (
+                <div className="absolute z-20 mt-1 w-full max-h-56 overflow-auto bg-white border border-gray-300 rounded-md shadow">
+                  {filterOptions(getMunicipalities(formData.personalDetails.birthProvince), municipalityInput || formData.personalDetails.birthMunicipality).map((m) => (
+                    <div
+                      key={m}
+                      className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                      onMouseDown={() => { setMunicipalityInput(m); handleBirthMunicipalityChange(m); setShowMunicipalityDropdown(false); }}
+                    >{m}</div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -612,8 +634,8 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectA
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Gender <span className="text-red-500">*</span></label><select value={formData.personalDetails.gender} onChange={(e) => handleInputChange('personalDetails', 'gender', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required><option value="">Select Gender</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Civil Status <span className="text-red-500">*</span></label><select value={formData.personalDetails.civilStatus} onChange={(e) => handleInputChange('personalDetails', 'civilStatus', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required><option value="">Select Status</option><option value="Single">Single</option><option value="Married">Married</option><option value="Separated">Separated</option><option value="Divorced">Divorced</option><option value="Widowed">Widowed</option></select></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Nationality <span className="text-red-500">*</span></label><input type="text" value={formData.personalDetails.nationality} onChange={(e) => handleInputChange('personalDetails', 'nationality', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
-        <div><label className="block text-sm font-medium text-gray-700 mb-2">Mobile Number <span className="text-red-500">*</span></label><input type="tel" inputMode="numeric" pattern="[0-9]{11}" maxLength={11} value={formData.personalDetails.mobileNumber} onInput={e => { const input = e.target as HTMLInputElement; input.value = input.value.replace(/\D/g, '').slice(0, 11); }} onChange={(e) => handleInputChange('personalDetails', 'mobileNumber', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
-        <div><label className="block text-sm font-medium text-gray-700 mb-2">Home Number</label><input type="tel" inputMode="numeric" pattern="[0-9]*" value={formData.personalDetails.homeNumber} onInput={e => { const input = e.target as HTMLInputElement; input.value = input.value.replace(/\D/g, ''); }} onChange={(e) => handleInputChange('personalDetails', 'homeNumber', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div>
+        <div><label className="block text-sm font-medium text-gray-700 mb-2">Mobile Number <span className="text-red-500">*</span></label><input type="tel" inputMode="numeric" maxLength={13} value={formatPhoneNumber(formData.personalDetails.mobileNumber || '')} onChange={(e) => { const digits = e.target.value.replace(/\D/g, ''); handleInputChange('personalDetails', 'mobileNumber', digits); }} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" placeholder="e.g., 02 3940 2021" required /></div>
+        <div><label className="block text-sm font-medium text-gray-700 mb-2">Home Number</label><input type="tel" inputMode="numeric" maxLength={13} value={formatPhoneNumber(formData.personalDetails.homeNumber || '')} onChange={(e) => { const digits = e.target.value.replace(/\D/g, ''); handleInputChange('personalDetails', 'homeNumber', digits); }} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" placeholder="e.g., 02 3940 2021" /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Email Address <span className="text-red-500">*</span></label><input type="email" value={formData.personalDetails.emailAddress} onChange={(e) => handleInputChange('personalDetails', 'emailAddress', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">SSS/GSIS/UMID</label><input type="text" value={formData.personalDetails.sssGsisUmid} onChange={(e) => handleInputChange('personalDetails', 'sssGsisUmid', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">TIN</label><input type="text" value={formData.personalDetails.tin} onChange={(e) => handleInputChange('personalDetails', 'tin', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" /></div>
@@ -638,7 +660,7 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectA
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Profession/Occupation <span className="text-red-500">*</span></label><input type="text" value={formData.workDetails.professionOccupation} onChange={(e) => handleInputChange('workDetails', 'professionOccupation', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Nature of Business <span className="text-red-500">*</span></label><input type="text" value={formData.workDetails.natureOfBusiness} onChange={(e) => handleInputChange('workDetails', 'natureOfBusiness', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Department (if employed) <span className="text-red-500">*</span></label><input type="text" value={formData.workDetails.department} onChange={(e) => handleInputChange('workDetails', 'department', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
-        <div><label className="block text-sm font-medium text-gray-700 mb-2">Landline Number/Mobile No. <span className="text-red-500">*</span></label><input type="tel" inputMode="numeric" pattern="[0-9]*" value={formData.workDetails.landlineMobile} onInput={e => { const input = e.target as HTMLInputElement; input.value = input.value.replace(/\D/g, ''); }} onChange={(e) => handleInputChange('workDetails', 'landlineMobile', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
+        <div><label className="block text-sm font-medium text-gray-700 mb-2">Landline Number/Mobile No. <span className="text-red-500">*</span></label><input type="tel" inputMode="numeric" maxLength={13} value={formatPhoneNumber(formData.workDetails.landlineMobile || '')} onChange={(e) => { const digits = e.target.value.replace(/\D/g, ''); handleInputChange('workDetails', 'landlineMobile', digits); }} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" placeholder="e.g., 02 3940 2021" required /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Years in Present Business/Employer <span className="text-red-500">*</span></label><input type="text" value={formData.workDetails.yearsInBusiness} onChange={(e) => handleInputChange('workDetails', 'yearsInBusiness', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Monthly Income <span className="text-red-500">*</span></label><input type="text" value={formData.workDetails.monthlyIncome} onChange={(e) => handleInputChange('workDetails', 'monthlyIncome', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
         <div><label className="block text-sm font-medium text-gray-700 mb-2">Annual Income <span className="text-red-500">*</span></label><input type="text" value={formData.workDetails.annualIncome} onChange={(e) => handleInputChange('workDetails', 'annualIncome', e.target.value)} className="w-full px-3 md:px-4 py-2 md:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base" required /></div>
@@ -698,27 +720,25 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectA
   };
 
   const handleBirthProvinceChange = (value: string) => {
-    const birthRegion = formData.personalDetails.birthRegion;
     setFormData(prev => ({
       ...prev,
       personalDetails: { 
         ...prev.personalDetails, 
         birthProvince: value,
         birthMunicipality: '',
-        placeOfBirth: value ? `${value}, ${birthRegion}` : birthRegion
+        placeOfBirth: value ? `${value}` : ''
       }
     }));
   };
 
   const handleBirthMunicipalityChange = (value: string) => {
-    const birthRegion = formData.personalDetails.birthRegion;
     const birthProvince = formData.personalDetails.birthProvince;
     setFormData(prev => ({
       ...prev,
       personalDetails: { 
         ...prev.personalDetails, 
         birthMunicipality: value,
-        placeOfBirth: value ? `${value}, ${birthProvince}, ${birthRegion}` : `${birthProvince}, ${birthRegion}`
+        placeOfBirth: value ? `${value}, ${birthProvince}` : `${birthProvince}`
       }
     }));
   };
@@ -731,12 +751,14 @@ const ApplicationForm = ({ isAgentForm = false, isEncoderForm = false, redirectA
     return PHILIPPINE_CITIES[province as keyof typeof PHILIPPINE_CITIES] || [];
   };
 
-  // Get provinces for a region
-  const getProvinces = (region: string): string[] => {
-    if (regionToProvincesMap && regionToProvincesMap[region]) {
-      return regionToProvincesMap[region];
-    }
-    return PHILIPPINE_PROVINCES[region as keyof typeof PHILIPPINE_PROVINCES] || [];
+  const getAllProvinces = (): string[] => {
+    return Object.keys(provinceToMunicipalitiesMap || PHILIPPINE_CITIES);
+  };
+
+  const filterOptions = (options: string[], input: string): string[] => {
+    if (!input) return options;
+    const q = input.toLowerCase();
+    return options.filter(o => o.toLowerCase().includes(q));
   };
 
   return (
